@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# The template expressions below are expanded on the operator's machine.
+# The deploy context is ALSO exported as env vars, so both styles work - use whichever
+# reads better.
+# (Avoid writing template delimiters in comments: every one is evaluated, and an unknown key is an error.)
+set -euo pipefail
+
+echo "templated : app={{.app_name}} stage={{.stage}}"
+echo "env       : app=$APP_NAME host=$HOST"
+
+# Loop over the whole resolved config via .config (keyed by YAML field name):
+echo "hosts in this stage:"
+{{- range .config.hosts}}
+echo "  - {{.address}}"
+{{- end}}

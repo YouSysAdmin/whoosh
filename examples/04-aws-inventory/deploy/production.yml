@@ -1,0 +1,13 @@
+# Production - only vars differ from the shared Deployfile, the plugins, tasks,
+# and hooks all live there. This is the whole point: a stage is a set of values.
+vars:
+  aws_region: us-east-1
+  bastion: 10.0.1.10        # a reachable box whose IAM role we borrow over IMDS/SSH
+  deploy_user: deploy
+  env_tag: production       # matches the EC2 `Environment` tag
+  asg_name: api-prod-asg
+  ami_prefix: api-prod
+
+# The inventory plugins fills `servers` at startup, list static hosts here only if
+# you want to append any to the discovered fleet.
+# hosts: []

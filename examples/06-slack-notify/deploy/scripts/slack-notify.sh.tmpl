@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# One script for start / success / failure.
+# It branches on the deploy phase ({{.phase}}) to pick the message - set by whoosh when
+# the task runs as a hook (deploy:starting / deploy:finished / deploy:failed).
+# Runtime values come from the environment ($APP_NAME, $STAGE, $RELEASE_TIMESTAMP, $COMMIT_HASH), which work
+# the same over SSH and locally.
+set -euo pipefail
+: "${SLACK_WEBHOOK_URL:?set SLACK_WEBHOOK_URL to a Slack incoming webhook}"
+
+{{- if eq .phase "deploy:starting" }}
+status="started :hourglass_flowing_sand:"
+color="#3aa3e3"
+{{- else if eq .phase "deploy:failed" }}
+status="FAILED :x:"
+color="#cc0000"
+detail={{ .error | quote }}
+{{- else }}
+status="deployed :white_check_mark:"
+color="#2eb886"
+{{- end }}
+
+who="${USER:-ci}"
+text="*${APP_NAME}* ${status} to *${STAGE}*
+• release: \`${RELEASE_TIMESTAMP:-n/a}\`
+• commit:  \`${COMMIT_HASH:-n/a}\`
+• by:      ${who}${detail:+
+• error:   \`${detail}\`}"
+
+# Build the JSON payload: prefer jq, fall-back to a bash escapes.
+if command -v jq >/dev/null 2>&1; then
+  payload="$(jq -n --arg text "$text" --arg color "$color" \
+    '{attachments: [{color: $color, text: $text}]}')"
+else
+  esc=${text//\\/\\\\}; esc=${esc//\"/\\\"}; esc=${esc//$'\n'/\\n}
+  payload="{\"text\":\"${esc}\"}"
+fi
+
+curl -fsS -X POST -H 'Content-type: application/json' \
+  --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
+
+echo "slack: sent '${status}' for ${APP_NAME} (${STAGE})"

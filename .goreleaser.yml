@@ -1,0 +1,180 @@
+version: 2
+
+project_name: whoosh
+
+before:
+  hooks:
+    - go mod download
+    # The AWS-enabled binary is built from the cmd/whoosh-aws module.
+    - go mod download -C cmd/whoosh-aws
+
+release:
+  prerelease: "false"
+
+env:
+  - CGO_ENABLED=0
+
+builds:
+  - id: linux
+    main: ./cmd/whoosh
+    binary: whoosh
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
+
+  # macOS, Apple Silicon (arm64).
+  - id: darwin
+    main: ./cmd/whoosh
+    binary: whoosh
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
+
+  # AWS-enabled binary - same entrypoint as cmd/whoosh, plus the aws plugin.
+  # Built from the cmd/whoosh-aws module (its go.mod replaces the core + aws plugin to the local checkout), so the AWS
+  # SDK stays out of the root module. The ldflag target resolves to the core module via that replace.
+  - id: aws-linux
+    dir: cmd/whoosh-aws
+    main: .
+    binary: whoosh
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
+
+  - id: aws-darwin
+    dir: cmd/whoosh-aws
+    main: .
+    binary: whoosh
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
+
+archives:
+  # whoosh_* archives - the default binary (no AWS plugins).
+  - id: default
+    ids:
+      - linux
+      - darwin
+    name_template: >-
+      {{ .Binary }}_v{{ .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}amd64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+
+  # whoosh-aws_* archives - the AWS-enabled binary (binary inside is still named `whoosh`).
+  - id: aws
+    ids:
+      - aws-linux
+      - aws-darwin
+    name_template: >-
+      whoosh-aws_v{{ .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}amd64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+checksum:
+  name_template: "checksums.sha256"
+
+snapshot:
+  version_template: "{{ .Tag }}-devel"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+dockers:
+  # linux/amd64
+  - ids: [linux]
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-amd64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
+      - --label=org.opencontainers.image.version={{ .Version }}
+
+  # linux/arm64
+  - ids: [linux]
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-arm64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
+      - --label=org.opencontainers.image.version={{ .Version }}
+
+  # AWS-enabled image, linux/amd64 - built from the aws-linux build (whoosh + aws plugin).
+  - ids: [aws-linux]
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-amd64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
+      - --label=org.opencontainers.image.version={{ .Version }}-aws
+
+  # AWS-enabled image, linux/arm64
+  - ids: [aws-linux]
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-arm64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
+      - --label=org.opencontainers.image.version={{ .Version }}-aws
+
+docker_manifests:
+  - name_template: ghcr.io/yousysadmin/whoosh:{{ .Version }}
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-arm64
+  - name_template: ghcr.io/yousysadmin/whoosh:latest
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-arm64
+
+  # AWS-enabled multi-arch manifest - tagged {{ .Version }}-aws (and latest-aws).
+  - name_template: ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-arm64
+  - name_template: ghcr.io/yousysadmin/whoosh:latest-aws
+    image_templates:
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-arm64

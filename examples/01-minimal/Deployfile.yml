@@ -1,0 +1,35 @@
+# 01-minimal - the smallest useful Deployfile.
+#
+# One app, one stage, deployed over SSH. No tasks and no hooks: just the core release lifecycle.
+#
+# clone a mirror -> build a timestamped release -> symlink shared files -> atomically swap `current` -> prune old releases
+#
+# Try it:
+#   whoosh production config             # show the resolved config
+#   whoosh production deploy --dry-run   # preview the plan, touches no host
+#   whoosh production deploy             # do it
+#   whoosh production releases           # list releases per host
+#   whoosh production deploy:rollback    # undo (repoint current at previous)
+version: "1"
+
+app:
+  name: hello-svc
+  repo: git@github.com:example-org/hello-svc.git
+  branch: main
+  deploy_to: /var/www/hello-svc
+  # Keep the last 5 releases on each host, older ones are pruned after a deploy.
+  keep_releases: 5
+
+# Persistent state that must survive a release swap. Each entry lives once in
+# <deploy_to>/shared and is symlinked into every new release, so it is not lost
+# when `current` moves to a fresh checkout.
+linked_files:
+  - .env                  # secrets / config kept out of git
+linked_dirs:
+  - log                   # application logs
+  - tmp                   # caches, pids
+
+# SSH defaults for every host (each server may override these).
+ssh:
+  user: deploy
+  port: 22

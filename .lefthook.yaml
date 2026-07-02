@@ -1,0 +1,135 @@
+#------------------------------------------------------------------------------
+# Lefthook - headscale-admin
+# (c) YouSysAdmin
+#------------------------------------------------------------------------------
+# After editing this file run:  lefthook install
+#------------------------------------------------------------------------------
+
+pre-commit:
+  parallel: true
+  exclude:
+    - "vendor/**"
+  commands:
+    ###########################################################################
+    # Go  (gofmt/goimports own *.go formatting, incl. tabs + final newline)
+    ###########################################################################
+    go-format:
+      glob: "*.go"
+      run: bash .lefthook/pre-commit/go-format.sh {staged_files}
+      stage_fixed: true
+
+    ###########################################################################
+    # Shell
+    ###########################################################################
+    # Static analysis
+    shellcheck:
+      glob: "*.sh"
+      exclude:
+        - "examples/**/*.sh"
+      run: shellcheck --format=tty {staged_files}
+
+    # Formatter (writes + restages; no --diff, which would fail after fixing)
+    shfmt:
+      glob: "*.sh"
+      run: shfmt -w --list {staged_files}
+      stage_fixed: true
+
+    ###########################################################################
+    # General
+    ###########################################################################
+    # Spelling
+    typos:
+      run: typos --config _typos.toml --force-exclude {staged_files}
+
+    # Block commits straight to master (CLAUDE.md: work on feature branches)
+    no-commit-to-master:
+      run: test "$(git branch --show-current)" != "master"
+
+    ###########################################################################
+    # File hygiene (mirrors .editorconfig)
+    ###########################################################################
+    # Strip trailing whitespace. *.go is handled by gofmt; go.{mod,sum} and
+    # *.md are exempted per .editorconfig; binaries are skipped.
+    trailing-whitespace:
+      glob: "*"
+      exclude:
+        - "*.go"
+        - "go.mod"
+        - "go.sum"
+        - "**/*.lock"
+        - "**/*.{ttf,woff,woff2,otf,eot,png,jpg,jpeg,gif,ico,svg}"
+      run: bash .lefthook/pre-commit/trailing-whitespace.sh {staged_files}
+      stage_fixed: true
+
+    # Ensure files end with a single newline.
+    end-of-file-fixer:
+      glob: "*"
+      exclude:
+        - "*.go"
+        - "go.mod"
+        - "go.sum"
+        - "**/*.lock"
+        - "**/*.{ttf,woff,woff2,otf,eot,png,jpg,jpeg,gif,ico,svg}"
+      run: bash .lefthook/pre-commit/end-of-file-fixer.sh {staged_files}
+      stage_fixed: true
+
+    # Executable files must start with #!
+    check-executables-have-shebangs:
+      run: bash .lefthook/pre-commit/check-executables-have-shebangs.sh {staged_files}
+
+    # Block files larger than 500 KB (frontend/static/fonts exempt)
+    check-added-large-files:
+      run: bash .lefthook/pre-commit/check-added-large-files.sh
+
+    # Reject merge conflict markers
+    check-merge-conflict:
+      glob: "*"
+      run: bash .lefthook/pre-commit/check-merge-conflict.sh {staged_files}
+
+    # Reject broken symlinks
+    check-symlinks:
+      run: bash .lefthook/pre-commit/check-symlinks.sh {staged_files}
+
+    # Validate YAML parses (parse-only, no style linting)
+    check-yaml:
+      glob: "*.{yml,yaml}"
+      run: bash .lefthook/pre-commit/check-yaml.sh {staged_files}
+
+    ###########################################################################
+    # Secrets
+    ###########################################################################
+    # Detect committed private keys
+    detect-private-key:
+      glob: "*"
+      exclude:
+        - "**/*.{ttf,woff,woff2,otf,eot,png,jpg,jpeg,gif,ico}"
+        - "**/*_test.go"
+      run: bash .lefthook/pre-commit/detect-private-key.sh {staged_files}
+
+    # Detect committed tokens / API keys (AWS, GitHub, Slack, Stripe, …)
+    detect-secrets:
+      glob: "*"
+      exclude:
+        - "**/*.lock"
+        - "**/*.{ttf,woff,woff2,otf,eot,png,jpg,jpeg,gif,ico}"
+        - "**/*_test.go"
+      run: bash .lefthook/pre-commit/detect-secrets.sh {staged_files}
+
+#------------------------------------------------------------------------------
+# Commit message - Conventional Commits (CLAUDE.md)
+#------------------------------------------------------------------------------
+commit-msg:
+  commands:
+    conventional-commit:
+      run: bash .lefthook/commit-msg/conventional-commit.sh {1}
+
+#------------------------------------------------------------------------------
+# Pre-push - the heavier gates that mirror `make test` / `make lint`
+#------------------------------------------------------------------------------
+pre-push:
+  parallel: true
+  commands:
+    go-vet:
+      run: go vet ./...
+    go-test:
+      run: go test ./...

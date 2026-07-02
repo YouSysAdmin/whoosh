@@ -1,0 +1,1 @@
+{{range $k, $v := .Env}}export {{$k}}={{dq $v}}; {{end}}{{if .Dir}}cd {{sh .Dir}} && {{end}}{{.Command}}

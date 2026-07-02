@@ -1,0 +1,14 @@
+# UAT - same logic as production, a different account/region/ASG, and a different
+# branch. Note there is no plugins/tasks/hooks block here: only an app override
+# and vars. (Compare with deploy/production.yml - that's the duplication this
+# vars-driven layout removes.)
+app:
+  branch: develop            # per-field app override, name/repo/deploy_to stay
+
+vars:
+  aws_region: ca-central-1
+  bastion: 10.4.20.204
+  deploy_user: deployer
+  env_tag: uat
+  asg_name: api-uat-asg
+  ami_prefix: api-uat

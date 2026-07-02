@@ -1,0 +1,68 @@
+# Shared deployment configuration. Per-stage hosts live in whoosh/<stage>.yml.
+# This file is the configuration for the Whoosh tool.
+# https://github.com/yousysadmin/whoosh
+version: "1"
+
+app:
+  name: myapp
+  repo: git@github.com:org/myapp.git
+  branch: main
+  deploy_to: /var/www/myapp
+
+# How many old releases to keep on each host after a deploy.
+keep_releases: 5
+
+# Files and directories kept in <deploy_to>/shared and symlinked into each release.
+linked_files:
+  - config/database.yml
+  - .env
+linked_dirs:
+  - log
+  - tmp/pids
+  - public/uploads
+
+# Variables available to task command templates as {{.VAR}}.
+vars:
+  RAILS_ENV: production
+
+# Default SSH settings, individual servers (in whoosh/<stage>.yml) may override.
+ssh:
+  user: deploy
+  port: 22
+
+tasks:
+  restart:
+    desc: Restart the application
+    roles: [app]
+    cmds:
+      - sudo systemctl restart {{.app_name}}
+
+  migrate:
+    desc: Run database migrations
+    roles: [db]
+    once: true
+    cmds:
+      - cd {{.release_path}} && bin/rails db:migrate
+
+  # Tasks can also run shell scripts. Files are looked up in whoosh/scripts/ by
+  # name (or give an absolute path), or written inline. The deploy context,
+  # vars, and the task's env are exported to each script as environment
+  # variables ($RELEASE_PATH, $APP_NAME, $HOST, ...).
+  setup:
+    desc: Run setup scripts on the app servers
+    roles: [app]
+    scripts:
+      - path: example.sh          # from whoosh/scripts/
+        interpreter: /usr/bin/env bash
+      - name: report
+        script: |
+          echo "released {{.app_name}} to $RELEASE_PATH on $HOST"
+
+# Wire tasks into the deploy lifecycle. Phases: deploy:starting, deploy:check,
+# deploy:updating, deploy:symlink, deploy:publishing, deploy:finishing,
+# deploy:finished. migrate runs after shared symlinks so linked config (e.g.
+# database.yml) is already in place.
+hooks:
+  after:
+    deploy:symlink: [migrate]
+    deploy:publishing: [restart]

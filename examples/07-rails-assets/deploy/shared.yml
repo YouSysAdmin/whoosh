@@ -1,0 +1,69 @@
+# Variant B - shared public/assets.
+#
+# public/assets is a linked_dir, so every release symlinks to ONE shared assets
+# dir. Old fingerprinted files accumulate and SURVIVE a deploy (a browser tab
+# still holding the old page can keep fetching old digests during/after the
+# swap), and `assets:clean[N]` prunes them, keeping the newest N.
+#
+# The catch is the manifest. That one shared dir holds ONE manifest, overwritten
+# by every precompile. After a rollback, the rolled-back release would read the
+# NEWER manifest and serve mismatched or missing assets. To stay correct we:
+#   1. back the manifest up INTO each release on deploy   (backup-manifest.sh), and
+#   2. restore it after a rollback                        (restore-manifest.sh).
+#
+# Both are automatic: step 1 runs in the `assets` task on deploy, step 2 is
+# wired to the `deploy:rollback` hook (below), whose `after` tasks run with
+# `current` already pointing at the restored release. So a plain rollback puts
+# the matching manifest back with no extra command:
+#
+#       whoosh shared deploy:rollback
+#
+# (Variant A - per-release.yml - needs none of this.)
+
+linked_dirs:
+  - log
+  - tmp/pids
+  - tmp/sockets
+  - public/system
+  - public/assets    # <-- shared across releases (this is what creates the manifest problem)
+  - storage
+
+hosts:
+  - address: 10.0.0.11
+    roles: [web]
+  - address: 10.0.0.21
+    roles: [db]
+
+tasks:
+  assets:
+    desc: Precompile, prune old digests, back up the manifest
+    roles: [web]
+    cmds:
+      - bundle exec rails assets:precompile
+      # Keep the newest 5 versions of each digest in the shared dir. (Only
+      # meaningful BECAUSE the dir is shared - see per-release.yml.)
+      - bundle exec rake "assets:clean[5]"
+    scripts:
+      # Runs after the cmds, so the manifest it copies is the fresh one.
+      - path: backup-manifest.sh
+        interpreter: /usr/bin/env bash
+
+  # Fired automatically by the deploy:rollback hook (below), also runnable by
+  # hand as `whoosh shared restore-manifest` if you ever need it. Tasks run
+  # inside `current`, which the rollback just repointed at the previous release,
+  # so this restores THAT release's manifest into the shared public/assets.
+  restore-manifest:
+    desc: Restore the current release's asset manifest into the shared dir
+    roles: [web]
+    hidden: true   # fired by the hook below, kept out of the CLI listing
+    scripts:
+      - path: restore-manifest.sh
+        interpreter: /usr/bin/env bash
+
+hooks:
+  after:
+    # Release built and shared config linked in, but not yet live.
+    deploy:updated: [bundle, assets, migrate]
+    # After the rollback swap, current points at the restored release - put its
+    # asset manifest back into the shared dir.
+    deploy:rollback: [restore-manifest]

@@ -1,0 +1,110 @@
+# 04-aws-inventory - discover hosts from EC2 tags, bake/roll AMIs, refresh an ASG.
+#
+# Shows the recommended layout: the LOGIC (the aws plugins, tasks, hooks) lives
+# here in the shared Deployfile, and each deploy/<stage>.yml supplies only VARS -
+# region, bastion, ASG name, etc. Adding or changing a stage means editing a
+# handful of vars, never copying plugins or task blocks.
+#
+# Plugin `params:` and action `with:` are Go-templated (against vars + static
+# config + sprig), so `{{ .bastion }}` etc. resolve. Quote templated values
+# ("{{ .x }}") - a bare leading `{` is a YAML flow-mapping and won't parse.
+#
+# One `aws` plugins provides all features:
+#   - aws:ec2:inventory - startup, appends tag-matched EC2 instances to servers
+#                         (listed under actions: because it needs tag filters)
+#   - aws:ec2:asg           - aws:ec2:asg:refresh / aws:ec2:asg:rollback actions
+#   - aws:ec2:ami           - aws:ec2:ami:create / aws:ec2:ami:cleanup actions
+#
+# Try it (needs AWS access):
+#   whoosh uat hosts              # resolve inventory and print the table, no deploy
+#   whoosh production deploy      # deploy + (hooks) bake AMI, roll ASG, prune
+#   whoosh production asg-rollback
+#   whoosh staging deploy         # aws is OFF here (except: [staging]) - its tasks are skipped
+version: "1"
+
+app:
+  name: api
+  repo: git@github.com:example-org/api.git
+  branch: main                 # stages can override (uat/staging use develop)
+  deploy_to: /srv/api
+  keep_releases: 5
+
+linked_files:
+  - .env
+linked_dirs:
+  - log
+
+ssh:
+  user: deploy
+  forward_agent: true
+
+# One `aws` plugins, declared ONCE. Its global params hold the shared AWS
+# connection (region + bastion creds), `actions:` configures features. It runs in
+# every stage EXCEPT staging (which has no AWS) - there, inventory isn't populated
+# and the bake/roll/prune action tasks are skipped (not failed). The per-stage
+# values come from vars (see deploy/<stage>.yml), so a new stage is a vars block.
+plugins:
+  - name: aws
+    except: [staging]
+    params:
+      region: "{{ .aws_region }}"
+      credentials_from_host: { host: "{{ .bastion }}", user: "{{ .deploy_user }}" }
+    actions:
+      - name: aws:ec2:inventory
+        params:
+          tags:
+            Environment: ["{{ .env_tag }}"]
+            Application: ["{{ .app_name }}"]   # app_name is a static context value
+            Role: [app, worker]
+          role_tag: Roles            # derive roles from the instance's Roles tag
+          roles: [app]               # fallback when the tag is absent
+          use_public_ip: false
+          deploy_tag: { Name: Deploy, Value: "true" }        # only these instances deploy
+          required_tag: { Name: Critical, Value: "true" }    # these are never skipped
+      - name: aws:ec2:asg    # actions are available even without listing them here,
+      - name: aws:ec2:ami    # behavior comes from each task's with:
+
+tasks:
+  restart:
+    desc: Restart the service
+    roles: [app]
+    cmds:
+      - sudo systemctl restart api
+
+  # ACTION tasks invoke a plugins-registered action instead of a shell command.
+  # `with:` carries the params (Go-templated), they run operator-side, no roles.
+
+  bake-ami:
+    desc: Build an AMI and point the launch template at it
+    action: aws:ec2:ami:create
+    with:
+      name_prefix: "{{ .ami_prefix }}"
+      asg: "{{ .asg_name }}"                  # source = first InService instance
+      launch_template: { asg: "{{ .asg_name }}" }
+
+  asg-refresh:
+    desc: Roll the ASG and wait for the refresh to complete
+    action: aws:ec2:asg:refresh
+    with:
+      name: "{{ .asg_name }}"
+      min_healthy_percentage: 90    # defaults: max_healthy 200, warmup 300,
+      instance_warmup: 120          # skip_matching true, auto_rollback false
+
+  asg-rollback:
+    desc: Roll the launch template back a version, then refresh onto it
+    action: aws:ec2:asg:rollback
+    with:
+      name: "{{ .asg_name }}"
+
+  prune-amis:
+    desc: Remove old AMIs, keeping the newest few
+    action: aws:ec2:ami:cleanup
+    with:
+      name_prefix: "{{ .ami_prefix }}"
+      tags: { Application: "{{ .app_name }}", Environment: ["{{ .env_tag }}"] }
+      keep_last: 3
+
+hooks:
+  after:
+    # In staging the aws:* action tasks are skipped (plugins off), restart still runs.
+    deploy:published: [restart, bake-ami, asg-refresh, prune-amis]

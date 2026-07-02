@@ -1,0 +1,7 @@
+# Hosts for the `production` stage. Everything else is inherited from the shared Deployfile.yml.
+# The stage name comes from this file's name (production.yml).
+hosts:
+  - address: web1.example.com
+    roles: [app]
+  - address: web2.example.com
+    roles: [app]

@@ -1,0 +1,19 @@
+{{- /* Language switcher: one compact link per configured language (the language
+       code, e.g. EN / UK). Links to the current page's translation when it exists,
+       otherwise that language's home. Iterating site.Sites makes each language's
+       home resolve correctly even with the default language served at the root.
+       Renders nothing when only one language is configured. */ -}}
+{{- if gt (len hugo.Sites) 1 -}}
+<div class="cs-lang" role="group" aria-label="{{ i18n "lang_switch" }}">
+  {{- range hugo.Sites -}}
+    {{- $s := . -}}
+    {{- $tr := "" -}}
+    {{- range $.AllTranslations -}}
+      {{- if eq .Language.Lang $s.Language.Lang -}}{{- $tr = .RelPermalink -}}{{- end -}}
+    {{- end -}}
+    {{- $href := or $tr $s.Home.RelPermalink -}}
+    {{- $cur := eq $s.Language.Lang site.Language.Lang -}}
+    <a class="cs-lang-link{{ if $cur }} cs-lang-cur{{ end }}" href="{{ $href }}" hreflang="{{ $s.Language.Lang }}" lang="{{ $s.Language.Lang }}" title="{{ $s.Language.Label }}"{{ if $cur }} aria-current="true"{{ end }}>{{ $s.Language.Lang | upper }}</a>
+  {{- end -}}
+</div>
+{{- end -}}

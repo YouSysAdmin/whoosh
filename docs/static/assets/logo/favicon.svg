@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="Whoosh">
+  <rect width="256" height="256" rx="56" fill="#14171c"/>
+  <g stroke="#f4f5f7" stroke-width="22" stroke-linecap="round">
+    <path d="M46 102 H94"/>
+    <path d="M46 154 H94"/>
+  </g>
+  <path d="M112 70 L182 128 L112 186" stroke="#ff6b35" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

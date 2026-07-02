@@ -1,0 +1,11 @@
+# Staging has no AWS. The `aws` plugins lists `except: [staging]`, so it is not
+# loaded here: inventory doesn't populate `servers`, and the bake-ami/asg-refresh/
+# asg-rollback/prune-amis action tasks are SKIPPED (logged), not failed. `restart`
+# still runs. So no aws_region/bastion/asg_name vars are needed - list hosts
+# statically instead.
+app:
+  branch: develop
+
+hosts:
+  - address: staging1.internal
+    roles: [app, web, worker]

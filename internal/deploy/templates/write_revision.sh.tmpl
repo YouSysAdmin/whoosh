@@ -1,0 +1,1 @@
+git -C {{sh .Repo}} rev-parse {{sh .Branch}} > {{sh .RevisionFile}} && printf '%s\n' {{sh .Time}} > {{sh .TimeFile}}

@@ -1,0 +1,3 @@
+{{range $k, $v := .Env}}export {{$k}}={{dq $v}}
+{{end}}{{if .Dir}}cd {{sh .Dir}} && {{end}}{{.Interpreter}} <<'__WHOOSH_SCRIPT_EOF__'
+{{.Content}}__WHOOSH_SCRIPT_EOF__

@@ -1,0 +1,147 @@
+# 05-tasks-and-scripts - a cookbook of task & templating features.
+#
+# Most tasks here are `local: true` so you can run them on your machine without
+# any hosts. In a real deploy you'd give them `roles:` and they'd run on the
+# matching hosts instead. Every task is exposed as a subcommand:
+#
+#   whoosh demo --help            # list all tasks
+#   whoosh demo show-context      # template {{.x}} vs env $X
+#   whoosh demo inventory         # {{.config.hosts}}  (host table: deploy:hosts)
+#   TOKEN=s3cr3t whoosh demo with-secret   # {{ env "VAR" }} from the operator
+#   whoosh demo env-file          # values from .env (env_files), envs overriding
+#   whoosh demo inline-script     # multi-line inline script
+#   whoosh demo file-script       # a templated file from deploy/scripts/
+#   whoosh demo in-dir            # explicit dir + per-task envs
+#   whoosh demo flaky             # continue_on_error
+#   whoosh demo pipeline          # deps: run `build` first
+version: "1"
+
+app:
+  name: cookbook
+  repo: https://github.com/octocat/Hello-World.git
+  branch: master
+  deploy_to: /tmp/cookbook
+
+# vars: usable as {{.KEY}} in templates AND exported as $KEY. Any YAML type.
+vars:
+  GREETING: "hello"
+  REPLICAS: 3
+
+# envs: exported as $KEY, shell-expanded, and each value is itself templated.
+envs:
+  # Reads TOKEN from the operator's / CI environment at run time.
+  # Command output is secret-redacted unless --log-level debug.
+  REGISTRY_TOKEN: '{{ env "TOKEN" }}'
+  REGION: us-west-2 # overrides REGION from .env below (envs wins)
+
+# env_files: dotenv (.env) files merged into every task's environment, as a base
+# layer that `envs` overrides. Paths are relative to this Deployfile, a missing
+# file is skipped, the loaded values stay out of `whoosh demo config`.
+env_files:
+  - app.env
+
+# log: whoosh's own logging can be set here too, CLI --log-* flags still win, e.g.
+#   whoosh demo show-context --log-format text   # overrides format below
+# log:
+#   format: json
+#   file: deploy.log # also write a transcript here
+
+tasks:
+  show-context:
+    desc: Deploy-context values, as templates and as env vars
+    local: true
+    cmds:
+      # lowercase {{.x}} template form ...
+      - 'echo "app={{.app_name}} stage={{.stage}} release={{.release_path}}"'
+      - 'echo "greeting={{.GREETING}} replicas={{.REPLICAS}}"'
+      # ... and the UPPERCASE $X shell form (both work in cmds and scripts)
+      - 'echo "via env: $APP_NAME / $STAGE / $CURRENT_PATH"'
+
+  inventory:
+    desc: Render the resolved host list from {{.config}}
+    local: true
+    cmds:
+      # The host table itself is `whoosh demo deploy:hosts`, here we iterate the
+      # resolved config to show {{.config.hosts}} and the per-host .address field.
+      - 'echo "hosts:{{ range .config.hosts }} {{ .address }}{{ end }}"'
+
+  with-secret:
+    desc: Use a secret pulled from the operator environment
+    local: true
+    cmds:
+      - 'echo "token is ${REGISTRY_TOKEN:-<unset, run with TOKEN=...>}"'
+
+  env-file:
+    desc: Values loaded from app.env (env_files), with envs overriding
+    local: true
+    cmds:
+      - 'echo "from app.env:     APP_TIER=$APP_TIER"'
+      - 'echo "envs over file:   REGION=$REGION (envs sets us-west-2)"'
+
+  inline-script:
+    desc: A multi-line inline script (templated)
+    local: true
+    scripts:
+      - name: greet
+        interpreter: /usr/bin/env bash
+        script: |
+          set -euo pipefail
+          for i in $(seq 1 {{.REPLICAS}}); do
+            echo "{{.GREETING}} #$i from $APP_NAME"
+          done
+
+  file-script:
+    desc: Run a templated script file from deploy/scripts/
+    local: true
+    scripts:
+      - path: info.sh.tmpl # *.tmpl files are Go-templated automatically
+        interpreter: /usr/bin/env bash
+
+  in-dir:
+    desc: Explicit working directory and per-task envs
+    local: true
+    dir: /tmp
+    envs:
+      EXTRA: "task-scoped" # task envs wins over global envs on key clashes
+    cmds:
+      - 'echo "pwd=$(pwd) extra=$EXTRA"'
+
+  flaky:
+    desc: Keep going past a failing command
+    local: true
+    continue_on_error: true
+    cmds:
+      - 'false' # fails - but the next command still runs
+      - 'echo "still here"'
+
+  build:
+    desc: A dependency target (announced quietly)
+    local: true
+    silent: true # suppress the "task" log line
+    cmds:
+      - 'echo "building..."'
+
+  # Task state: a producer captures + parses its stdout, consumers read it as
+  # {{ .tasks.<name>.field }}. Order with deps so the producer runs first.
+  fetch:
+    desc: Produce JSON and store it as run-scoped state
+    local: true
+    output: json # capture stdout, parse JSON -> .tasks.fetch
+    cmds:
+      - 'echo ''{"greeting":"hi","count":2}'''
+
+  use-state:
+    desc: Consume another task's captured output
+    local: true
+    deps: [fetch] # fetch runs (and captures) before this
+    envs:
+      GREETING: '{{ .tasks.fetch.greeting }}' # state also works in envs:
+    cmds:
+      - 'echo "{{ .tasks.fetch.greeting }} x{{ .tasks.fetch.count }} (env=$GREETING)"'
+
+  pipeline:
+    desc: Runs its deps first, then its own work
+    local: true
+    deps: [build] # `build` runs before this task
+    cmds:
+      - 'echo "pipeline ran after build"'

@@ -1,0 +1,43 @@
+name: Test
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each entry is a separate go module (go test ./... stops at go.mod boundaries).
+        # cmd/whoosh-aws is build-only: it is the goreleaser composition module and has no tests.
+        include:
+          - { module: ".", test: true }
+          - { module: "plugins/aws", test: true }
+          - { module: "plugins/rbenv", test: true }
+          - { module: "cmd/whoosh-aws", test: false }
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with: { go-version: '1.26' }
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l . | grep -v vendor/)" || (echo "Files need formatting:" && gofmt -l . | grep -v vendor/ && exit 1)
+
+      - name: Test
+        if: ${{ matrix.test }}
+        run: go test -race -count=1 ./...

@@ -1,0 +1,8 @@
+# Reusable tooltip definitions, looked up by the {{< tooltip term="…" >}} shortcode.
+# Key = term, value = the bubble text. Extend freely.
+
+stage = "A deployment target set - the name of a deploy/<stage>.yml file (e.g. production). It is just data, so adding a file adds a stage."
+role = "A label on a server (app, web, db, …). Tasks and hooks target hosts by role."
+release = "A timestamped directory under <deploy_to>/releases/ holding one checkout of the app. The current symlink points at the live one."
+primary = "The first/lock-holding host of a stage. The deploy lock is taken here and it is always implicitly required."
+mirror = "The bare --mirror git clone cached under <deploy_to>/repo, updated each deploy and used to build releases without re-cloning."

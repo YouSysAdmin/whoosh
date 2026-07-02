@@ -1,0 +1,40 @@
+# 03-local-mode - run the entire lifecycle on the local machine, no SSH.
+#
+# A server with `local: true` executes commands via /bin/sh on the operator's
+# own machine instead of dialing SSH. The release model is identical - only the
+# transport changes. Useful for:
+#   - trying whoosh with zero infrastructure (this example runs as-is)
+#   - CI runners that build and "deploy" on the same box
+#   - genuinely single-server setups
+#
+# This example clones a tiny public repo into /tmp, so you can run it for real:
+#   whoosh local deploy --dry-run
+#   whoosh local deploy
+#   whoosh local releases
+#   whoosh local deploy:rollback
+version: "1"
+
+app:
+  name: localapp
+  repo: https://github.com/octocat/Hello-World.git   # any clonable git URL
+  branch: master
+  deploy_to: /tmp/localapp                            # any writable directory
+  keep_releases: 3
+
+linked_dirs:
+  - log
+
+tasks:
+  show:
+    desc: Report where things landed
+    roles: [app]
+    cmds:
+      - 'echo "release  : $RELEASE_PATH"'
+      - 'echo "current  : $(readlink {{.current_path}})"'
+      # $COMMIT_HASH (and {{.commit_hash}}) is the deployed SHA, resolved from the
+      # git mirror during deploy:updating. It matches <release>/REVISION.
+      - 'echo "commit   : $COMMIT_HASH  ({{.commit_hash}})"'
+
+hooks:
+  after:
+    deploy:finishing: [show]

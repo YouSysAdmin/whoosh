@@ -1,0 +1,1 @@
+mkdir -p {{sh .Release}} && git -C {{sh .Repo}} archive {{sh .Branch}} | tar -x -f - -C {{sh .Release}}

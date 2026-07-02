@@ -1,0 +1,10 @@
+name        = "YouSysAdmin Hugo Docs Theme"
+license     = "Proprietary"
+description = "YouSysAdmin documentation theme. Dark-first, terminal energy, amber accent."
+homepage    = ""
+tags        = ["docs", "documentation", "dark", "amber"]
+features    = ["sidebar", "toc", "search", "github-dark code"]
+min_version = "0.150.0"
+
+[author]
+  name = "YouSysAdmin"

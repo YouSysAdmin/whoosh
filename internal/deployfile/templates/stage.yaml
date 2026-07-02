@@ -1,0 +1,22 @@
+# Stage: {{stage}}
+# Hosts and any per-stage overrides for the "{{stage}}" environment.
+
+# Override shared settings for this stage if needed:
+# app:
+#   branch: {{stage}}
+#   deploy_to: /var/www/myapp-{{stage}}
+
+# vars:
+#   RAILS_ENV: {{stage}}
+
+hosts:
+  - address: "{{stage}}.example.com"
+    roles: [app, web, db]
+    user: deploy
+    port: 22
+
+# Local execution mode (no SSH) - run the whole lifecycle on this machine:
+# hosts:
+#   - address: localhost
+#     local: true
+#     roles: [app, web, db]

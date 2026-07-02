@@ -1,0 +1,5 @@
+cur="$(basename "$(readlink "{{.CurrentPath}}" 2>/dev/null)")"
+if [ ! -d "{{.ReleasesPath}}" ]; then echo "(no releases)"; exit 0; fi
+for r in $(ls -1 "{{.ReleasesPath}}" | sort); do
+  if [ "$r" = "$cur" ]; then echo "$r (current)"; else echo "$r"; fi
+done

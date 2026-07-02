@@ -1,0 +1,146 @@
+baseURL = "https://whoosh.yousysadmin.com/"
+defaultContentLanguage = "en"
+# English stays at the root (/overview/), other languages get a prefix (/uk/overview/).
+defaultContentLanguageInSubdir = false
+title = "Whoosh"
+themesDir = "themes"
+theme = "youstsadmin-hugo-docs"
+enableRobotsTXT = true
+
+# Language-neutral params (shared across all languages). Language-specific copy
+# (tagline, description, trust_badges, features) lives under each [languages.xx.params].
+[params]
+author = "YouSysAdmin"
+brand = "Whoosh..."
+
+# Sidebar section collapsing (docs nav). Only sections that have sub-pages get a
+# toggle, the section holding the current page is always expanded. Override per
+# section in its _index.md front matter: `sidebar_collapsible` / `sidebar_collapsed`.
+sidebarCollapsible = true # sections with sub-pages get a collapse toggle
+sidebarCollapsed = true   # ...and start collapsed (only the current section auto-expands)
+
+# Section _index.md link in the sidebar. A section WITH sub-pages hides its own
+# _index entry by default (that page is a landing/stub whose content feeds the
+# "Browse the manual" cards), a section WITHOUT sub-pages keeps it (its _index IS
+# the page). Flip the multipage default below, or per section with `sidebar_index`
+# in the _index.md front matter (e.g. `sidebar_index: true` to show one anyway).
+#sidebarIndexLink = false
+
+# Footer columns derived from these toggles.
+show_footer_project = true
+repoURL = "https://github.com/YouSysAdmin/whoosh"
+
+# Optional: top-right primary CTA. Empty disables.
+cta_label = "GitHub"
+cta_icon = "github"
+cta_url = "https://github.com/YouSysAdmin/whoosh"
+
+# Optional: source links / edit-on-github (set repoURL + edit_base to enable).
+edit_base = ""
+
+# Home hero terminal demo (simulated CLI output - kept language-neutral).
+terminal_title = "~/myapp"
+terminal_lines = [
+  '<span class="cs-prefix cs-brand">$</span> whoosh production deploy',
+  '<span class="cs-dim">deploy:check</span>       <span class="cs-ok">directory tree ready · linked files present</span>',
+  '<span class="cs-dim">deploy:updating</span>    <span class="cs-ok">release 20260626 built (a1b2c3d)</span>',
+  '<span class="cs-dim">deploy:symlink</span>     <span class="cs-ok">linked shared files + dirs</span>',
+  '<span class="cs-dim">deploy:publishing</span>  <span class="cs-ok">current → releases/20260626</span>',
+  '<span class="cs-ok">done:</span>             web1, web2, db1',
+]
+
+# ============================ Languages ============================
+# Per-language content directories (content/en, content/uk). Add a language by
+# adding a [languages.xx] block + i18n/xx.toml (theme) + content/xx/.
+
+[languages.en]
+label = "English"
+weight = 1
+contentDir = "content/en"
+title = "Whoosh"
+
+[languages.en.params]
+description = "A single-binary, no-deps, deployment tool."
+tagline = "Whoosh..."
+tagline_sub = "and deployed."
+trust_badges = ["# single binary", "# no agent on targets", "# SSH or local", "# tasks & hooks", "# rollback"]
+
+[[languages.en.params.features]]
+title = "Single binary, no agent"
+description = "One static Go binary runs from your laptop or CI. Targets need only git, tar and a POSIX shell - there is no daemon, agent or runtime to install on them."
+[[languages.en.params.features]]
+title = "Separated releases"
+description = "Timestamped releases under deploy_to, shared files/dirs symlinked into each, an atomic `current` swap, pruning, and one-command rollback."
+[[languages.en.params.features]]
+title = "SSH or local"
+description = "Run over a real SSH connection (golang.org/x/crypto/ssh, no openssh needed) or directly on the box with local: true. Both transports mix freely in one stage."
+[[languages.en.params.features]]
+title = "Tasks & hooks"
+description = "A cmds, scripts, deps, roles, per-task env - wired to lifecycle phases with before/after hooks."
+[[languages.en.params.features]]
+title = "Templating built in"
+description = "Go templates with sprig in commands and scripts, and the whole deploy context exported to the shell as $RELEASE_PATH, $HOST, $STAGE, … too."
+[[languages.en.params.features]]
+title = "Dynamic inventory & AWS"
+description = "A bundled aws plugin discovers EC2 hosts from tags, bakes AMIs, rolls ASGs, and renders dotenv files from SSM Parameter Store or Secrets Manager."
+[[languages.en.params.features]]
+title = "Secret redaction"
+description = "Command echoes, host output, dry-run plans and logs are scrubbed for known secret formats, mark any value sensitive to mask it everywhere whoosh prints."
+[[languages.en.params.features]]
+title = "Safe by default"
+description = "Offline validate, --dry-run plans that touch no host, host-key verification, a per-stage deploy lock, and a configurable unreachable-host policy."
+
+[[languages.en.menu.main]]
+name = "Overview"
+url = "/overview/"
+weight = 10
+[languages.en.menu.main.params]
+icon = "book-open"
+[[languages.en.menu.main]]
+name = "Installation"
+url = "/installation/"
+weight = 20
+[languages.en.menu.main.params]
+icon = "download"
+[[languages.en.menu.main]]
+name = "Configuration"
+url = "/configuration/"
+weight = 30
+[languages.en.menu.main.params]
+icon = "pencil"
+[[languages.en.menu.main]]
+name = "Usage"
+url = "/usage/"
+weight = 40
+[languages.en.menu.main.params]
+icon = "terminal"
+[[languages.en.menu.main]]
+name = "Examples"
+url = "/examples/"
+weight = 50
+[languages.en.menu.main.params]
+icon = "rocket"
+
+# ============================ Markup / output ============================
+[markup]
+[markup.goldmark.renderer]
+unsafe = true
+[markup.tableOfContents]
+startLevel = 2
+endLevel = 4
+ordered = false
+[markup.highlight]
+style = "github-dark"
+lineNos = false
+noClasses = true
+tabWidth = 2
+codeFences = true
+guessSyntax = true
+
+[outputs]
+home = ["HTML", "JSON"]   # JSON = the per-language client-side search index (layouts/index.json)
+page = ["HTML"]
+section = ["HTML"]
+
+[taxonomies]
+tag = "tags"
