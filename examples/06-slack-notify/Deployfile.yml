@@ -1,0 +1,49 @@
+# 06-slack-notify - send a Slack message from a deploy hook.
+#
+# A `local: true` task runs on the operator/CI machine and POSTs to a Slack
+# incoming webhook (https://api.slack.com/messaging/webhooks). The webhook URL is
+# a secret, so it is pulled from the environment with {{ env "SLACK_WEBHOOK_URL" }}
+# instead of being written into the Deployfile. The notify tasks are wired into
+# the deploy lifecycle with hooks (start + finish). This example runs locally, so
+# `deploy` actually fires the hooks without any remote hosts.
+#
+# Try it:
+#   export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T.../B.../xxxxxxxx
+#   whoosh local notify              # post one message now (phase unset -> "deployed")
+#   whoosh local notify --dry-run    # show the command (URL is redacted)
+#   whoosh local deploy              # posts "started", then "deployed" (or "FAILED")
+version: "1"
+
+app:
+  name: demoapp
+  repo: https://github.com/octocat/Hello-World.git   # any clonable repo
+  branch: master
+  deploy_to: /tmp/slack-demo
+
+# Exported to every task. The webhook is read from the operator's / CI secret
+# environment at run time, whoosh redacts known secret formats (including
+# Slack webhook URLs) from command output and dry-run plans, so it does not land
+# in logs in clear text.
+envs:
+  SLACK_WEBHOOK_URL: '{{ env "SLACK_WEBHOOK_URL" }}'
+
+tasks:
+  # One task, one script. The script branches on {{.phase}} (set per hook), so the
+  # same task handles start, success, and failure.
+  notify:
+    desc: Notify Slack about the deploy (start / success / failure)
+    local: true
+    silent: true
+    scripts:
+      - path: slack-notify.sh.tmpl   # .tmpl -> Go-templated, so it can branch on phase
+        interpreter: /usr/bin/env bash
+
+# The same notify task is wired to three hook points. whoosh sets the phase for
+# each, so the script knows which message to send:
+#   deploy:starting -> "started"   deploy:finished -> "deployed"
+#   deploy:failed   -> "FAILED"    (runs when the deploy errors, gets {{.error}})
+hooks:
+  after:
+    deploy:starting: [notify]
+    deploy:finished: [notify]
+    deploy:failed:   [notify]

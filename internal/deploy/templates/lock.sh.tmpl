@@ -1,0 +1,2 @@
+mkdir -p {{sh .DeployTo}}
+if (set -C; printf '%s' {{sh .Info}} > {{sh .Lock}}) 2>/dev/null; then :; else echo "stage is locked by: $(cat {{sh .Lock}} 2>/dev/null)" >&2; exit 1; fi

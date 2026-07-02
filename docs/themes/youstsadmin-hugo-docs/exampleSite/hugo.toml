@@ -1,0 +1,156 @@
+# Example site for the doc-template theme.
+# Preview it standalone from inside this folder:
+#   cd exampleSite && hugo server --themesDir ../..
+#
+# Multilingual demo: English at the root (/docs/), Ukrainian under /uk/ (/uk/docs/).
+# The theme ships UI translations in i18n/en.toml + i18n/uk.toml; add a language by
+# adding a [languages.xx] block here + content/xx/ (and i18n/xx.toml in the theme).
+
+baseURL = "https://example.org/"
+defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = false
+title = "Docs Template"
+theme = "doc-template"
+enableRobotsTXT = true
+
+# Language-neutral params (shared). Language-specific copy (tagline, description,
+# trust_badges, features) lives under each [languages.xx.params].
+[params]
+author = "YouSysAdmin"
+brand = "Docs Template"
+repoURL = "https://github.com/example/doc-template"
+show_footer_project = true
+cta_label = "GitHub"
+cta_icon = "github"
+cta_url = "https://github.com/example/doc-template"
+edit_base = ""
+
+terminal_title = "~/doc-template"
+terminal_lines = [
+  '<span class="cs-prefix cs-brand">$</span> hugo server --themesDir ../..',
+  '<span class="cs-dim">theme:</span>   <span class="cs-ok">doc-template</span>',
+  '<span class="cs-dim">render:</span>  <span class="cs-ok">callouts · tooltips · icons</span>',
+  '<span class="cs-ok">web:</span>     http://localhost:1313/',
+]
+
+# ============================ Languages ============================
+[languages.en]
+label = "English"
+weight = 1
+contentDir = "content/en"
+title = "Docs Template"
+
+[languages.en.params]
+tagline = "A docs theme with terminal energy"
+description = "Example site for the doc-template Hugo documentation theme - callouts, tooltips, an icon pack, sidebar, TOC and pager."
+trust_badges = ["# dark-first", "# sidebar + TOC", "# callouts", "# tooltips", "# icon pack"]
+
+[[languages.en.params.features]]
+title = "Callouts"
+description = "Six admonition styles (note/info/tip/success/warning/danger) with icons, via the callout shortcode."
+[[languages.en.params.features]]
+title = "Tooltips"
+description = "CSS-only hover/focus tooltips with an optional reusable glossary in data/tooltips."
+[[languages.en.params.features]]
+title = "Icon pack"
+description = "Inline SVG icons usable in content, menu items and section headers."
+[[languages.en.params.features]]
+title = "Sidebar, TOC & pager"
+description = "Weight-ordered sidebar, an on-this-page table of contents, and a prev/next pager."
+
+[[languages.en.menu.main]]
+name = "Docs"
+url = "/docs/"
+weight = 10
+[languages.en.menu.main.params]
+icon = "book-open"
+[[languages.en.menu.main]]
+name = "Guide"
+url = "/guide/"
+weight = 20
+[languages.en.menu.main.params]
+icon = "terminal"
+[[languages.en.menu.main]]
+name = "Changelog"
+url = "/changelog/"
+weight = 30
+[languages.en.menu.main.params]
+icon = "clock"
+[[languages.en.menu.main]]
+name = "GitHub"
+url = "https://github.com/example/doc-template"
+weight = 40
+[languages.en.menu.main.params]
+icon = "github"
+
+[languages.uk]
+label = "Українська"
+weight = 2
+contentDir = "content/uk"
+title = "Docs Template"
+
+[languages.uk.params]
+tagline = "Тема документації з духом терміналу"
+description = "Приклад сайту для теми документації doc-template - виноски, тултіпи, набір іконок, бічна панель, зміст і пагінація."
+trust_badges = ["# темна тема", "# бічна панель + зміст", "# виноски", "# тултіпи", "# набір іконок"]
+
+[[languages.uk.params.features]]
+title = "Виноски"
+description = "Шість стилів виносок (note/info/tip/success/warning/danger) з іконками через шорткод callout."
+[[languages.uk.params.features]]
+title = "Тултіпи"
+description = "CSS-тултіпи на наведення/фокус з опціональним багаторазовим глосарієм у data/tooltips."
+[[languages.uk.params.features]]
+title = "Набір іконок"
+description = "Вбудовані SVG-іконки для контенту, пунктів меню та заголовків розділів."
+[[languages.uk.params.features]]
+title = "Бічна панель, зміст і пагінація"
+description = "Бічна панель за вагою, зміст «на цій сторінці» та пагінація вперед/назад."
+
+[[languages.uk.menu.main]]
+name = "Документація"
+url = "/docs/"
+weight = 10
+[languages.uk.menu.main.params]
+icon = "book-open"
+[[languages.uk.menu.main]]
+name = "Посібник"
+url = "/guide/"
+weight = 20
+[languages.uk.menu.main.params]
+icon = "terminal"
+[[languages.uk.menu.main]]
+name = "Журнал змін"
+url = "/changelog/"
+weight = 30
+[languages.uk.menu.main.params]
+icon = "clock"
+[[languages.uk.menu.main]]
+name = "GitHub"
+url = "https://github.com/example/doc-template"
+weight = 40
+[languages.uk.menu.main.params]
+icon = "github"
+
+# ============================ Markup / output ============================
+[markup]
+[markup.goldmark.renderer]
+unsafe = true
+[markup.tableOfContents]
+startLevel = 2
+endLevel = 4
+ordered = false
+[markup.highlight]
+style = "github-dark"
+lineNos = false
+noClasses = true
+tabWidth = 2
+guessSyntax = true
+
+[outputs]
+home = ["HTML", "JSON"]   # JSON = the per-language client-side search index (layouts/index.json)
+page = ["HTML"]
+section = ["HTML"]
+
+[taxonomies]
+tag = "tags"

@@ -1,0 +1,6 @@
+cd {{sh .ReleasesPath}} || exit 0
+count=$(ls -1 | wc -l)
+remove=$((count - {{.Keep}}))
+if [ "$remove" -gt 0 ]; then
+  ls -1 | sort | head -n "$remove" | while IFS= read -r d; do rm -rf "$d"; done
+fi

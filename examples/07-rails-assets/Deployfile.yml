@@ -1,0 +1,74 @@
+# 07-rails-assets - two ways to handle compiled assets. Pick one PER APP.
+#
+# Rails fingerprints assets (application.js -> application-<digest>.js) and
+# writes a MANIFEST mapping logical names -> digests, the asset helpers read it
+# at runtime. WHERE that compiled output lives across releases is a real choice
+# with a rollback consequence. This example ships both strategies as two stages
+# of the same app so you can diff their plans:
+#
+#   whoosh per-release deploy --dry-run
+#   whoosh shared      deploy --dry-run
+#
+#   per-release.yml  public/assets is NOT shared - each release compiles into
+#                    its own. Rollback is automatic & correct (assets + manifest
+#                    travel with the release). Simplest. Recommended default.
+#
+#   shared.yml       public/assets IS a shared linked_dir. Old digests survive
+#                    a deploy, but the single shared
+#                    manifest is overwritten every deploy, so a rollback must
+#                    restore the matching manifest. See that file + the README.
+#
+# This base file holds only what's common to both. The `assets` task, the
+# `linked_dirs`, and the `deploy:symlink` hook differ per strategy and live in
+# the two deploy/<stage>.yml files.
+version: "1"
+
+app:
+  name: shopapp
+  repo: git@github.com:example-org/shopapp.git
+  branch: main
+  deploy_to: /srv/shopapp
+  keep_releases: 5
+
+ssh:
+  user: deploy
+  forward_agent: true
+
+linked_files:
+  - config/database.yml
+  - config/master.key
+
+vars:
+  RAILS_ENV: production
+
+# rbenv shims on PATH so bundle/rails resolve in a non-login SSH shell.
+envs:
+  PATH: "$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+
+# Tasks common to both strategies. The `assets` task itself is defined per-stage
+# (it differs between them), as is the deploy:symlink hook that runs it.
+tasks:
+  bundle:
+    desc: Install gems
+    roles: [web]
+    cmds:
+      - bundle install --jobs 4 --deployment --without "development test"
+
+  migrate:
+    desc: Run database migrations
+    roles: [db]
+    once: true
+    cmds:
+      - bundle exec rails db:migrate
+
+  restart-web:
+    desc: Restart the web server
+    roles: [web]
+    cmds:
+      - sudo systemctl restart puma
+
+hooks:
+  after:
+    # Restart once the new release is live. (deploy:symlink - which runs
+    # bundle/assets/migrate before go-live - is wired per-stage.)
+    deploy:publishing: [restart-web]

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="{{ site.Language.Lang | default "en" }}">
+<head>
+  {{ partial "head.html" . }}
+</head>
+<body class="cs-doc{{ if .IsHome }} cs-home{{ end }}">
+  {{ partial "nav.html" . }}
+  <div class="cs-shell">
+    {{ if not .IsHome }}{{ partial "sidebar.html" . }}{{ end }}
+    <main class="cs-main{{ if .IsHome }} cs-main-wide{{ end }}" id="content">
+      {{ block "main" . }}{{ end }}
+    </main>
+    {{- /* "On this page" TOC. On by default for any page (incl. section
+        _index pages) with enough headings; set `toc: false` in front matter to
+        hide it. The grid always reserves the right column, so this just fills it. */ -}}
+    {{ $toc := true }}
+    {{ if isset .Params "toc" }}{{ $toc = .Params.toc }}{{ end }}
+    {{ if and (not .IsHome) $toc (gt (len .TableOfContents) 50) }}
+      {{ partial "toc.html" . }}
+    {{ end }}
+  </div>
+  {{ partial "search.html" . }}
+  {{ partial "footer.html" . }}
+</body>
+</html>

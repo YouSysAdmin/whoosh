@@ -1,0 +1,18 @@
+set -e
+cd "{{.ReleasesPath}}" 2>/dev/null || { echo "no releases directory" >&2; exit 1; }
+cur="$(readlink "{{.CurrentPath}}" 2>/dev/null || true)"
+curbase="$(basename "$cur")"
+if ! ls -1 | grep -qx "$curbase"; then echo "current release '$curbase' not found in releases" >&2; exit 1; fi
+prev=""
+for r in $(ls -1 | sort); do
+  if [ "$r" = "$curbase" ]; then break; fi
+  prev="$r"
+done
+if [ -z "$prev" ]; then echo "no earlier release to roll back to (current: $curbase)" >&2; exit 1; fi
+rm -f "{{.CurrentPath}}.tmp"
+ln -s "{{.ReleasesPath}}/$prev" "{{.CurrentPath}}.tmp"
+mv -T "{{.CurrentPath}}.tmp" "{{.CurrentPath}}" 2>/dev/null || { rm -f "{{.CurrentPath}}"; mv "{{.CurrentPath}}.tmp" "{{.CurrentPath}}"; }
+echo "rolled back: $curbase -> $prev"
+{{if .Cleanup}}rm -rf "{{.ReleasesPath}}/$curbase"
+echo "removed rolled-back release: $curbase"
+{{end}}

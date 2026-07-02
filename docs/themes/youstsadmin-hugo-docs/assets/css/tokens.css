@@ -1,0 +1,223 @@
+/* doc-template - design tokens (dark, amber accent, terminal aesthetic) */
+
+/* Self-hosted fonts (no external CDN). Files live in the theme's
+   static/fonts/; url() is relative to the bundled /css/app.css. Latin subset
+   only - other scripts fall back to the system stack in --font-sans/--font-mono.
+   font-display:swap shows the fallback immediately, then swaps. */
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:400;font-display:swap;src:url('../fonts/inter-tight-400.woff2') format('woff2')}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:500;font-display:swap;src:url('../fonts/inter-tight-500.woff2') format('woff2')}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:600;font-display:swap;src:url('../fonts/inter-tight-600.woff2') format('woff2')}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:700;font-display:swap;src:url('../fonts/inter-tight-700.woff2') format('woff2')}
+@font-face{font-family:'Space Mono';font-style:normal;font-weight:400;font-display:swap;src:url('../fonts/space-mono-400.woff2') format('woff2')}
+@font-face{font-family:'Space Mono';font-style:normal;font-weight:700;font-display:swap;src:url('../fonts/space-mono-700.woff2') format('woff2')}
+
+:root {
+  --bg-0:#07080a; --bg-1:#0b0d10; --bg-2:#101317; --bg-3:#161a20; --bg-4:#1d232b;
+  --line-1:#1c2128; --line-2:#262d36; --line-3:#323a45;
+  --fg-0:#f4f5f7; --fg-1:#d6d9de; --fg-2:#9aa1ab; --fg-3:#6b7280; --fg-4:#434a54;
+
+  --brand-50:#fff4ea; --brand-100:#ffe3c9; --brand-200:#ffc48a; --brand-300:#ffa14b;
+  --brand-400:#ff8421; --brand-500:#ff6b35; --brand-600:#e5521c; --brand-700:#b83e13;
+  --brand-800:#7a2808; --brand-900:#3d1503;
+  --accent-amber:#f59e0b; --accent-sand:#fde68a;
+
+  /* Content link color (theme-aware). Only base `a` uses these; structural
+     links (nav/sidebar/toc/footer) and buttons set their own color. */
+  --link:var(--brand-400); --link-hover:var(--brand-300);
+
+  --ok:#4ade80; --ok-bg:#0f2a1a;
+  --warn:#f59e0b; --warn-bg:#2a1d08;
+  --crit:#ef4444; --crit-bg:#2a0e0e;
+  --info:#60a5fa; --info-bg:#0c1d33;
+
+  --font-sans:'Inter Tight', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:'Space Mono', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+
+  --fs-display:clamp(48px,7vw,96px);
+  --fs-h1:clamp(36px,4.5vw,60px);
+  --fs-h2:clamp(28px,3vw,40px);
+  --fs-h3:22px; --fs-h4:18px;
+  --fs-body:16px; --fs-small:14px; --fs-micro:12px;
+  --fs-mono-lg:14px; --fs-mono:13px; --fs-mono-sm:12px;
+
+  --lh-tight:1.05; --lh-snug:1.25; --lh-normal:1.5; --lh-loose:1.7;
+
+  --tracking-display:-0.035em; --tracking-heading:-0.02em; --tracking-body:-0.005em;
+  --tracking-label:0.08em; --tracking-mono:0em;
+
+  --r-xs:3px; --r-sm:5px; --r-md:8px; --r-lg:12px; --r-xl:20px; --r-pill:999px;
+
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px;
+  --s-7:32px; --s-8:40px; --s-9:48px; --s-10:64px; --s-11:80px; --s-12:120px;
+
+  --shadow-sm:0 1px 0 0 rgba(255,255,255,0.03) inset, 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md:0 1px 0 0 rgba(255,255,255,0.04) inset, 0 6px 20px rgba(0,0,0,0.45);
+  --shadow-lg:0 1px 0 0 rgba(255,255,255,0.05) inset, 0 24px 60px rgba(0,0,0,0.55);
+  --glow-brand:0 0 0 3px rgba(255,107,53,0.25), 0 0 20px rgba(255,107,53,0.35);
+
+  --grid-color:rgba(255,255,255,0.035);
+  --grid-size:24px;
+
+  /* Frosted-glass surfaces (theme-aware) */
+  --nav-bg:rgba(11,13,16,0.72);
+  --overlay-bg:rgba(7,8,10,0.6);
+
+  --ease-standard:cubic-bezier(0.2,0.8,0.2,1);
+  --ease-emphasis:cubic-bezier(0.16,1,0.3,1);
+  --dur-fast:120ms; --dur-base:180ms; --dur-slow:280ms;
+
+  --page-max:1600px;
+  --gutter:clamp(16px,3vw,40px);
+
+  --side-w:260px;
+  --toc-w:220px;
+  --nav-h:64px;
+}
+
+/* ===================== Light theme =====================
+   Set by the no-FOUC script in head.html as data-theme="light" on <html>.
+   Only the color/depth tokens flip; the amber brand ramp is shared. Fenced
+   code blocks stay dark (github-dark highlighting is baked inline), so a few
+   component overrides below keep them legible. */
+:root[data-theme="light"]{
+  --bg-0:#ffffff; --bg-1:#f7f8fa; --bg-2:#f1f3f6; --bg-3:#e9edf2; --bg-4:#dfe4ea;
+  --line-1:#e6e9ee; --line-2:#d7dce3; --line-3:#c2c9d3;
+  --fg-0:#0c0f14; --fg-1:#2b3038; --fg-2:#55606e; --fg-3:#6b7480; --fg-4:#aeb6c0;
+
+  --ok:#15803d; --ok-bg:#e9f7ef;
+  --warn:#b45309; --warn-bg:#fbf2e2;
+  --crit:#dc2626; --crit-bg:#fdecec;
+  --info:#1d4ed8; --info-bg:#e9f0fd;
+
+  --shadow-sm:0 1px 2px rgba(16,24,40,0.06);
+  --shadow-md:0 6px 20px rgba(16,24,40,0.10);
+  --shadow-lg:0 24px 60px rgba(16,24,40,0.14);
+  --glow-brand:0 0 0 3px rgba(255,107,53,0.22), 0 0 18px rgba(255,107,53,0.25);
+
+  --grid-color:rgba(0,0,0,0.045);
+
+  --nav-bg:rgba(255,255,255,0.72);
+  --overlay-bg:rgba(255,255,255,0.6);
+
+  /* Darker amber for content links so they stay legible on light surfaces.
+     Driven through the token (same specificity as base `a`), so buttons and
+     structural links - which set their own color - are never overridden. */
+  --link:var(--brand-700); --link-hover:var(--brand-800);
+}
+
+/* Light-theme component overrides ---------------------------------------- */
+/* Amber accents need a darker tone to stay legible on light surfaces. */
+:root[data-theme="light"] code{color:var(--brand-700)}
+:root[data-theme="light"] .eyebrow,
+:root[data-theme="light"] .cs-eyebrow{color:var(--brand-700)}
+:root[data-theme="light"] .cs-toc a:hover,
+:root[data-theme="light"] .cs-toc-edit:hover,
+:root[data-theme="light"] .cs-footer-cols a:hover{color:var(--brand-700)}
+/* Keep fenced code blocks (and ASCII diagrams) dark - the highlighting is
+   baked in for a dark background. */
+:root[data-theme="light"] pre{background:#0b0d10;border-color:#1c2128;color:#d6d9de}
+:root[data-theme="light"] pre code{color:inherit}
+:root[data-theme="light"] .cs-ascii-art{color:#d6d9de}
+/* Soften the hero terminal/screenshot shadow on a light page. */
+:root[data-theme="light"] .cs-terminal{box-shadow:0 18px 50px rgba(16,24,40,0.12),0 0 0 1px rgba(255,107,53,0.10)}
+:root[data-theme="light"] .cs-shot:hover{box-shadow:0 24px 60px rgba(16,24,40,0.16),0 0 0 1px rgba(255,107,53,0.16)}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 16px)}
+html,body{
+  background:var(--bg-0);
+  color:var(--fg-1);
+  font-family:var(--font-sans);
+  font-size:var(--fs-body);
+  line-height:var(--lh-normal);
+  letter-spacing:var(--tracking-body);
+  font-feature-settings:"ss01","cv11";
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+body{
+  background-image:radial-gradient(circle, var(--grid-color) 1px, transparent 1px);
+  background-size:var(--grid-size) var(--grid-size);
+  background-position:0 0;
+  min-height:100vh;
+}
+body.cs-home{
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(255,107,53,0.08), transparent 60%),
+    var(--bg-0);
+  background-image:radial-gradient(circle, var(--grid-color) 1px, transparent 1px);
+  background-size:var(--grid-size) var(--grid-size);
+}
+
+h1,h2,h3,h4,h5,h6{
+  font-family:var(--font-sans);
+  color:var(--fg-0);
+  font-weight:600;
+  letter-spacing:var(--tracking-heading);
+  margin:0;
+}
+h1{font-size:var(--fs-h1);line-height:var(--lh-tight)}
+h2{font-size:var(--fs-h2);line-height:var(--lh-snug)}
+h3{font-size:var(--fs-h3);line-height:var(--lh-snug)}
+h4{font-size:var(--fs-h4);line-height:var(--lh-snug)}
+p{font-size:var(--fs-body);line-height:var(--lh-loose);color:var(--fg-1);margin:0}
+small,.small{font-size:var(--fs-small);color:var(--fg-2)}
+.mono{font-family:var(--font-mono)}
+.mono-dim{font-family:var(--font-mono);color:var(--fg-3);font-size:12px}
+
+.eyebrow,.cs-eyebrow{
+  font-family:var(--font-mono);
+  font-size:var(--fs-mono-sm);
+  text-transform:uppercase;
+  letter-spacing:var(--tracking-label);
+  color:var(--brand-500);
+  font-weight:500;
+}
+
+code,kbd,pre{font-family:var(--font-mono);font-size:var(--fs-mono);letter-spacing:var(--tracking-mono)}
+code{
+  color:var(--brand-300);
+  background:var(--bg-3);
+  padding:2px 6px;
+  border-radius:var(--r-xs);
+  border:1px solid var(--line-1);
+}
+kbd{
+  color:var(--fg-1);
+  background:var(--bg-3);
+  border:1px solid var(--line-2);
+  border-bottom-width:2px;
+  border-radius:var(--r-xs);
+  padding:1px 6px;
+  font-size:var(--fs-mono-sm);
+}
+pre{
+  margin:0;
+  padding:18px 20px;
+  background:var(--bg-1);
+  border:1px solid var(--line-1);
+  border-radius:var(--r-md);
+  overflow-x:auto;
+  line-height:1.6;
+  color:var(--fg-1);
+}
+pre code{
+  background:transparent;
+  border:0;
+  padding:0;
+  color:inherit;
+  font-size:var(--fs-mono);
+}
+
+hr{border:0;border-top:1px solid var(--line-1);margin:32px 0}
+::selection{background:var(--brand-500);color:#0a0a0a}
+
+a{
+  color:var(--link);
+  text-decoration:none;
+  border-bottom:1px solid var(--line-2);
+  transition:border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+a:hover{border-bottom-color:var(--brand-500);color:var(--link-hover)}
+:focus-visible{outline:none;box-shadow:var(--glow-brand);border-radius:var(--r-sm)}

@@ -1,0 +1,121 @@
+# 02-rails-multistage - a realistic, full deployment.
+#
+# Demonstrates the features you reach for on a real app:
+#   - multiple stages (staging, production) sharing this file
+#   - roles (app / web / db / worker) so a task hits only the right hosts
+#   - `vars` (for {{.templates}}) vs `envs` (shell env, expandable, secrets)
+#   - rbenv on PATH so `bundle`/`rails` resolve in a non-login SSH shell
+#   - tasks wired into the deploy lifecycle with hooks
+#   - a file script (deploy/scripts/healthcheck.sh)
+#
+# Try it:
+#   whoosh staging deploy
+#   whoosh production deploy
+#   whoosh production deploy --roles web     # only the web hosts
+#   whoosh production migrate                # run one task by name
+#   whoosh production run "bin/rails runner 'puts User.count'"
+version: "1"
+
+app:
+  name: shopapp
+  repo: git@github.com:example-org/shopapp.git
+  branch: main
+  deploy_to: /srv/shopapp
+  keep_releases: 5
+
+# If a host goes unreachable mid-deploy, drop it and finish on the rest (the run
+# exits non-zero so CI notices). Critical hosts are marked `required:` per server
+# in deploy/<stage>.yml so they're never silently skipped.
+on_unreachable: skip
+
+linked_files:
+  - config/database.yml
+  - config/master.key
+  - .env
+linked_dirs:
+  - log
+  - tmp/pids
+  - tmp/sockets
+  - public/system
+  - storage
+  # public/assets is intentionally NOT shared: each release compiles its own,
+  # so a rollback restores the matching assets + manifest atomically. See
+  # examples/07-rails-assets for that trade-off and the shared alternative.
+
+# vars are available to command TEMPLATES as {{.KEY}} and are also exported as
+# $KEY. Use them for values you interpolate into commands or scripts.
+vars:
+  RAILS_ENV: production
+
+# envs is exported to every task command/script as $KEY. Unlike vars it is
+# shell-EXPANDED (so $HOME / $PATH work), and each value is itself templated, so
+# `{{ env "X" }}` reads a secret from the operator's / CI environment at run
+# time. Here it puts rbenv shims on PATH.
+envs:
+  PATH: "$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+
+ssh:
+  user: deploy
+  port: 22
+  forward_agent: true       # let the remote `git` authenticate with YOUR ssh key
+
+# Task commands default to running inside the new release dir, so `bundle` and
+# `rails` find the Gemfile without an explicit `dir:`.
+tasks:
+  bundle:
+    desc: Install gems
+    roles: [app, web, worker]
+    cmds:
+      - bundle config set --local deployment true
+      - bundle config set --local path {{.shared_path}}/bundle
+      - bundle config set --local without "development:test"
+      - bundle install --jobs 4
+
+  assets:
+    desc: Precompile assets
+    roles: [web]
+    cmds:
+      - bundle exec rails assets:precompile
+
+  migrate:
+    desc: Run database migrations (only when db/ changed since the live release)
+    roles: [db]
+    once: true                 # run on a single db host, not all of them
+    # Conditional migrate: the script diffs the new release's
+    # db/ against the live one and skips the (slow, locking) migration when
+    # nothing changed. See deploy/scripts/conditional_migrate.sh.
+    scripts:
+      - path: conditional_migrate.sh   # resolved from deploy/scripts/
+        interpreter: /usr/bin/env bash
+
+  restart-web:
+    desc: Restart the web server
+    roles: [web]
+    cmds:
+      - sudo systemctl restart puma
+
+  restart-worker:
+    desc: Restart background workers
+    roles: [worker]
+    cmds:
+      - sudo systemctl restart sidekiq
+
+  healthcheck:
+    desc: Verify the app is serving traffic
+    roles: [web]
+    scripts:
+      - path: healthcheck.sh   # resolved from deploy/scripts/
+        interpreter: /usr/bin/env bash
+
+# Wire tasks into the lifecycle. Phases (in order): deploy:starting,
+# deploy:check, deploy:init, deploy:started, deploy:updating, deploy:symlink,
+# deploy:updated, deploy:publishing, deploy:published, deploy:finishing,
+# deploy:finished. The marker phases (deploy:init / -ed) are no-op hook anchors,
+# prefer them over internal step names. (deploy:init = provision the host.)
+hooks:
+  after:
+    # Release built and shared config (database.yml, master.key) linked in, but
+    # not yet live:
+    deploy:updated: [bundle, assets, migrate]
+    # `current` now points at the new release - restart, then verify:
+    deploy:published: [restart-web, restart-worker, healthcheck]

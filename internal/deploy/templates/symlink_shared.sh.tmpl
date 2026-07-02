@@ -1,0 +1,7 @@
+set -e
+{{range .Dirs}}mkdir -p {{sh .Shared}} {{sh .TargetParent}}
+rm -rf {{sh .Target}}
+ln -s {{sh .Shared}} {{sh .Target}}
+{{end}}{{range .Files}}mkdir -p {{sh .SharedParent}} {{sh .TargetParent}}
+ln -sf {{sh .Shared}} {{sh .Target}}
+{{end}}

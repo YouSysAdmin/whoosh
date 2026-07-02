@@ -1,0 +1,19 @@
+# typos configuration - suppress false positives
+# https://github.com/crate-ci/typos/blob/master/docs/reference.md
+
+[default]
+# Locale: use en-us spelling
+locale = "en-us"
+
+[files]
+extend-exclude = [
+    "go.sum",
+    "vendor/***"
+]
+
+[default.extend-words]
+# Substrings found inside AMI IDs, hashes, and opaque identifiers
+# aloc = "alloc"
+withs = "withs"
+nd = "nd"
+clonable = "clonable"

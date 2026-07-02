@@ -1,0 +1,13 @@
+# Production: dedicated hosts per role. branch (main) and deploy_to (/srv/shopapp)
+# are inherited from the shared Deployfile.yml.
+hosts:
+  - address: web1.example.com
+    roles: [app, web]
+  - address: web2.example.com
+    roles: [app, web]
+  - address: worker1.example.com
+    roles: [app, worker]
+  - address: db1.example.com
+    roles: [db]
+    user: dbadmin        # per-server SSH override (others use ssh.user: deploy)
+    required: true       # under on_unreachable: skip, losing the db still aborts

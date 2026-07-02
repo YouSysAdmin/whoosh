@@ -1,0 +1,44 @@
+# Variant A - per-release assets (recommended default).
+#
+# public/assets is deliberately NOT a linked_dir, so `assets:precompile` writes
+# into THIS release's own public/assets. Because the whole release is swapped
+# atomically by the `current` symlink, `whoosh per-release deploy:rollback`
+# restores the previous release's assets AND its manifest for free - there is
+# nothing to back up and nothing to restore.
+#
+# Trade-off: the moment `current` flips, only the NEW digests exist under
+# current/public/assets. A browser still holding the OLD page (referencing old
+# digests) can 404 on those files during the swap window. If that matters, serve
+# assets through a CDN / asset_host that retains objects - that's the right
+# layer for it, not sharing a mutable dir across immutable releases.
+#
+# NOTE: there is deliberately no `assets:clean[N]` here. assets:clean prunes OLD
+# digests from a SHARED dir, in a per-release dir there is nothing old to clean
+# (each release only ever holds its own freshly-compiled output). It would be a
+# no-op. Old assets are pruned naturally when keep_releases drops the release.
+
+linked_dirs:
+  - log
+  - tmp/pids
+  - tmp/sockets
+  - public/system
+  - storage
+  # public/assets is intentionally absent - see the header above.
+
+hosts:
+  - address: 10.0.0.11
+    roles: [web]
+  - address: 10.0.0.21
+    roles: [db]
+
+tasks:
+  assets:
+    desc: Precompile assets into this release
+    roles: [web]
+    cmds:
+      - bundle exec rails assets:precompile
+
+hooks:
+  after:
+    # Release built and shared config linked in, but not yet live.
+    deploy:updated: [bundle, assets, migrate]

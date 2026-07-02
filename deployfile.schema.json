@@ -1,0 +1,531 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yousysadmin/whoosh/deployfile.schema.json",
+  "$defs": {
+    "App": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Application name; used in logs and as {{.app_name}} / $APP_NAME"
+        },
+        "repo": {
+          "type": "string",
+          "description": "Git remote to deploy from (required to deploy)"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Branch to deploy (default: master)"
+        },
+        "deploy_to": {
+          "type": "string",
+          "description": "Deploy root on each host; holds releases/, shared/, repo/, current (required)"
+        },
+        "keep_releases": {
+          "type": "integer",
+          "description": "KeepReleases is how many releases to keep on each host; older ones are pruned at deploy:finishing (default 5).\nExposed to templates/scripts as {{.keep_releases}} / $KEEP_RELEASES."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "App describes the application being deployed and where it lives on the targets."
+    },
+    "CustomPhase": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The custom phase's name (also the hook key)"
+        },
+        "before": {
+          "type": "string",
+          "description": "Built-in phase to anchor before (set exactly one of before/after)"
+        },
+        "after": {
+          "type": "string",
+          "description": "Built-in phase to anchor after"
+        },
+        "task": {
+          "type": "string",
+          "description": "Task to run at this phase; empty = pure hook anchor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "CustomPhase is a user/plugin-defined phase spliced into the deploy lifecycle, anchored relative to a built-in phase."
+    },
+    "Hooks": {
+      "properties": {
+        "before": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Phase or task name -\u003e task names to run before it"
+        },
+        "after": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Phase or task name -\u003e task names to run after it"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Hooks maps a key to the task names run before or after it."
+    },
+    "Host": {
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Host address (IP or DNS name)"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Roles this host fills; tasks target hosts by role"
+        },
+        "user": {
+          "type": "string",
+          "description": "Overrides ssh.user for this host"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Overrides ssh.port for this host"
+        },
+        "identity_file": {
+          "type": "string",
+          "description": "Overrides ssh.identity_file for this host"
+        },
+        "local": {
+          "type": "boolean",
+          "description": "Run on the operator's machine via the local shell (SSH fields ignored)"
+        },
+        "deploy": {
+          "type": "boolean",
+          "description": "Deploy gates whether the release lifecycle, tasks, hooks, and ad-hoc run target this host. nil means the default\n(true).\nSet false to keep a host in inventory - listed by `config` and the `deploy:hosts` command - without deploying the\napp to it."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Required, when true, makes this host's unreachability fatal even under on_unreachable: skip - so a critical host is\nnever silently dropped. nil means the default (false)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Host is a single deployment target, tagged with the roles it fills."
+    },
+    "Log": {
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "description": "debug, info, warn, error"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "description": "text or json"
+        },
+        "output": {
+          "type": "string",
+          "description": "stdout, stderr, or a file path"
+        },
+        "color": {
+          "type": "boolean",
+          "description": "colorize text logs (terminal only)"
+        },
+        "file": {
+          "type": "string",
+          "description": "also write a deploy log to this file"
+        },
+        "file_format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "description": "text or json for File"
+        },
+        "raw_remote_log": {
+          "type": "boolean",
+          "description": "RawRemoteLog controls how command output (and the echoed commands) is shown. Default/true streams it raw to the\nconsole, prefixed by host, as it arrives. False instead emits each line through the logger as a structured record\n(with the host and running task), so command output joins the JSON log stream and can be shipped to a log\ncollector and parsed."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Log configures whoosh's own logging."
+    },
+    "PluginActionSpec": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The feature's global name (e.g. aws:ec2:inventory)"
+        },
+        "params": {
+          "type": "object",
+          "description": "Feature-specific params, layered on the plugin's global Params"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "PluginActionSpec configures one of a plugin's named features (its global name, e.g."
+    },
+    "PluginSpec": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The plugin's registered name (e.g. \"aws\")"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled is a coarse on/off switch, independent of stage.\nOmitted (nil) or true loads the plugin; false turns it off entirely - its startup hooks and actions are never\nregistered and action tasks bound to it are skipped (logged) rather than failing, exactly like an\nOnly/Except-inactive plugins."
+        },
+        "only": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Stages this plugins is active in (empty = all)"
+        },
+        "except": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Stages to skip (wins over Only)"
+        },
+        "params": {
+          "type": "object",
+          "description": "The plugin's global params"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/PluginActionSpec"
+          },
+          "type": "array",
+          "description": "Per-feature configuration and/or enablement"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "PluginSpec declares one plugin to load and how to configure it."
+    },
+    "SSH": {
+      "properties": {
+        "user": {
+          "type": "string",
+          "description": "SSH login user"
+        },
+        "port": {
+          "type": "integer",
+          "description": "SSH port (default: 22)"
+        },
+        "identity_file": {
+          "type": "string",
+          "description": "Private key file used to authenticate"
+        },
+        "known_hosts_file": {
+          "type": "string",
+          "description": "known_hosts file for host-key verification"
+        },
+        "strict_host_key": {
+          "type": "boolean",
+          "description": "StrictHostKey toggles host-key verification. nil means \"use the default\" (true)."
+        },
+        "forward_agent": {
+          "type": "boolean",
+          "description": "ForwardAgent forwards the operator's local ssh-agent to each host, so commands there (notably git) authenticate to\nremotes with the operator's keys. Default false - the host uses its own keys."
+        },
+        "forward_key": {
+          "type": "string",
+          "description": "ForwardKey forwards only the key at this path, presented in-memory over the agent protocol (never written to the\nhost). Takes precedence over ForwardAgent when both are set."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SSH holds connection defaults applied to every host unless the host overrides them."
+    },
+    "Script": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "label; defaults to the file's base name"
+        },
+        "path": {
+          "type": "string",
+          "description": "script file (by name or absolute path)"
+        },
+        "script": {
+          "type": "string",
+          "description": "inline script content"
+        },
+        "interpreter": {
+          "type": "string",
+          "description": "e.g. /bin/bash; default /bin/sh"
+        },
+        "template": {
+          "type": "boolean",
+          "description": "Template renders a file script as a Go template before running it.\nFiles whose path ends in .tmpl are templated automatically. Inline scripts are always templated."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Script runs a shell script on the task's targets."
+    },
+    "Task": {
+      "properties": {
+        "desc": {
+          "type": "string",
+          "description": "Human-readable description shown in the CLI listing"
+        },
+        "cmds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Shell commands run in order on the targets (Go-templated)"
+        },
+        "scripts": {
+          "items": {
+            "$ref": "#/$defs/Script"
+          },
+          "type": "array",
+          "description": "Shell scripts run after cmds, in order"
+        },
+        "deps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Other task names to run before this one"
+        },
+        "dir": {
+          "type": "string",
+          "description": "Working dir for cmds/scripts (templated; default release dir, cwd for local)"
+        },
+        "envs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Extra environment, layered over global envs (task wins)"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Restrict to hosts filling these roles (default: all deployable hosts)"
+        },
+        "local": {
+          "type": "boolean",
+          "description": "Run on the operator's machine instead of the target hosts"
+        },
+        "once": {
+          "type": "boolean",
+          "description": "When multiple hosts match, run on a single host only"
+        },
+        "silent": {
+          "type": "boolean",
+          "description": "Suppress the task's start announcement in the log"
+        },
+        "silent_output": {
+          "type": "boolean",
+          "description": "SilentOutput hides the task's command output (and the echoed commands): it is buffered instead of shown, discarded\non success, and flushed to the console (redacted) only if the task fails - so a noisy task stays quiet without\nhiding failures. Orthogonal to Silent (which suppresses the start announcement); the task is still announced.\nIgnored under --dry-run. With continue_on_error the run \"succeeds\", so the buffer is discarded (per-host failures\nstill surface as warnings)."
+        },
+        "continue_on_error": {
+          "type": "boolean",
+          "description": "Don't abort on a non-zero exit; log each failed host and continue"
+        },
+        "non_deploy": {
+          "type": "boolean",
+          "description": "NonDeploy targets the inventory's *non-deployable* hosts (deploy:false) instead of the deployable ones - the inverse\nof the normal task targeting. Roles still narrow within that set.\nIntended for a task run as its own invocation after a deploy (e.g. a healthcheck on freshly refreshed ASG hosts): a\nnew run re-fetches the inventory, so those hosts are present.\nWithin the deploy lifecycle the inventory is fixed at startup, so a non_deploy hook would see the pre-deploy host\nlist."
+        },
+        "all_hosts": {
+          "type": "boolean",
+          "description": "AllHosts targets every host in the inventory, ignoring the per-server deploy flag (both deploy:true and\ndeploy:false) - for a task that should hit the whole fleet (e.g. collecting disk usage).\nRoles/limit still narrow the set. Takes precedence over NonDeploy.\nLike NonDeploy, it operates on the inventory captured at startup (see the note there)."
+        },
+        "strict_host_key": {
+          "type": "boolean",
+          "description": "StrictHostKey overrides the stage's ssh.strict_host_key for this task's SSH connections. nil inherits the stage\nsetting; false skips known_hosts verification (e.g. for ASG instances launched from one AMI that share a key and\nrotate IPs, where the key is legitimately \"unknown\"); true forces it."
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Hidden omits the task from the CLI listing (`whoosh \u003cstage\u003e --help`).\nThe task is still runnable directly by name and still usable as a dep or hook - useful for helper tasks (a `setup`\ndep, a hook-only `restore-manifest`) that shouldn't clutter the command list."
+        },
+        "only": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Only/Except gate which stages the task is active in, mirroring PluginSpec - Only lists the stages it runs in (empty\n= all), Except lists stages to skip; a stage in Except is always skipped (Except wins).\nWhen a task is inactive for the current stage it is skipped (logged) rather than run - whether it is invoked\ndirectly, as a dependency, or from a hook - and it is omitted from the stage's CLI listing.\nSo a hook can name a task that only some stages run."
+        },
+        "except": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "replace": {
+          "type": "string",
+          "description": "Replace, when set to a phase name, makes this task run in place of that phase's built-in command (its before/after\nhooks still run).\nOnly `deploy:rollback` is replaceable - e.g. an `aws:ec2:asg:rollback` action task can take over `whoosh \u003cstage\u003e\ndeploy:rollback` instead of the default current-symlink swap."
+        },
+        "output": {
+          "type": "string",
+          "enum": [
+            "json",
+            "text",
+            "lines"
+          ],
+          "description": "Output, when set, captures the task's combined stdout and stores the parsed result in run-scoped state under the\ntask's name, for later tasks to read as {{ .tasks.\u003cname\u003e }}.\nOne of \"json\" (parsed to a map/list/scalar), \"text\" (trimmed string), or \"lines\" ([]string).\nThe task runs on a single target."
+        },
+        "action": {
+          "type": "string",
+          "description": "Action/With define an action task: it invokes a plugin-registered action by its global name (e.g. action:\naws:ec2:asg:refresh), operator-side. Mutually exclusive with cmds/scripts."
+        },
+        "with": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Task is a named unit of work."
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Marker of Whooshfile, Deployfile schema version"
+    },
+    "include": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "Include lists other config files to merge underneath this one (require_relative style: paths resolve against this\nfile's directory). Includes are layered in listed order with this file winning, then nested recursively.\nResolved at load time; never present on the merged result."
+    },
+    "app": {
+      "$ref": "#/$defs/App",
+      "description": "The application being deployed: name, repo, branch, deploy_to, keep_releases"
+    },
+    "linked_files": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "description": "Files symlinked from shared/ into every release; \"source:dest\" rewrites the release-side path"
+    },
+    "linked_dirs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "description": "Dirs symlinked from shared/ into every release; \"source:dest\" rewrites the release-side path"
+    },
+    "vars": {
+      "type": "object",
+      "description": "Template/env values"
+    },
+    "envs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "Envs is a default environment exported for every task command and script (merged with a task's own `envs`, which\nwins). Values are shell-expanded, so e.g. PATH can reference $HOME/$PATH - useful for rbenv/nvm shims."
+    },
+    "env_files": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "description": "EnvFiles are dotenv (.env) files loaded into every task's environment as a base layer beneath the global and\nper-task `envs` (which override).\nPaths resolve against the config-file dir; later entries win (stage-file entries are appended after the shared\nones), a missing file is skipped, and the loaded values are runtime-only - never emitted by `config`/{{.config}}."
+    },
+    "ssh": {
+      "$ref": "#/$defs/SSH",
+      "description": "SSH config"
+    },
+    "hosts": {
+      "items": {
+        "$ref": "#/$defs/Host"
+      },
+      "type": "array",
+      "description": "List of hosts for an app deploying"
+    },
+    "tasks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Task"
+      },
+      "type": "object",
+      "description": "List of deployment tasks"
+    },
+    "hooks": {
+      "$ref": "#/$defs/Hooks",
+      "description": "List of deployment hooks"
+    },
+    "scripts_dir": {
+      "type": "string",
+      "description": "ScriptsDir overrides the directory that task `scripts` reference by name.\nRelative paths are resolved against the Deployfile's directory; the default is deploy/scripts."
+    },
+    "on_unreachable": {
+      "type": "string",
+      "enum": [
+        "abort",
+        "skip"
+      ],
+      "description": "OnUnreachable is the policy for a host that becomes unreachable during a deploy: \"abort\" (default - fail the whole\ndeploy) or \"skip\" (drop the host, finish on the survivors, and exit non-zero).\nIt applies to connectivity failures only; a command that runs and exits non-zero always aborts."
+    },
+    "log": {
+      "$ref": "#/$defs/Log",
+      "description": "Log configures whoosh's own logging (level/format/output/color and an optional log file).\nCommand-line --log-* flags override these when set."
+    },
+    "plugins": {
+      "items": {
+        "$ref": "#/$defs/PluginSpec"
+      },
+      "type": "array",
+      "description": "Plugins is the ordered list of plugins to load with their params.\nEach one validates its params on load and registers startup hooks and/or actions."
+    },
+    "custom_phases": {
+      "items": {
+        "$ref": "#/$defs/CustomPhase"
+      },
+      "type": "array",
+      "description": "CustomPhases inserts named phases into the deploy lifecycle, each anchored before or after a built-in phase.\nA custom phase runs its Task (if set) and is itself a before/after hook anchor.\nConcatenated across base+stage like hosts/plugins; validated when the deploy starts."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "title": "whoosh Deployfile",
+  "description": "Schema for whoosh Deployfile.yml and deploy/\u003cstage\u003e.yml. Generated from internal/deployfile/ast by cmd/gen-schema - run `make schema` to regenerate."
+}

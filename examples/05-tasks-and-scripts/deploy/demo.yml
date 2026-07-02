@@ -1,0 +1,11 @@
+# The demo stage runs locally. It also includes one inventory-only host to show
+# the `deploy: false` flag and how it appears in the host table.
+hosts:
+  - address: localhost
+    local: true
+    roles: [app]
+
+  # Listed by `whoosh demo deploy:hosts` / {{.config.hosts}}, but never deployed to or targeted by tasks.
+  - address: archive.example.com
+    roles: [backup]
+    deploy: false

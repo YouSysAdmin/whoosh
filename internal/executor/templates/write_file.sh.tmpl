@@ -1,0 +1,1 @@
+mkdir -p {{sh .Dir}} && (umask 077 && printf '%s' {{sh .Content}} > {{sh .Path}})

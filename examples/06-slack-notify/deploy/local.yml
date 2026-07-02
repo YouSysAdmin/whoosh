@@ -1,0 +1,7 @@
+# Runs locally so the deploy lifecycle (and its notify hooks) fire without any
+# remote hosts. The notify tasks are `local: true` regardless, this just lets
+# `whoosh local deploy` run end-to-end on your machine.
+hosts:
+  - address: localhost
+    local: true
+    roles: [app]

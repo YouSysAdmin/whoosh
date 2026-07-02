@@ -1,0 +1,3 @@
+[submodule "docs/themes/youstsadmin-hugo-docs"]
+	path = docs/themes/youstsadmin-hugo-docs
+	url = git@github.com:YouSysAdmin/youstsadmin-hugo-docs-theme.git

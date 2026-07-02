@@ -1,0 +1,1 @@
+rm -f {{sh .Tmp}}; ln -s {{sh .Release}} {{sh .Tmp}}; mv -T {{sh .Tmp}} {{sh .Current}} 2>/dev/null || { rm -f {{sh .Current}}; mv {{sh .Tmp}} {{sh .Current}}; }

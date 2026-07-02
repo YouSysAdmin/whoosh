@@ -1,0 +1,6 @@
+# A single local target. `local: true` means "run via /bin/sh here", so the SSH
+# fields (user/port/identity_file) are ignored and no connection is made.
+hosts:
+  - address: localhost
+    local: true
+    roles: [app]

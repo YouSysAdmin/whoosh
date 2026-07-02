@@ -1,0 +1,9 @@
+if [ -d {{sh .Repo}}/objects ]; then
+  if [ "$(git -C {{sh .Repo}} config --get remote.origin.url 2>/dev/null)" != {{sh .URL}} ]; then
+    rm -f {{sh .Repo}}/config.lock
+    git -C {{sh .Repo}} remote set-url origin {{sh .URL}}
+  fi
+  git -C {{sh .Repo}} remote update --prune
+else
+  git clone --mirror {{sh .URL}} {{sh .Repo}}
+fi

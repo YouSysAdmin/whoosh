@@ -1,0 +1,9 @@
+set -e
+mkdir -p{{range .Dirs}} {{sh .}}{{end}}
+{{- if .Files}}
+missing=0
+{{- range .Files}}
+[ -e {{sh .}} ] || { echo 'deploy:check: missing linked file:' {{sh .}} >&2; missing=1; }
+{{- end}}
+[ "$missing" = 0 ] || { echo 'deploy:check: create the missing linked file(s) in shared/ before deploying' >&2; exit 1; }
+{{- end}}

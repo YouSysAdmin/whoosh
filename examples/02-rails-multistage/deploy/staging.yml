@@ -1,0 +1,13 @@
+# Staging: a single box that plays every role, deploying the `develop` branch
+# into its own directory. Stage files override shared scalars per-field and
+# replace the host list wholesale.
+app:
+  branch: develop
+  deploy_to: /srv/shopapp-staging
+
+vars:
+  RAILS_ENV: staging
+
+hosts:
+  - address: staging.example.com
+    roles: [app, web, db, worker]

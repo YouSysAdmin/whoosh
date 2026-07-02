@@ -1,0 +1,1 @@
+printf 'Branch %s (at %s) deployed as release %s by %s\n' {{sh .Branch}} "$(cat {{sh .RevisionFile}})" {{sh .ReleaseTimestamp}} {{sh .User}} >> {{sh .LogFile}}
