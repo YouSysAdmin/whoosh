@@ -3,7 +3,7 @@ module github.com/yousysadmin/whoosh/cmd/whoosh-aws
 go 1.26.4
 
 require (
-	github.com/yousysadmin/whoosh v1.1.0
+	github.com/yousysadmin/whoosh v1.1.1
 	github.com/yousysadmin/whoosh/plugins/aws v0.0.0-00010101000000-000000000000
 )
 
