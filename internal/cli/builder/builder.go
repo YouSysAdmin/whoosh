@@ -13,6 +13,7 @@ package builder
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -123,7 +124,7 @@ func runBuild(opts buildOptions) error {
 		return fmt.Errorf("create build dir: %w", err)
 	}
 	if opts.keep {
-		fmt.Fprintf(os.Stderr, "whoosh: keeping build dir %s\n", dir)
+		slog.Info("keeping build dir", "dir", dir)
 	} else {
 		defer os.RemoveAll(dir)
 	}
@@ -175,7 +176,7 @@ func runBuild(opts buildOptions) error {
 	if err := run(buildArgs...); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "whoosh: built %s\n", absOutput)
+	slog.Info("built binary", "path", absOutput)
 	return nil
 }
 
@@ -202,7 +203,7 @@ func ldflags(opts buildOptions) string {
 
 func runGo(goBin, dir string, verbose bool, args ...string) error {
 	if verbose {
-		fmt.Fprintf(os.Stderr, "+ %s %s\n", goBin, strings.Join(args, " "))
+		slog.Info("exec", "cmd", goBin+" "+strings.Join(args, " "))
 	}
 	cmd := exec.Command(goBin, args...)
 	cmd.Dir = dir

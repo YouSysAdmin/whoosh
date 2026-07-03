@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -17,8 +17,8 @@ func newInitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Scaffold a Whooshfile and per-stage files",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runInit(cmd, stages)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runInit(stages)
 		},
 	}
 	cmd.Flags().StringSliceVar(&stages, "stages", []string{"staging", "production"},
@@ -26,10 +26,8 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
-func runInit(cmd *cobra.Command, stages []string) error {
-	out := cmd.OutOrStdout()
-
-	if err := writeIfAbsent(out, deployfile.DefaultDeployfiles[0], deployfile.DeployfileScaffold()); err != nil {
+func runInit(stages []string) error {
+	if err := writeIfAbsent(deployfile.DefaultDeployfiles[0], deployfile.DeployfileScaffold()); err != nil {
 		return err
 	}
 
@@ -39,7 +37,7 @@ func runInit(cmd *cobra.Command, stages []string) error {
 	}
 	for _, stage := range stages {
 		path := filepath.Join(stageDir, stage+".yml")
-		if err := writeIfAbsent(out, path, deployfile.StageScaffold(stage)); err != nil {
+		if err := writeIfAbsent(path, deployfile.StageScaffold(stage)); err != nil {
 			return err
 		}
 	}
@@ -49,23 +47,23 @@ func runInit(cmd *cobra.Command, stages []string) error {
 	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
 		return fmt.Errorf("create %s/: %w", scriptsDir, err)
 	}
-	if err := writeIfAbsent(out, filepath.Join(scriptsDir, "example.sh"), deployfile.ExampleScript()); err != nil {
+	if err := writeIfAbsent(filepath.Join(scriptsDir, "example.sh"), deployfile.ExampleScript()); err != nil {
 		return err
 	}
 
-	fmt.Fprintln(out, "\nEdit the files above, then run: whoosh <stage> deploy")
+	slog.Info("init complete - edit the generated files", "next", "whoosh <stage> deploy")
 	return nil
 }
 
 // writeIfAbsent writes data to path unless the file already exists.
-func writeIfAbsent(out io.Writer, path string, data []byte) error {
+func writeIfAbsent(path string, data []byte) error {
 	if _, err := os.Stat(path); err == nil {
-		fmt.Fprintf(out, "  skip   %s (already exists)\n", path)
+		slog.Info("skipped, already exists", "path", path)
 		return nil
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	fmt.Fprintf(out, "  create %s\n", path)
+	slog.Info("created", "path", path)
 	return nil
 }

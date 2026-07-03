@@ -4,7 +4,7 @@
 // does not pull in the CLI.
 //
 // The types here are aliases of whoosh's internal types, so a plugin written against this package is the exact same
-// contract the built-in plugins use; both register into the same registry.
+// contract the built-in plugins use, both register into the same registry.
 // To scaffold a plugin, copy the standalone example module under examples/plugins/hello, and build with `whoosh
 // build`.
 //
@@ -17,7 +17,7 @@
 //     validates/decodes the PluginSpec params and defers everything else to a startup closure.
 //   - Startup time (the StartupFunc): the resolved *DeployFile is passed in and may be mutated - cfg.AddTask,
 //     cfg.AddHookBefore/After, cfg.AddHookFuncBefore/After, cfg.AddPhase, cfg.AddImport, or appending to cfg.Hosts
-//     (inventory). These methods are startup-time only; there is no config to mutate at Configure time.
+//     (inventory). These methods are startup-time only, there is no config to mutate at Configure time.
 //
 // A plugin's Version() (the Versioner interface) is self-declared and unrelated to the whoosh binary's version.
 package whoosh
@@ -39,7 +39,7 @@ func Registered() []string { return plugins.Registered() }
 // Configure) is identical to the one a plugin declares against this package - no conversion, and both in-tree and
 // out-of-tree plugins satisfy the same Plugin interface.
 type (
-	// Plugin is the single contract every plugin satisfies; implement Configure.
+	// Plugin is the single contract every plugin satisfies, implement Configure.
 	Plugin = plugins.Plugin
 	// Factory builds an unconfigured plugin instance (what you pass to Register).
 	Factory = plugins.Factory
@@ -59,7 +59,7 @@ type (
 	// DeployFile is the resolved config a StartupFunc receives (and may mutate, e.g. cfg.AddTask / cfg.AddHookAfter /
 	// cfg.AddPhase / cfg.AddImport).
 	DeployFile = ast.DeployFile
-	// Host is an inventory host; an inventory plugin appends these in startup.
+	// Host is an inventory host, an inventory plugin appends these in startup.
 	Host = ast.Host
 	// Task is a pipeline task a plugin can contribute via DeployFile.AddTask: it runs cmds and/or scripts on the targets
 	// (or locally), or invokes an action.
@@ -71,7 +71,7 @@ type (
 	// CustomPhase is a named phase a plugin can splice into the deployment lifecycle before/after a built-in phase via
 	// DeployFile.AddPhase.
 	CustomPhase = ast.CustomPhase
-	// HookFunc is a plugin function run before/after a deploy phase with the deploy's console writer, registered via
+	// HookFunc is a plugin function run before/after a deployment phase with the deploy's console writer, registered via
 	// DeployFile.AddHookFuncBefore/After.
 	// It lets a plugin emit operator-side output (or run code) at a phase without contributing a task.
 	// Runs only during the deploy lifecycle.
@@ -82,7 +82,7 @@ type (
 	// CommandFunc runs a plugin Command with the resolved config, the registry, the console writer, and the command's
 	// positional args.
 	CommandFunc = plugins.CommandFunc
-	// Commander is the optional interface a plugin implements to contribute CLI commands; Commands() is queried (on a
+	// Commander is the optional interface a plugin implements to contribute CLI commands, Commands() is queried (on a
 	// bare instance) to register them.
 	Commander = plugins.Commander
 	// Versioner is the optional interface a plugin implements to report its version, shown by `whoosh plugins` /
@@ -92,7 +92,7 @@ type (
 
 // Built-in deploy phase names, in lifecycle order - the hook anchors a plugin targets with cfg.AddHookBefore/After,
 // cfg.AddHookFuncBefore/After, or as a cfg.AddPhase anchor. Re-exported so a plugin never hardcodes the strings.
-// PhaseFailed (after-only, fires on a failed deploy) and PhaseRollback (wraps the rollback swap) are hook points
+// PhaseFailed (after-only, fires on a failed deployment) and PhaseRollback (wraps the rollback swap) are hook points
 // outside the lifecycle order.
 const (
 	PhaseStarting   = ast.PhaseStarting
@@ -110,11 +110,12 @@ const (
 	PhaseRollback   = ast.PhaseRollback
 )
 
-// HostSourceConfig is the Host.Source value for a host declared in the Deployfile; an inventory plugin sets its own
-// source string (conventionally its feature name, e.g. "aws:ec2:inventory") on the hosts it appends.
+// HostSourceConfig is the Host.Source value for a host declared in the Deployfile,
+// an inventory plugin sets its own source string (conventionally its feature name,
+// e.g. "aws:ec2:inventory") on the hosts it appends.
 const HostSourceConfig = ast.HostSourceConfig
 
-// Register makes a plugin available under name. Call it from a plugin package's init(); duplicate names panic.
+// Register makes a plugin available under name. Call it from a plugin package's init(), duplicate names panic.
 func Register(name string, f Factory) { plugins.Register(name, f) }
 
 // RegisterDefault is like Register but also marks the plugin always-on: it loads in every stage unless a Deployfile
@@ -129,13 +130,13 @@ func IsRegistered(name string) bool { return plugins.IsRegistered(name) }
 func Load(specs []PluginSpec) (*Registry, error) { return plugins.Load(specs) }
 
 // DecodeParams maps an untyped params map into a typed struct via a YAML round trip, so a plugin can use ordinary
-// structs with yaml tags.
+// structs with YAML tags.
 func DecodeParams(params map[string]any, target any) error {
 	return plugins.DecodeParams(params, target)
 }
 
 // WithHostFileWriter returns ctx carrying w (the executor sets this before an action runs).
-// Plugin authors rarely call this; use HostFileWriterFrom.
+// Plugin authors rarely call this, use HostFileWriterFrom.
 func WithHostFileWriter(ctx context.Context, w HostFileWriter) context.Context {
 	return plugins.WithHostFileWriter(ctx, w)
 }
