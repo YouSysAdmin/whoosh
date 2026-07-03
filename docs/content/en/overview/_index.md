@@ -5,7 +5,7 @@ weight: 10
 icon: book-open
 ---
 
-**Whoosh** is a single-binary deployment tool.
+**Whoosh** (formerly known as Deployer) is a single-binary deployment tool.
 It connects to your hosts over SSH (or locally), builds a timestamped release from git, links shared files and
 directories into it, atomically swaps a `current` symlink, and supports rollback - all driven by a `Deployfile.yml`
 plus per-stage `deploy/<stage>.yml` files. (Same directory structure as in Capistrano)

@@ -1,4 +1,4 @@
-# Whoosh
+# Whoosh (formerly known as Deployer)
 
 A single-binary deployment tool.
 `whoosh` connects to your hosts over SSH, builds a timestamped release from git, links shared files/dirs into it,
