@@ -49,6 +49,28 @@ func HostFileWriterFrom(ctx context.Context) HostFileWriter {
 	return w
 }
 
+// HostCommandRunner runs a shell command on the hosts an action task targets - the command counterpart to HostFileWriter.
+// The command runs on every target host in parallel (fail-fast, like a task cmd), echoed per host to the redacted command stream.
+// The executor supplies it via the action's context, retrieve it with HostCommandRunnerFrom.
+type HostCommandRunner interface {
+	RunCommand(ctx context.Context, cmd string) error
+}
+
+type hostRunnerKey struct{}
+
+// WithHostCommandRunner returns ctx carrying r.
+// The executor calls this before invoking an action so the action can run commands on the task's hosts.
+func WithHostCommandRunner(ctx context.Context, r HostCommandRunner) context.Context {
+	return context.WithValue(ctx, hostRunnerKey{}, r)
+}
+
+// HostCommandRunnerFrom returns the HostCommandRunner carried by ctx, or nil if none (e.g. an action invoked outside
+// the executor, as in a unit test).
+func HostCommandRunnerFrom(ctx context.Context) HostCommandRunner {
+	r, _ := ctx.Value(hostRunnerKey{}).(HostCommandRunner)
+	return r
+}
+
 // StartupFunc runs once at load and may mutate the resolved config - for example an inventory plugin appending to
 // cfg.Hosts.
 type StartupFunc func(ctx context.Context, cfg *ast.DeployFile) error

@@ -1370,6 +1370,51 @@ func TestRunAction_HostFileWriter(t *testing.T) {
 	}
 }
 
+// runAction also binds a plugin.HostCommandRunner to the task's hosts, so an action can run commands on them (e.g.
+// systemctl): the command is echoed per host, runs on every target, and a failure surfaces as the task's error.
+func TestRunAction_HostCommandRunner(t *testing.T) {
+	reg, err := plugins.Load(nil)
+	if err != nil {
+		t.Fatalf("plugins.Load: %v", err)
+	}
+	marker := filepath.Join(t.TempDir(), "ran")
+	if err := reg.AddAction("test:runcmd", func(ctx context.Context, params map[string]any, _ io.Writer) error {
+		cmd, _ := params["cmd"].(string)
+		return plugins.HostCommandRunnerFrom(ctx).RunCommand(ctx, cmd)
+	}); err != nil {
+		t.Fatalf("AddAction: %v", err)
+	}
+
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "a", DeployTo: deployTree(t), Branch: "main"},
+		Stage: "test",
+		Hosts: []ast.Host{{Address: "localhost", Local: true, Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"rc":   {Action: "test:runcmd", Roles: []string{"app"}, With: map[string]any{"cmd": "echo ran > " + marker}},
+			"boom": {Action: "test:runcmd", Roles: []string{"app"}, With: map[string]any{"cmd": "exit 3"}},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{Out: &buf, Registry: reg})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "rc"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, buf.String())
+	}
+
+	// The command ran on the task's host and was echoed host-prefixed, like a task cmd.
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("command did not run on host: %v", err)
+	}
+	if !strings.Contains(buf.String(), "[localhost] $ echo ran > ") {
+		t.Fatalf("command not echoed per host:\n%s", buf.String())
+	}
+
+	// A failing command fails the action task.
+	if err := ex.RunTask(context.Background(), "boom"); err == nil {
+		t.Fatal("failing RunCommand did not error")
+	}
+}
+
 // continue_on_error turns a host command failure non-fatal: the run completes (the failed host is logged, not aborted).
 // Without it, the failure aborts.
 func TestRunTask_ContinueOnError(t *testing.T) {

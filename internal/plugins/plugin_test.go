@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"context"
 	"testing"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
@@ -67,6 +68,33 @@ func TestRegisteredInfo(t *testing.T) {
 		if names[i-1] > names[i] {
 			t.Fatalf("RegisteredInfo not sorted by name: %v", names)
 		}
+	}
+}
+
+type ctxTestRunner struct{ cmds []string }
+
+func (r *ctxTestRunner) RunCommand(_ context.Context, cmd string) error {
+	r.cmds = append(r.cmds, cmd)
+	return nil
+}
+
+// The HostCommandRunner rides the action's ctx like the HostFileWriter: nil when absent (an action invoked outside the
+// executor), the carried value otherwise.
+func TestHostCommandRunnerCtx(t *testing.T) {
+	if got := HostCommandRunnerFrom(context.Background()); got != nil {
+		t.Fatalf("bare ctx: got %v, want nil", got)
+	}
+	r := &ctxTestRunner{}
+	ctx := WithHostCommandRunner(context.Background(), r)
+	got := HostCommandRunnerFrom(ctx)
+	if got == nil {
+		t.Fatal("runner not carried by ctx")
+	}
+	if err := got.RunCommand(ctx, "systemctl start app"); err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if len(r.cmds) != 1 || r.cmds[0] != "systemctl start app" {
+		t.Fatalf("carried runner not invoked: %v", r.cmds)
 	}
 }
 
