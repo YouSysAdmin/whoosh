@@ -1,0 +1,24 @@
+# Build from the repo root:
+#   docker build -f examples/Dockerfile.local -t whoosh-local .
+
+FROM golang:1.26.4-alpine AS builder
+WORKDIR /src
+COPY . .
+
+RUN go build -o /whoosh ./cmd/whoosh
+
+RUN /whoosh build -o /whoosh-ext \
+    --with github.com/yousysadmin/whoosh/plugins/aws \
+    --with github.com/yousysadmin/whoosh/plugins/rbenv \
+    --with github.com/yousysadmin/whoosh/plugins/slack \
+    --replace github.com/yousysadmin/whoosh=/src \
+    --replace github.com/yousysadmin/whoosh/plugins/aws=/src/plugins/aws \
+    --replace github.com/yousysadmin/whoosh/plugins/rbenv=/src/plugins/rbenv \
+    --replace github.com/yousysadmin/whoosh/plugins/slack=/src/plugins/slack
+
+FROM alpine:3.24
+COPY --from=builder /whoosh-ext /usr/bin/whoosh
+RUN apk add --no-cache ca-certificates git openssh-client tar
+
+WORKDIR /work
+ENTRYPOINT ["/usr/bin/whoosh"]
