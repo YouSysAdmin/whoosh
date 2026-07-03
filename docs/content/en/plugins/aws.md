@@ -10,11 +10,11 @@ You list the ones you want under `plugins:`. Each validates its config on load a
 - a **startup hook** - runs at load and can append to `hosts:` (dynamic inventory), and/or
 - one or more **actions** - invoked by name from a task or hook (`action: <name>`).
 
-## Build Whoosh with AWS plugin
+## Build with AWS plugin
 ```sh
 whoosh build --with github.com/yousysadmin/whoosh/plugins/aws
 ```
-(see [Installation ->With custom plugins](/installation/custom-plugins/)) - then list it under `plugins:`.
+(see [Installation -> With custom plugins](/installation/custom-plugins/)) - then list it under `plugins:`.
 
 Listing it activates the plugin and all its features, which share one AWS connection (region + credentials) set in the
 plugin's global `params`. Per-feature config goes under `actions:`.

@@ -9,7 +9,7 @@ BIN_NAME := whoosh
 BIN  := $(DIST_DIR)/$(BIN_NAME)
 
 # Separate go modules in this repo: `go test ./...` stops at go.mod boundaries, so each needs its own run.
-PLUGIN_MODULES := plugins/aws plugins/rbenv
+PLUGIN_MODULES := plugins/aws plugins/rbenv plugins/slack
 
 .PHONY: all build build-aws build-minimal run test test-v vet fmt lint schema clean help
 
