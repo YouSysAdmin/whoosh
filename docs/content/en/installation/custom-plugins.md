@@ -8,7 +8,7 @@ icon: rocket
 Plugins are compiled **into** the binary.
 To add a plugin - whoosh's own **AWS plugin**, or your private/third-party ones - build a custom binary with the
 **`whoosh build`** command: it bundles whoosh's standard plugins plus each module you name.
-Requires the **Go toolchain** on `PATH` (see [Requirements](/installation/#requirements)).
+Requires the **Go toolchain** on `PATH`.
 
 The AWS plugin is kept out of the default binary (it pulls the ~57 MB AWS SDK), so it's added the same way as any
 external plugin: `--with github.com/yousysadmin/whoosh/plugins/aws`.
@@ -49,8 +49,7 @@ Private modules use your normal Go auth (`GOPRIVATE` + `~/.netrc` or SSH `instea
 setting `GOOS`/`GOARCH`.
 
 {{< callout type="note" title="Writing a plugin" >}}
-For the plugin authoring contract - actions, startup hooks, custom phases, secrets, testing - see **[Developing ->
-Writing plugins](/developing/writing-plugins/)**.
+For the plugin authoring contract - actions, startup hooks, custom phases, secrets, testing - see [Developing -> Writing plugins](/developing/writing-plugins/).
 {{< /callout >}}
 
 ## Verify

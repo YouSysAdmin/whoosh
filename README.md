@@ -453,6 +453,26 @@ Each one validates its params on load (`Configure`) and registers what it contri
 
 see [README.md](plugins/aws/README.md) for the Whoosh AWS Plugin
 
+There is also a **`slack`** plugin - its own module (`github.com/yousysadmin/whoosh/plugins/slack`, added with a
+custom build like the AWS one): list it with a webhook URL and every deploy posts start / success / failure
+notifications (opt-in rollback too), and any task can post a custom message via the `slack:send` action:
+
+```yaml
+plugins:
+  - name: slack
+    params:
+      webhook_url: '{{ env "SLACK_WEBHOOK_URL" }}'
+      channel: "#deploys"
+
+tasks:
+  announce:
+    action: slack:send
+    with: { message: "Migrations done on *{{.stage}}*", color: good, optional: true }
+```
+
+The automatic notifications are best-effort - a Slack outage never fails the deploy.
+See [README.md](plugins/slack/README.md) for the Whoosh Slack Plugin.
+
 ### Available variables
 
 `cmds` and inline `scripts` are Go templates ([sprig](https://masterminds.github.io/sprig/) helpers included), and the
@@ -576,6 +596,8 @@ deployment still fails), with the failure message exposed as `{{.error}}` / `$DE
 notifications.
 Because the phase is available, one task/script can handle start, success, and failure - see
 [`examples/06-slack-notify`](examples/06-slack-notify/).
+(For Slack specifically you don't need to script any of this: the
+[slack plugin](plugins/slack/README.md) wires these notifications for you.)
 
 `whoosh <stage> deploy:rollback` is a hook point too: `before` / `after` **`deploy:rollback`** tasks wrap the symlink
 swap, and `after` tasks run with `current` already repointed at the restored release - whoosh's post-revert hook
@@ -677,7 +699,7 @@ whoosh build \
 
 The bundled AWS plugin is added the same way - `--with github.com/yousysadmin/whoosh/plugins/aws`.
 
-> **Note:** fetching an *in-repo* plugin module (`plugins/aws`, `plugins/rbenv`) at a specific `@version` requires a
+> **Note:** fetching an *in-repo* plugin module (`plugins/aws`, `plugins/rbenv`, `plugins/slack`) at a specific `@version` requires a
 > subdirectory tag (e.g. `plugins/aws/v1.1.0`) to exist in the whoosh repo. Until such tags are published, bundle them
 > from a local checkout with `--replace` (exactly what `make build-aws` does). Third-party plugin repos are unaffected -
 > their normal module tags work with `--with module@version`.

@@ -5,7 +5,7 @@ weight: 10
 icon: terminal
 ---
 
-Build whoosh yourself with the Go toolchain. Requires **Go 1.26+** (see [Requirements](/installation/#requirements)).
+Build whoosh yourself with the Go toolchain. Requires **Go 1.26+**.
 
 ## go install
 
