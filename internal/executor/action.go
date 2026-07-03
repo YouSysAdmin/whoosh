@@ -31,10 +31,40 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 	if !ok {
 		return fmt.Errorf("unknown action %q (no loaded plugins registers it)", task.Action)
 	}
-	// Provide a host-file writer bound to the task's hosts, so an action can render generated content (e.g. an SSM env
-	// file) onto them rather than the operator machine. Actions that don't need it ignore it.
-	w := &hostFileWriter{e: e, task: task, hosts: e.targetsForTask(task)}
-	return fn(plugins.WithHostFileWriter(ctx, w), with, e.out)
+	// Provide a host-file writer and a host-command runner bound to the task's hosts, so an action can render generated
+	// content (e.g. an SSM env file) onto them or run commands (e.g. systemctl) on them rather than the operator machine.
+	// Actions that don't need them ignore them.
+	hosts := e.targetsForTask(task)
+	ctx = plugins.WithHostFileWriter(ctx, &hostFileWriter{e: e, task: task, hosts: hosts})
+	ctx = plugins.WithHostCommandRunner(ctx, &hostCommandRunner{e: e, task: task, hosts: hosts})
+	return fn(ctx, with, e.out)
+}
+
+// hostCommandRunner runs a command on an action task's hosts (plugins.HostCommandRunner).
+type hostCommandRunner struct {
+	e     *Executor
+	task  *ast.Task
+	hosts []ast.Host
+}
+
+// RunCommand runs cmd on every host the task targets, in parallel and fail-fast, echoing it per host like a task cmd.
+func (r *hostCommandRunner) RunCommand(ctx context.Context, cmd string) error {
+	if len(r.hosts) == 0 {
+		slog.Warn("no hosts match the action task; nothing to run", "cmd", cmd)
+		return nil
+	}
+	// Echo the command per host so the console and the --log-file transcript show what was sent - a structured record in
+	// log mode, else the redacted host-prefixed line.
+	for _, h := range r.hosts {
+		if !r.e.logExec(h.Address, cmd) {
+			fmt.Fprintf(r.e.out, "%s $ %s\n", runner.HostLabel(h.Address, r.e.color), cmd)
+		}
+	}
+	results := r.e.cluster.Run(ctx, Targets(r.hosts), func(string) string { return cmd }, r.e.concurrency, true)
+	if runner.Failed(results) {
+		return firstError(results)
+	}
+	return nil
 }
 
 // hostFileWriter renders a file onto an action task's hosts (plugins.HostFileWriter).
