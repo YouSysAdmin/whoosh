@@ -1,7 +1,7 @@
 ---
 title: "Usage"
 description: "The CLI: commands, global flags, targeting, dry-run, the deploy lifecycle, rollback, concurrency, locking, logging and secret masking."
-weight: 30
+weight: 40
 icon: terminal
 ---
 
@@ -13,14 +13,16 @@ whoosh <stage> <action> [flags]
 
 The **stage** is the name of a `deploy/<stage>.yml` file (it's just data, so any file you add becomes a usable stage).
 The **action** is a built-in command, or the name of a task from your Deployfile.
-The two stage-less commands are `whoosh init` and `whoosh version`.
+The stage-less commands are `whoosh init`, `whoosh version`, `whoosh plugins`, and `whoosh build`.
 
 ## Commands
 
 | Command                                      | Description                                                                                                                                                                  |
 |----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `whoosh init`                                | Scaffold `Deployfile.yml`, `deploy/<stage>.yml` files, and `deploy/scripts/`.                                                                                                |
-| `whoosh version`                             | Print the version.                                                                                                                                                           |
+| `whoosh init`                                | Scaffold `Whooshfile.yml`, `whoosh/<stage>.yml` files, and `whoosh/scripts/` (the `Deployfile.yml` + `deploy/` spelling is also accepted).                                   |
+| `whoosh version`                             | Print the version (and the compiled-in plugin versions).                                                                                                                     |
+| `whoosh plugins`                             | List the plugins compiled into this binary.                                                                                                                                  |
+| `whoosh build`                               | Compose a custom binary with extra plugin modules - see [Installation -> With custom plugins](/installation/custom-plugins/).                                                |
 | `whoosh <stage> deploy`                      | Build and publish a new release.                                                                                                                                             |
 | `whoosh <stage> deploy:rollback [--cleanup]` | Repoint `current` at the previous release (`--cleanup` removes the rolled-back release).                                                                                     |
 | `whoosh <stage> deploy:check`                | Validate connectivity, ensure the directory tree exists, and verify every `linked_files` entry is present in `shared/`.                                                      |
@@ -204,7 +206,7 @@ whoosh production releases                   # inspect what's available first
 
 Rollback fires `before`/`after` `deploy:rollback` hooks around the swap.
 The `after` hooks run with `current` already pointing at the restored release (use them to fix up shared state - see
-[`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/07-rails-assets)).
+[`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/07-rails-assets)).
 Rolling back past the oldest release fails cleanly.
 
 ## Concurrency

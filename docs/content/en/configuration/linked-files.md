@@ -50,6 +50,6 @@ so paths themselves must not contain a colon.
 
 {{< callout type="tip" title="Sharing public/assets has a rollback caveat" >}}
 Sharing `public/assets` is a common Rails choice with a rollback caveat - see
-[`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/07-rails-assets) for per-release
+[`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/07-rails-assets) for per-release
 vs shared assets.
 {{< /callout >}}

@@ -10,7 +10,7 @@ is merged on top of it.
 Scaffold both with:
 
 ```sh
-whoosh init                       # writes Deployfile.yml + deploy/{staging,production}.yml + deploy/scripts/example.sh
+whoosh init                       # writes Whooshfile.yml + whoosh/{staging,production}.yml + whoosh/scripts/example.sh
 whoosh init --stages dev,qa,prod  # choose your own stages
 ```
 
@@ -26,6 +26,13 @@ deploy/
   scripts/              # default location for task scripts referenced by name
     healthcheck.sh
 ```
+
+{{< callout type="note" >}}
+Both naming conventions are accepted: the shared file may be `Whooshfile.yml` **or** `Deployfile.yml` (plus
+`.yaml`/dotted/extension-less variants), and the stage dir may be `whoosh/` **or** `deploy/` - discovery tries the
+`Whooshfile`/`whoosh` spellings first. `whoosh init` scaffolds the `Whooshfile.yml` + `whoosh/` form, the docs use
+`Deployfile.yml` + `deploy/` throughout, and everything applies to either.
+{{< /callout >}}
 
 A minimal pair:
 
@@ -112,19 +119,22 @@ that references them.
 | Field            | Type           | Description                                                                                                    |
 |------------------|----------------|----------------------------------------------------------------------------------------------------------------|
 | `version`        | string         | Schema version marker (use `"1"`).                                                                             |
-| `include`        | string or list | Other config files to merge underneath this one - see [include](#sharing-config-between-stages-include).       |
+| `include`        | string or list | Other config files to merge underneath this one - see [include](#sharing-config-between-stages).               |
 | `app`            | map            | The application and where it lives, including `keep_releases` - see [app](#app).                               |
 | `linked_files`   | list           | Files symlinked from `shared/` into every release - see [Linked files & dirs](/configuration/linked-files/).   |
 | `linked_dirs`    | list           | Directories symlinked from `shared/` into every release.                                                       |
 | `vars`           | map            | Template/env values - see [Vars & envs](/configuration/vars-and-envs/).                                        |
 | `envs`           | map            | Shell environment exported to every command/script.                                                            |
+| `env_files`      | list           | Dotenv files layered under `envs` - see [Vars & envs -> Env files](/configuration/vars-and-envs/#env-files).   |
 | `ssh`            | map            | Connection defaults - see [Hosts -> SSH](/configuration/hosts/#ssh-connection-settings).                       |
 | `hosts`          | list           | Deploy targets - see [Hosts](/configuration/hosts/). Usually in the stage file.                                |
 | `tasks`          | map            | Named units of work - see [Tasks](/configuration/tasks/).                                                      |
 | `hooks`          | map            | Tasks wired to lifecycle phases - see [Hooks & phases](/configuration/hooks/).                                 |
+| `custom_phases`  | list           | Named phases spliced into the lifecycle - see [Plugins -> custom phases](/plugins/overview/#custom-phases).    |
 | `scripts_dir`    | string         | Override the directory task `scripts:` resolve names against (default `deploy/scripts`).                       |
 | `on_unreachable` | string         | `abort` (default) or `skip` - see [Unreachable hosts](/configuration/hosts/#unreachable-hosts-on_unreachable). |
-| `plugins`        | list           | Plugins to load - see [Plugins](/configuration/plugins/).                                                      |
+| `plugins`        | list           | Plugins to load - see [Plugins](/plugins/overview/).                                                           |
+| `log`            | map            | Logging config (level/format/output/color/file) - see [Logging & secret masking](/usage/#logging--secret-masking). |
 
 ### app
 
@@ -155,7 +165,7 @@ ones are pruned at `deploy:finishing`. It is exposed to templates/scripts as `{{
 So a stage file typically lists `hosts` and overrides a few scalars (`branch`, `deploy_to`) and `vars`, while the
 shared file holds `tasks`, `hooks`, and defaults.
 
-Files pulled in with [`include:`](#sharing-config-between-stages-include) are combined with these same rules, layered
+Files pulled in with [`include:`](#sharing-config-between-stages) are combined with these same rules, layered
 **below** the file that names them: `Deployfile.yml < a file's includes < the file itself`.
 
 ## Editor support (JSON Schema)
@@ -167,7 +177,7 @@ Regenerate it after upgrading whoosh (or changing the model) with `make schema` 
 
 Point your editor at it with a modeline on the **first line** of each config file:
 
-<!-- TOOD: replace local path with http after publishing documents in public access -->
+<!-- TODO: replace local path with http after publishing documents in public access -->
 
 ```yaml
 # yaml-language-server: $schema=./deployfile.schema.json

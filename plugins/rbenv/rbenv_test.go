@@ -35,7 +35,7 @@ func TestStartup_ContributesTaskAndHook(t *testing.T) {
 		t.Fatalf("setup task should carry the embedded rbenv script")
 	}
 	if task.Dir != "." {
-		t.Errorf("task Dir = %q, want %q (deploy dirs may not exist at before:starting)", task.Dir, ".")
+		t.Errorf("task Dir = %q, want %q (the hook may be anchored to phases where deploy dirs don't exist)", task.Dir, ".")
 	}
 	if got := cfg.Hooks.Before[defaultPhase]; len(got) != 1 || got[0] != defaultTaskName {
 		t.Errorf("before[%s] = %v, want [%s]", defaultPhase, got, defaultTaskName)

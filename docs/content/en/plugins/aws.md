@@ -1,14 +1,12 @@
 ---
 title: "aws"
-description: "The AWS plugin - EC2 inventory, ASG refresh/rollback, AMI create/cleanup, SSM/Secrets Manager - plus credentials and writing your own."
+description: "The AWS plugin - EC2 inventory, ASG refresh/rollback, AMI create/cleanup, SSM/Secrets Manager - plus credentials."
 weight: 10
 ---
 
-Plugins are compiled into the `whoosh` binary and are self-contained - the core never reaches into a plugin.
-You list the ones you want under `plugins:`. Each validates its config on load and registers what it contributes:
-
-- a **startup hook** - runs at load and can append to `hosts:` (dynamic inventory), and/or
-- one or more **actions** - invoked by name from a task or hook (`action: <name>`).
+The `aws` plugin is a separate module, compiled into the binary with `whoosh build`.
+General plugin configuration - declaring plugins, action tasks, `enabled`/`only`/`except`, templated params, custom
+phases - is covered in the [Plugins overview](/plugins/overview/), this page is the `aws`-specific reference.
 
 ## Build with AWS plugin
 ```sh
@@ -67,151 +65,6 @@ plugins:
 
 (Feature `params:` render with load-time context - `vars` + static config, a param that needs a run-time value like
 `{{ .release_path }}` must go on the task `with:`.)
-
-## Action tasks
-
-An **action task** invokes a registered action operator-side (on your machine, not over SSH).
-It uses `action:` and `with:` instead of `cmds`/`scripts` (the two are mutually exclusive):
-
-```yaml
-tasks:
-  refresh_asg:
-    desc: Roll the ASG and wait for the refresh to finish
-    action: aws:ec2:asg:refresh
-    with:
-      name: my-asg
-```
-
-An action task runs once. `--dry-run` prints the call without contacting AWS.
-(Startup plugins like `aws:ec2:inventory` run on *every* command, including dry-run, because they populate the host
-list.)
-
-**`with:` values are Go-templated.**
-String values (at any depth - nested maps and lists too) are rendered against `vars` and the deploy context before
-reaching the plugin, while numbers and booleans pass through untouched.
-So you can drive params from `vars` or the stage:
-
-```yaml
-vars:
-  asg_name: my-asg
-tasks:
-  refresh_asg:
-    action: aws:ec2:asg:refresh
-    with:
-      name: "{{ .asg_name }}"          # from vars
-      # name: "{{ .stage }}-asg"       # or build it from the deploy context
-```
-
-Action tasks run operator-side, so there is no host - `{{.host}}` renders empty.
-
-{{< callout type="warning" title="Quote the template" >}}
-YAML reads a value starting with `{` as a flow mapping, so `name: {{ .asg_name }}` is a *parse error*.
-Always quote it: `name: "{{ .asg_name }}"`.
-Likewise quote tag-ish values that look like bools/numbers (`Deploy: "true"`), since the plugin wants strings.
-{{< /callout >}}
-
-## Enabling / disabling a plugin
-
-`enabled: false` turns a plugin off entirely - a coarse switch, independent of stage:
-
-```yaml
-plugins:
-  - name: aws
-    enabled: false      # off everywhere, omit (or true) to load it
-    params: { ... }
-```
-
-A disabled plugin is **not loaded** (its startup hooks and actions never register), and any **action task bound to it
-is skipped** (logged), not failed - the same graceful behavior as an `only`/`except`-inactive plugin (below).
-Because it is never loaded, a disabled plugin need not even be compiled into the binary.
-
-Some bundled plugins are **on by default** - they load without a `plugins:` entry.
-The `print-hosts-table` plugin is one: it prints the resolved hosts table at the start of every deploy (after
-`deploy:starting`). Turn a default-on plugin off the same way, by listing it disabled:
-
-```yaml
-plugins:
-  - name: print-hosts-table
-    enabled: false
-```
-
-## Per-stage activation
-
-A plugin can be limited to (or excluded from) specific stages:
-
-```yaml
-plugins:
-  - name: aws
-    except: [ staging ]        # active everywhere EXCEPT staging
-    # only: [production, uat]  # ...or active ONLY in these (mutually-exclusive style)
-    params: { ... }
-```
-
-- **`except`** lists stages where the plugin is **off**.
-- **`only`** lists the stages where it is **on** (empty = all). If both are set, `except` wins.
-- When a plugin is **off** for a stage:
-    - it is **not loaded** - its startup hook never runs (e.g. no inventory, and no bastion/credentials contact at all),
-      and
-    - any **action task bound to it is skipped** (logged), not failed.
-      The binding is by namespace: with `aws` off, every `aws:*` action task (`aws:ec2:ami:create`,
-      `aws:ec2:asg:refresh`, ...) is skipped.
-      Non-action tasks (a `restart`) still run, and a genuinely unknown action still errors (typo safety).
-
-This is how you say *"deploy to staging, but it has no AWS"*: the `aws` plugin is inactive there, so a hook like
-`deploy:published: [restart, bake-ami, asg-refresh]` runs `restart` and skips the two AWS tasks.
-
-{{< callout type="note" >}}
-Individual **tasks** support the same `only`/`except` filter - see [Tasks -> Per-stage
-activation](/configuration/tasks/#per-stage-activation-only--except).
-Use it to scope a plain `cmds`/`scripts` task (one that doesn't depend on a plugin) to specific stages.
-{{< /callout >}}
-
-## Parameterizing plugins with vars
-
-Plugin **`params:` (and per-action `params:`) are Go-templated** - rendered against the stage's `vars` plus the static
-config (`{{.stage}}`, `{{.app_name}}`, ...) and sprig helpers (`{{ env "X" }}`).
-Combined with the single `aws` plugin, this lets you keep the **logic in the shared `Deployfile.yml`** and change only
-**vars per stage** - no duplicated plugin blocks:
-
-```yaml
-# Deployfile.yml (shared) - declared once
-plugins:
-  - name: aws
-    except: [ staging ] # staging has no AWS (see above)
-    params:
-      region: "{{ .aws_region }}"
-      credentials_from_host: { host: "{{ .bastion }}", user: "{{ .deploy_user }}" }
-    actions:
-      - name: aws:ec2:inventory
-        params:
-          tags: { Application: [ "{{ .app_name }}" ] }
-      - name: aws:ec2:asg
-      - name: aws:ec2:ami
-```
-
-```yaml
-# deploy/uat.yml - only the values differ per stage
-vars: { aws_region: ca-central-1, bastion: 10.4.20.204, deploy_user: deployer }
-```
-
-```yaml
-# deploy/production.yml
-vars: { aws_region: us-east-1, bastion: 10.0.1.10, deploy_user: deploy }
-```
-
-Notes and limits:
-
-- **Quote the template** for the same YAML reason as above: `host: "{{ .bastion }}"`, not `host: {{ .bastion }}`.
-- Plugins load at **startup, before any release exists**, so the context is `vars` + static config + sprig - **not**
-  run-time values like `{{.release_path}}` or `{{.commit_hash}}`.
-- Rendering is **strict**: an undefined var (`{{ .typo }}`) fails the command with a clear error, rather than silently
-  becoming empty.
-- A skipped plugin's params are **not** rendered, so a stage where `aws` is off needn't define
-  `bastion`/`aws_region`/etc.
-
-[`examples/04-aws-inventory`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/04-aws-inventory) is built
-entirely around this pattern - one `aws` plugin declared once, stages that differ only in their `vars`, and a
-`staging` stage where `aws` is switched off.
 
 ## aws:ec2:inventory
 
@@ -346,7 +199,7 @@ tasks:
 
 | Param                                 | Description                                                                                                                                  |
 |---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `name_prefix`                         | The image is named `<prefix>-<timestamp>`.                                                                                                   |
+| `name_prefix`                         | The image is named `<prefix>-<timestamp>`. When empty, the source instance's `Name` tag is used as the prefix (an error if that is empty too). |
 | `instance_id` / `source_tags` / `asg` | Source instance, in that precedence order.                                                                                                   |
 | `launch_template`                     | `{id}` or `{asg}` - if set, clone its `$Default` version onto the new AMI and make it default. Omit to leave all launch templates untouched. |
 | `no_reboot`                           | Pass `NoReboot` to `CreateImage` (default true).                                                                                             |
@@ -371,7 +224,7 @@ tasks:
       tags: # and/or tag filters (value scalar or list, AND-ed)
         Application: myapp
         Environment: production
-      keep_last: 3                       # default 3
+      keep_last: 3                       # default 3 (values < 1 fall back to 3)
 ```
 
 At least one filter (`name_prefix` or `tags`) is **required**, so a misconfiguration can't prune every image.
@@ -501,6 +354,7 @@ tasks:
   All keys are normalized to dotenv form (uppercased, non-alphanumeric -> `_`), output is sorted and quoted/escaped.
 - **Multiline values** (PEM keys, certs) keep their real newlines inside the quotes by default, set `multiline: false`
   to collapse to a literal `\n`.
+- **Binary secrets** (`SecretBinary`) are supported too - the raw bytes become the value.
 - The fetch happens **once** and the file is rendered on each host the task targets (set `roles:` to pick them), a
   relative `path` resolves against the **release dir**, an absolute one is used as-is. The file is created `0600`.
   Run it from a hook (e.g. after `deploy:updated`) so the release dir exists.
@@ -580,7 +434,8 @@ aws_default_region: eu-west-1    # optional (also accepts aws_region)
 ```
 
 **Precedence**: static keys -> `credentials_file` -> `credentials_url` -> `credentials_from_host`.
-A region from the file/URL/host is used when `region:` is unset.
+A region supplied by the source (the file/URL's `aws_default_region`, or the host's own region over IMDS) **wins over**
+`region:` - the param is the fallback when the source carries none.
 With no source set, the SDK default chain applies, `credentials_from_host` is specifically for reading a **remote**
 instance's IAM role over SSH (e.g. when the operator has no local AWS creds but a box in the account does).
 
@@ -594,23 +449,3 @@ hooks:
     deploy:published: [ bake_ami, refresh_asg, prune_amis ]
 ```
 
-## Custom phases
-
-A **custom phase** is a named phase inserted into the deploy lifecycle before or after a built-in phase.
-It runs an optional task and is itself a `before`/`after` hook anchor. Declare it in the Deployfile:
-
-```yaml
-custom_phases:
-  - name: deploy:migrate
-    after: deploy:published    # anchor on a built-in phase (set exactly one of before/after)
-    task: run-migrations       # optional, omit for a pure hook anchor
-
-hooks:
-  before:
-    deploy:migrate: [ notify-db-team ]   # a custom phase is a hook anchor too
-```
-
-The anchor must be a built-in phase, the name must be unique (and not a built-in), and the named task (if any) must
-exist - validated when the deploy starts. The task can branch on the phase via `{{.phase}}` / `$DEPLOY_PHASE`.
-A plugin can add the same thing from its startup hook with `cfg.AddPhase(...)` - see [Writing
-plugins](/developing/writing-plugins/#add-a-custom-phase).

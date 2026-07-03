@@ -1,9 +1,9 @@
 // Package rbenv provides the compiled-in `rbenv` whoosh plugin: it installs and
 // wires up rbenv (+ ruby-build) on the deploy hosts and makes it available to
-// every later task, before a deploy starts.
+// every later task, before the new release goes live.
 //
 // Listing the plugin is enough - its startup hook contributes a task
-// (rbenv:setup) and auto-wires it to run before the deploy:starting phase, so
+// (rbenv:setup) and auto-wires it to run before the deploy:updated phase, so
 // there is nothing to add to hooks:. On each run it, on every targeted host:
 //
 //  1. checks whether rbenv is installed (under RBENV_ROOT or on PATH) and, if
@@ -130,7 +130,7 @@ type params struct {
 	// TaskName overrides the contributed task's name (default "rbenv:setup").
 	TaskName string `yaml:"task_name"`
 	// Phase / When place the setup hook: When is "before" (default) or "after", Phase is the phase to anchor to (default
-	// "deploy:starting").
+	// "deploy:updated").
 	Phase string `yaml:"phase"`
 	When  string `yaml:"when"`
 }
@@ -215,7 +215,7 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 
 	task := &whoosh.Task{
 		Desc:  "Install/verify rbenv + ruby-build and ensure Ruby versions",
-		Dir:   ".", // run from $HOME - the deploy dirs may not exist yet at before:starting
+		Dir:   ".", // run from $HOME - the hook is movable (phase:), including to phases where the deploy dirs don't exist yet
 		Roles: p.Roles,
 		Envs:  env,
 		Scripts: []whoosh.Script{{

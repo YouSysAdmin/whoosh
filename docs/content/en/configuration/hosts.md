@@ -92,7 +92,7 @@ hosts:
 ```
 
 This pairs with dynamic inventory: a plugin can discover a fleet and flag which hosts
-to deploy to (see [`aws:ec2:inventory`](/configuration/plugins/#awsec2inventory) `deploy_tag`).
+to deploy to (see [`aws:ec2:inventory`](/plugins/aws/#awsec2inventory) `deploy_tag`).
 
 Two task flags change which hosts a task targets:
 

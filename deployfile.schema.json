@@ -166,7 +166,7 @@
         },
         "raw_remote_log": {
           "type": "boolean",
-          "description": "RawRemoteLog controls how command output (and the echoed commands) is shown. Default/true streams it raw to the\nconsole, prefixed by host, as it arrives. False instead emits each line through the logger as a structured record\n(with the host and running task), so command output joins the JSON log stream and can be shipped to a log\ncollector and parsed."
+          "description": "RawRemoteLog controls how command output (and the echoed commands) is shown. When set it wins: true streams raw to\nthe console (host-prefixed, as it arrives), false emits each line through the logger as a structured record (with\nthe host and running task), so command output joins the JSON log stream and can be shipped to a collector.\nWhen unset, the default follows the log format - text streams raw, json routes through slog - so a json-format run stays\na single valid JSON stream instead of interleaving raw host lines."
         }
       },
       "additionalProperties": false,
@@ -258,7 +258,7 @@
         },
         "forward_agent": {
           "type": "boolean",
-          "description": "ForwardAgent forwards the operator's local ssh-agent to each host, so commands there (notably git) authenticate to\nremotes with the operator's keys. Default false - the host uses its own keys."
+          "description": "ForwardAgent forwards the operator's local ssh-agent to each host, so commands there (notably git) authenticate to\nremotes with the operator's keys. nil means the default (false - the host uses its own keys); a stage can\nexplicitly set false to disable forwarding the base enabled."
         },
         "forward_key": {
           "type": "string",

@@ -6,7 +6,7 @@ weight: 20
 
 Installs and wires up [rbenv](https://github.com/rbenv/rbenv) (+ [ruby-build](https://github.com/rbenv/ruby-build))
 on the deploy hosts, ensures the Ruby versions your app needs are built, and makes
-rbenv available to every subsequent whoosh task — all before a deployment starts.
+rbenv available to every subsequent whoosh task — all before the new release goes live.
 
 ## Build with Rbenv plugin
 ```sh
@@ -93,10 +93,11 @@ The desired set is the **union** of:
 - the previous release's `.ruby-version` on each host
   (`$CURRENT_PATH/.ruby-version`).
 
-Because the setup runs *before* the new release exists on the host, the app's
-`.ruby-version` is picked up **operator-side** — run whoosh from your app repo (or
-point `ruby_version_file` at it). Set `read_ruby_version: false` to use only the
-explicit `versions:`/`global:`.
+The setup runs before the release is published, so on the host it only sees the
+*previous* release's `.ruby-version` (via the `current` symlink) — the version of
+the app **being deployed** is picked up **operator-side**: run whoosh from your app
+repo (or point `ruby_version_file` at it). Set `read_ruby_version: false` to use
+only the explicit `versions:`/`global:`.
 
 ### Ruby build options
 

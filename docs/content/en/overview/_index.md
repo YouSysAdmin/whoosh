@@ -120,4 +120,5 @@ Teams who want multi-host, role-aware deploys.
 - **[Installation](/installation/)** - build the binary and run it from CI.
 - **[Configuration](/configuration/)** - write your `Deployfile.yml`.
 - **[Usage](/usage/)** - the commands, flags, lifecycle, and rollback.
+- **[Plugins](/plugins/)** - dynamic inventory, AWS, Slack, rbenv, and writing your own.
 - **[Examples](/examples/)** - runnable, self-contained configs.

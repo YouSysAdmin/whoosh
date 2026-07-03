@@ -27,4 +27,4 @@ tasks:
   template syntax).
 - Reading unset state errors on a real run (typo guard), while `--dry-run` renders it as `<no value>`.
   Runnable example:
-  [`examples/05-tasks-and-scripts`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/05-tasks-and-scripts).
+  [`examples/05-tasks-and-scripts`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/05-tasks-and-scripts).

@@ -49,7 +49,7 @@ Private modules use your normal Go auth (`GOPRIVATE` + `~/.netrc` or SSH `instea
 setting `GOOS`/`GOARCH`.
 
 {{< callout type="note" title="Writing a plugin" >}}
-For the plugin authoring contract - actions, startup hooks, custom phases, secrets, testing - see [Developing -> Writing plugins](/developing/writing-plugins/).
+For the plugin authoring contract - actions, startup hooks, custom phases, secrets, testing - see [Plugins -> Developing](/plugins/developing/).
 {{< /callout >}}
 
 ## Verify

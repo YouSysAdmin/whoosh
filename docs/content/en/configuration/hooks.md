@@ -59,7 +59,7 @@ deploy:updating ---> deploy:symlink ---> deploy:updated ---> deploy:publishing
   The failure message is exposed as `{{.error}}` / `$DEPLOY_ERROR`. Good for failure notifications.
 - **`deploy:rollback`** - `before`/`after` tasks wrap the symlink swap of `whoosh <stage> deploy:rollback`, and
   `after` tasks run with `current` already repointed at the restored release.
-  See [`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/07-rails-assets).
+  See [`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/07-rails-assets).
   A task can also **replace** the built-in swap entirely with `replace: deploy:rollback` (e.g. an
   `aws:ec2:asg:rollback` action), so `whoosh <stage> deploy:rollback` does the app-specific thing while staying one
   command. The hooks still run around it, and `--cleanup` doesn't apply to a replaced rollback.
@@ -86,6 +86,6 @@ it, whereas an `after:` task hook lets an unrelated task attach work *after* ano
 
 A hook task can read which phase it is running for via `{{.phase}}` / `$DEPLOY_PHASE`, so one templated script can
 handle start / success / failure - see
-[`examples/06-slack-notify`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/06-slack-notify).
+[`examples/06-slack-notify`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/06-slack-notify).
 
 See [Usage -> Deploy lifecycle](/usage/#deploy-lifecycle) for what each phase *does*.

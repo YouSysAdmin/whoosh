@@ -7,10 +7,10 @@ weight: 100
 A plugin extends whoosh from Go: it can add **actions** (operator-side steps a task invokes by name) and a **startup
 hook** (run once at load, which may mutate the resolved config - append inventory hosts, add tasks/hooks/custom
 phases, inject template values and secrets). Plugins are **compiled in** - there's no runtime loading.
-The bundled `print-hosts-table` built-in and the separate `aws` plugin module both use this exact contract, and nothing
-here is private to the core.
+The bundled `print-hosts-table` built-in and the separate `aws`, `slack`, and `rbenv` plugin modules all use this
+exact contract, and nothing here is private to the core.
 
-This page is the authoring reference. For *using* the plugins, see [Plugins](/configuration/plugins/).
+This page is the authoring reference. For *using* the plugins, see the [Plugins overview](/plugins/overview/).
 
 ## The contract
 
@@ -59,10 +59,10 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 		p.greeting = "Hello"
 	}
 	// reg.AddStartup(p.install)     // optionally mutate the config at load
-	return reg.AddAction("hello:say", p.say)
+	return reg.AddAction("hello:greet", p.greet)
 }
 
-func (p *plugin) say(_ context.Context, with map[string]any, out io.Writer) error {
+func (p *plugin) greet(_ context.Context, with map[string]any, out io.Writer) error {
 	// `with` is the task's already-templated `with:` map.
 	fmt.Fprintf(out, "%s, %v!\n", p.greeting, with["name"])
 	return nil
@@ -77,13 +77,13 @@ plugins:
     params: { greeting: "Hi" }
 tasks:
   greet:
-    action: hello:say
+    action: hello:greet
     with: { name: "{{ .app_name }}" }   # with: values are templated first
 ```
 
 {{< callout type="note" >}}
 **Naming convention.**
-Use the plugin name as the namespace for its actions - `hello` registers `hello:say`, `aws` registers
+Use the plugin name as the namespace for its actions - `hello` registers `hello:greet`, `aws` registers
 `aws:ec2:asg:refresh`, etc. The core's per-stage gate keys off the segment **before the first colon**, so every
 `hello:*` action is enabled/disabled together with the `hello` plugin.
 {{< /callout >}}
@@ -100,7 +100,7 @@ Turn them into a struct with `whoosh.DecodeParams` (a YAML round-trip, so use or
 ```go
 var p withParams
 if err := whoosh.DecodeParams(with, &p); err != nil {
-return fmt.Errorf("hello:say params: %w", err)
+return fmt.Errorf("hello:greet params: %w", err)
 }
 ```
 
@@ -112,7 +112,7 @@ You don't render templates yourself.
 
 For multi-feature ("umbrella") plugins, the `aws` plugin module also layers each feature's `actions[].params`
 **under** a task's `with:` as defaults - that merge is implemented in the plugin, not the core.
-See [Plugins -> feature defaults](/configuration/plugins/) if you want to mirror it.
+See [the aws plugin page](/plugins/aws/) if you want to mirror it.
 
 ## Actions
 
@@ -136,7 +136,7 @@ Register it with `reg.AddAction("ns:verb", fn)` (duplicate names error). Key fac
 - Respect `ctx` - honor `ctx.Done()` in any long poll so `Ctrl-C` is responsive.
 
 A task invokes it with `action:`/`with:` (mutually exclusive with `cmds`/`scripts`).
-See [Plugins -> action tasks](/configuration/plugins/#action-tasks).
+See [Plugins -> action tasks](/plugins/overview/#action-tasks).
 
 ## Startup hooks
 
@@ -190,6 +190,9 @@ return nil
 ```
 
 `AddHookBefore`/`AddHookAfter` are variadic (`phase string, tasks ...string`).
+The built-in phase names are re-exported as constants (`whoosh.PhaseStarting` ... `whoosh.PhaseFinished`, plus
+`whoosh.PhaseFailed`/`whoosh.PhaseRollback`), so `cfg.AddHookAfter(whoosh.PhasePublished, "healthcheck")` avoids
+hardcoding the string.
 See [Tasks](/configuration/tasks/) for the full `Task`/`Script` field set, and [Hooks](/configuration/hooks/) for the
 phase names.
 
@@ -212,7 +215,7 @@ return nil
 `HookFunc` is `func(ctx context.Context, out io.Writer) error`, registered with
 `cfg.AddHookFuncBefore`/`AddHookFuncAfter`. A returned error aborts the deploy like a failing task hook.
 Func-hooks run **only during the deploy lifecycle** (not for `config`/`hosts`/`run`), after that phase's task hooks.
-This is exactly how the bundled `print-hosts-table` plugin prints the hosts table after `deploy:starting`.
+This is exactly how the bundled `print-hosts-table` plugin prints the hosts table before `deploy:starting`.
 
 ### Add a custom phase
 
@@ -232,7 +235,7 @@ Rules (validated when the deploy starts): the anchor (`Before`/`After`) must be 
 unique and not collide with a built-in, and the named `Task` must exist.
 The task can branch on the phase via `{{.phase}}` / `$DEPLOY_PHASE`.
 A Deployfile can declare the same thing under `custom_phases:` without a plugin - see [Plugins -> custom
-phases](/configuration/plugins/).
+phases](/plugins/overview/#custom-phases).
 
 ### Inject template/command values (imports)
 
@@ -294,12 +297,38 @@ Register with `whoosh.RegisterDefault(name, factory)` instead of `Register` to m
 in every stage without a `plugins:` entry.
 A Deployfile can still turn it off by listing it disabled (`enabled: false`, or an `only`/`except` that excludes the
 stage) - a declared spec always wins. This is for zero-config convenience plugins.
-`print-hosts-table` is the bundled example (it adds a `local` task that prints the hosts table and hooks it after
-`deploy:starting`).
+`print-hosts-table` is the bundled example: its startup hook registers a func-hook that prints the hosts table before
+`deploy:starting`, and it contributes the `deploy:hosts` CLI command (see below).
 
 ```go
 func init() { whoosh.RegisterDefault("print-hosts-table", func () whoosh.Plugin { return &plugin{} }) }
 ```
+
+## Adding CLI commands
+
+A plugin can also contribute `whoosh <stage> <name>` subcommands by implementing the optional `whoosh.Commander`
+interface:
+
+```go
+func (p *plugin) Commands() []whoosh.Command {
+	return []whoosh.Command{{
+		Name:  "hello:info",
+		Short: "Print what the hello plugin resolved",
+		Run: func(_ context.Context, cfg *whoosh.DeployFile, _ *whoosh.Registry, out io.Writer, _ []string) error {
+			fmt.Fprintf(out, "%d hosts for %s\n", len(cfg.Hosts), cfg.App.Name)
+			return nil
+		},
+	}}
+}
+```
+
+- `Commands()` is queried on a **bare instance** - no `Configure`, no network - so the CLI can register the
+  subcommands offline and keep `--help`/completion fast. Return static declarations only.
+- `Run` receives the **fully-loaded config** (startup hooks already ran, so dynamic inventory is resolved), the
+  populated registry (to invoke a registered action if needed), the console writer, and the positional args.
+- Built-in stage actions and Deployfile tasks win on a name collision.
+
+This is how the bundled `print-hosts-table` plugin provides `whoosh <stage> deploy:hosts`.
 
 ## Reporting a version
 
@@ -318,7 +347,7 @@ just shows no version. (`whoosh plugins` prints `name  version`, `whoosh version
 ## How the core gates your plugin
 
 A Deployfile controls activation with `enabled:`, `only:`, and `except:` (see [Plugins ->
-enabling](/configuration/plugins/#enabling--disabling-a-plugin-enabled)).
+enabling](/plugins/overview/#enabling--disabling-a-plugin)).
 The core applies all of this for you - there's nothing to implement:
 
 - A disabled / stage-inactive plugin is simply **not loaded** (its `Configure`, startup hook, and actions never run),
@@ -331,11 +360,11 @@ The core applies all of this for you - there's nothing to implement:
 `whoosh.Load` builds a registry from specs without the CLI, so you can unit-test an action or a startup hook directly:
 
 ```go
-func TestSay(t *testing.T) {
+func TestGreet(t *testing.T) {
 reg, err := whoosh.Load([]whoosh.PluginSpec{{Name: "hello", Params: map[string]any{"greeting": "Hi"}}})
 if err != nil { t.Fatal(err) }
 
-fn, ok := reg.Action("hello:say")
+fn, ok := reg.Action("hello:greet")
 if !ok { t.Fatal("action not registered") }
 
 var buf bytes.Buffer
@@ -382,7 +411,7 @@ whoosh build \
 | `-o, --output`                  | Output binary path (default `whoosh`).                                                                                                     |
 | `--whoosh-version`              | The whoosh version to build against (default `latest`).                                                                                    |
 | `--app-version`                 | Version string embedded in the binary (default: `--whoosh-version`).                                                                       |
-| `--tags`                        | Extra go build tags, e.g. `noplugins` (drop the bundled plugins).                                                                          |
+| `--tags`                        | Extra go build tags for the compile.                                                                                                       |
 | `--no-standard`                 | Omit the bundled (standard) plugins, including only `--with` modules.                                                                      |
 | `--go` / `--keep` / `--verbose` | Go toolchain path / keep the temp build dir / print the go commands.                                                                       |
 
@@ -409,16 +438,19 @@ Everything you need is in `github.com/yousysadmin/whoosh`:
 | `Register(name, Factory)` / `RegisterDefault(name, Factory)`                                  | Self-register in `init()`. `RegisterDefault` is always-on.                                                                               |
 | `Plugin`                                                                                      | The interface: `Configure(PluginSpec, *Registry) error`.                                                                                 |
 | `Versioner`                                                                                   | Optional: `Version() string` - reports the plugin's version for `whoosh plugins` / `whoosh version`.                                     |
+| `Commander` / `Command` / `CommandFunc`                                                       | Optional: `Commands() []Command` - contribute `whoosh <stage> <name>` CLI subcommands.                                                   |
 | `Factory`                                                                                     | `func() Plugin` - builds an unconfigured instance.                                                                                       |
 | `Registry`                                                                                    | `AddAction(name, ActionFunc) error`, `AddStartup(StartupFunc)`, `Action(name) (ActionFunc, bool)`, `RunStartup(ctx, *DeployFile) error`. |
 | `ActionFunc`                                                                                  | `func(ctx, params map[string]any, out io.Writer) error`.                                                                                 |
 | `StartupFunc`                                                                                 | `func(ctx, cfg *DeployFile) error`.                                                                                                      |
 | `DecodeParams(map[string]any, target) error`                                                  | Untyped params -> a typed struct (YAML tags).                                                                                            |
 | `PluginSpec` / `PluginActionSpec`                                                             | The Deployfile entry (`.Params`, `.Actions`).                                                                                            |
-| `DeployFile`                                                                                  | The resolved config - mutate via `AddTask`, `AddHookBefore`/`AddHookAfter`, `AddPhase`, `AddImport`, and `cfg.Hosts`/`cfg.Vars`.         |
+| `DeployFile`                                                                                  | The resolved config - mutate via `AddTask`, `AddHookBefore`/`AddHookAfter`, `AddHookFuncBefore`/`AddHookFuncAfter`, `AddPhase`, `AddImport`, and `cfg.Hosts`/`cfg.Vars`. |
 | `Task` / `Script` / `Host` / `Hooks` / `CustomPhase`                                          | Config types you construct.                                                                                                              |
+| `HookFunc`                                                                                    | `func(ctx, out io.Writer) error` - a phase func-hook (see above).                                                                        |
+| `PhaseStarting` ... `PhaseFinished` / `PhaseFailed` / `PhaseRollback`                         | The built-in phase names as constants, for hook/phase anchors.                                                                           |
 | `HostFileWriterFrom(ctx) HostFileWriter`                                                      | Render a file onto the task's hosts (`WriteFile(ctx, path, content)`).                                                                   |
-| `AddSecret(string)` / `Masking(string) string`                                                | Register a literal to redact / apply the same masking (tests).                                                                         |
+| `AddSecret(string)` / `Masking(string) string`                                                | Register a literal to redact / apply the same masking (tests).                                                                           |
 | `Registered() []string` / `IsRegistered(name) bool` / `Load([]PluginSpec) (*Registry, error)` | Introspection and test harness.                                                                                                          |
 
 The entrypoint (`Main`) lives in a separate package (`github.com/yousysadmin/whoosh/entrypoint`), so importing the SDK
@@ -428,10 +460,14 @@ does **not** pull in the CLI - keeping a plugin module light.
 
 Copy-ready starting points (each its own module, importing only the public API):
 
-- [`examples/plugin-hello`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/plugin-hello)
+- [`examples/plugins/hello`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/plugins/hello)
     - the minimal plugin: register a name, decode params, one action.
-- [`examples/plugins`](https://github.com/YouSysAdmin/whoosh/tree/main/examples/plugins)
+- [`examples/plugins`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/plugins)
     - focused examples: `pipeline` (add a task + embedded script, wire a hook),
       `config` (vars, `AddSecret`, `AddImport`, an action), and `phase` (a custom phase).
-- [`plugins/aws`](https://github.com/YouSysAdmin/whoosh/tree/main/plugins/aws)
+- [`plugins/slack`](https://github.com/YouSysAdmin/whoosh/tree/master/plugins/slack)
+    - a compact real plugin: one action, config-driven notification tasks wired into phases, masking.
+- [`plugins/rbenv`](https://github.com/YouSysAdmin/whoosh/tree/master/plugins/rbenv)
+    - a contributed-task plugin: an embedded setup script, per-stage params, imports.
+- [`plugins/aws`](https://github.com/YouSysAdmin/whoosh/tree/master/plugins/aws)
     - a full-featured plugin (shared clients, several features, startup + actions + a host-file writer).

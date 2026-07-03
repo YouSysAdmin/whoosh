@@ -154,7 +154,7 @@ func TestDeploy_FullLifecycle(t *testing.T) {
 		t.Fatalf("log symlink = %q, %v", lt, err)
 	}
 	if got, err := os.ReadFile(filepath.Join(current, ".env")); err != nil || string(got) != "SECRET=1" {
-		t.Fatalf(".env via release = %q, %v; want SECRET=1", got, err)
+		t.Fatalf(".env via release = %q, %v, want SECRET=1", got, err)
 	}
 
 	// Revision tracking: REVISION (git SHA), REVISION_TIME (RFC3339), revisions.log.
@@ -246,7 +246,7 @@ func TestDeploy_FailureHookNotifies(t *testing.T) {
 	ex.Close()
 
 	if err == nil {
-		t.Fatalf("expected the deploy to fail with a bad repo; output:\n%s", buf.String())
+		t.Fatalf("expected the deploy to fail with a bad repo, output:\n%s", buf.String())
 	}
 	out := buf.String()
 	if !strings.Contains(out, "FAILHOOK phase=deploy:failed tmpl=deploy:failed") {
@@ -281,10 +281,10 @@ func TestDeploy_FailureFuncHookRuns(t *testing.T) {
 	ex.Close()
 
 	if err == nil {
-		t.Fatalf("expected the deploy to fail with a bad repo; output:\n%s", buf.String())
+		t.Fatalf("expected the deploy to fail with a bad repo, output:\n%s", buf.String())
 	}
 	if !fired {
-		t.Fatalf("deploy:failed func-hook did not fire; output:\n%s", buf.String())
+		t.Fatalf("deploy:failed func-hook did not fire, output:\n%s", buf.String())
 	}
 }
 
@@ -386,7 +386,7 @@ func TestDeploy_LocalMode(t *testing.T) {
 
 	current := filepath.Join(f.deployTo, "current")
 	if got, err := os.ReadFile(filepath.Join(current, "app.txt")); err != nil || string(got) != "v1" {
-		t.Fatalf("local deploy: app.txt = %q, %v; want v1", got, err)
+		t.Fatalf("local deploy: app.txt = %q, %v, want v1", got, err)
 	}
 	if lt, err := os.Readlink(filepath.Join(current, "log")); err != nil || lt != filepath.Join(f.deployTo, "shared", "log") {
 		t.Fatalf("local deploy: log symlink = %q, %v", lt, err)

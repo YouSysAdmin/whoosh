@@ -26,17 +26,17 @@ tasks:
 | `envs`                     | Per-task environment, overriding the global `envs` per key.                                                                                                                                  |
 | `roles`                    | Restrict to hosts with these roles.                                                                                                                                                          |
 | `local`                    | Run on the operator's machine instead of the targets.                                                                                                                                        |
-| `once`                     | Run on a single host per role, not all of them.                                                                                                                                              |
+| `once`                     | Run on a single host (the first matched), not on every matched host.                                                                                                                         |
 | `silent`                   | Suppress the task's start announcement (the `task name=...` log line). Output is still shown.                                                                                                |
 | `silent_output`            | Hide the task's command output (and echoed commands): buffered, discarded on success, and printed (redacted) only if the task fails. The task is still announced. See below.                 |
 | `continue_on_error`        | Don't fail the run if this task's command exits non-zero.                                                                                                                                    |
 | `non_deploy` / `all_hosts` | Change which hosts the task targets - see [Hosts -> Inventory vs deploy](/configuration/hosts/#inventory-vs-deploy-targets).                                                                 |
 | `strict_host_key`          | Override `ssh.strict_host_key` for this task's connections.                                                                                                                                  |
 | `hidden`                   | Omit from the CLI listing (still runnable directly + as dep/hook).                                                                                                                           |
-| `only` / `except`          | Limit the task to (or exclude it from) specific stages - see [Per-stage activation](#per-stage-activation-only--except).                                                                     |
+| `only` / `except`          | Limit the task to (or exclude it from) specific stages - see [Per-stage activation](#per-stage-activation).                                                                                  |
 | `replace`                  | Run this task in place of a phase's built-in command. Only `deploy:rollback` is replaceable - see [Hooks & phases](/configuration/hooks/).                                                   |
 | `output`                   | Capture stdout as run state - see [Task state](/configuration/task-state/).                                                                                                                  |
-| `action` / `with`          | Invoke a plugin action - see [Plugins](/configuration/plugins/). Mutually exclusive with `cmds`/`scripts`. `with:` string values are Go-templated (`name: "{{ .asg_name }}"`).               |
+| `action` / `with`          | Invoke a plugin action - see [Plugins -> action tasks](/plugins/overview/#action-tasks). Mutually exclusive with `cmds`/`scripts`. `with:` string values are Go-templated (`name: "{{ .asg_name }}"`). |
 
 ## Working directory
 
@@ -84,7 +84,7 @@ Don't combine the two when you need the failure detail.
 ## Per-stage activation
 
 A task can be limited to (or excluded from) specific stages - the same
-filter [plugins](/configuration/plugins/#per-stage-activation-only--except) use:
+filter [plugins](/plugins/overview/#per-stage-activation) use:
 
 ```yaml
 tasks:

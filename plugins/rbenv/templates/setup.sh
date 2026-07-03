@@ -186,7 +186,7 @@ add_ruby_version_file() {
 }
 
 if [ "$RBENV_READ_RUBY_VERSION" = "1" ] && [ -n "${CURRENT_PATH:-}" ]; then
-	# The app being deployed isn't on the host yet at before:starting, but the
+	# The release being deployed isn't `current` yet when this runs, but the
 	# previously deployed release (current) is - read its pinned version too.
 	add_ruby_version_file "$CURRENT_PATH/.ruby-version"
 fi
