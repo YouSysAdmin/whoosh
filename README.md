@@ -651,8 +651,13 @@ Redaction is **disabled at `--log-level debug`**, so you can see raw output when
 ## Notes
 
 - **Auth**: uses your `ssh-agent` (`SSH_AUTH_SOCK`) and/or `ssh.identity_file`.
-- **Host keys**: verified against `~/.ssh/known_hosts` by default.
-  Set `ssh.strict_host_key: false` to skip (or `ssh.known_hosts_file` for a custom path).
+- **Host keys**: verified against `~/.ssh/known_hosts` by default, OpenSSH `accept-new` style: a host seen for the
+  first time is trusted and its key appended to the known_hosts file (created, along with its directory, when missing),
+  while a **changed** key fails - so fresh environments (containers, CI) work out of the box without losing
+  protection against key swaps.
+  Set `ssh.accept_new: false` to require every host key to already be present (strictest; pre-populate with
+  `ssh-keyscan`), `ssh.strict_host_key: false` to skip verification entirely, or `ssh.known_hosts_file` for a custom
+  path.
   A single task can override this with `strict_host_key: false` in its definition - for ephemeral hosts whose key is
   legitimately unknown (e.g.
   ASG instances from one AMI that share a key and rotate IPs), without loosening verification for the rest of the

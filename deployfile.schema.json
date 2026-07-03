@@ -256,6 +256,10 @@
           "type": "boolean",
           "description": "StrictHostKey toggles host-key verification. nil means \"use the default\" (true)."
         },
+        "accept_new": {
+          "type": "boolean",
+          "description": "AcceptNew, with strict host-key checking, trusts a host seen for the first time (OpenSSH accept-new): its key is\nappended to the known_hosts file (created when missing) and the connection proceeds. A changed key still fails.\nnil means the default (true); set false to require every host key to be present in known_hosts already."
+        },
         "forward_agent": {
           "type": "boolean",
           "description": "ForwardAgent forwards the operator's local ssh-agent to each host, so commands there (notably git) authenticate to\nremotes with the operator's keys. nil means the default (false - the host uses its own keys); a stage can\nexplicitly set false to disable forwarding the base enabled."

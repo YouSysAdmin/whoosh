@@ -41,13 +41,18 @@ ssh:
   identity_file: ~/.ssh/deploy_key     # optional, ssh-agent is also used
   known_hosts_file: ~/.ssh/known_hosts # optional custom path
   strict_host_key: true                # verify host keys (default true)
+  accept_new: true                     # trust first-seen hosts, record their key (default true)
   forward_agent: false                 # forward your ssh-agent to the host (for remote git auth)
   forward_key: ~/.ssh/deploy           # OR forward just this one key, in-memory
 ```
 
 - **Auth** uses your `ssh-agent` (`SSH_AUTH_SOCK`) and/or `identity_file`.
-- **Host keys** are verified against `~/.ssh/known_hosts` by default.
-  Set `strict_host_key: false` to skip, or `known_hosts_file` for a custom path.
+- **Host keys** are verified against `~/.ssh/known_hosts` by default, OpenSSH `accept-new` style: a host seen for
+  the first time is trusted and its key appended to the known_hosts file (created, along with its directory, when
+  missing), while a **changed** key fails - so fresh environments (containers, CI) work out of the box without losing
+  protection against key swaps.
+  Set `accept_new: false` to require every host key to already be present (strictest; pre-populate with
+  `ssh-keyscan`), `strict_host_key: false` to skip verification entirely, or `known_hosts_file` for a custom path.
   A single task can override this with its own `strict_host_key: false` (see [Tasks](/configuration/tasks/)) - for
   ephemeral hosts whose key is legitimately unknown (e.g.
   ASG instances from one AMI), without loosening the rest of the deploy.

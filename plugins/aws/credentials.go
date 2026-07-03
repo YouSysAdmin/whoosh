@@ -54,6 +54,7 @@ type credentialsHost struct {
 	Port           int    `yaml:"port"`
 	IdentityFile   string `yaml:"identity_file"`
 	StrictHostKey  *bool  `yaml:"strict_host_key"`
+	AcceptNew      *bool  `yaml:"accept_new"`
 	KnownHostsFile string `yaml:"known_hosts_file"`
 }
 
@@ -203,6 +204,7 @@ func fetchCredentialsFromHost(ctx context.Context, h credentialsHost) (awssdk.Cr
 		IdentityFile: h.IdentityFile,
 	}, ssh.Options{
 		StrictHostKey:  h.StrictHostKey == nil || *h.StrictHostKey,
+		AcceptNew:      h.AcceptNew == nil || *h.AcceptNew,
 		KnownHostsFile: h.KnownHostsFile,
 	})
 	if err != nil {

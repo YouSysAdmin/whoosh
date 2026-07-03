@@ -421,7 +421,8 @@ params:
     host: bastion.example.com
     user: deploy                  # optional (default: $USER)
     identity_file: ~/.ssh/id      # optional, ssh-agent is also used
-    # port / strict_host_key / known_hosts_file also accepted
+    # port / strict_host_key / accept_new / known_hosts_file also accepted
+    # (this connection does NOT inherit the stage's `ssh:` settings - configure it here)
 ```
 
 The file/URL YAML keys:

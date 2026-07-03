@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.42.5
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.5
 	github.com/aws/smithy-go v1.27.3
-	github.com/yousysadmin/whoosh v1.1.0
+	github.com/yousysadmin/whoosh v1.1.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 

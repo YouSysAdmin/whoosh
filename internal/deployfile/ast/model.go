@@ -290,6 +290,10 @@ type SSH struct {
 	KnownHostsFile string `yaml:"known_hosts_file,omitempty"` // known_hosts file for host-key verification
 	// StrictHostKey toggles host-key verification. nil means "use the default" (true).
 	StrictHostKey *bool `yaml:"strict_host_key,omitempty"`
+	// AcceptNew, with strict host-key checking, trusts a host seen for the first time (OpenSSH accept-new): its key is
+	// appended to the known_hosts file (created when missing) and the connection proceeds. A changed key still fails.
+	// nil means the default (true); set false to require every host key to be present in known_hosts already.
+	AcceptNew *bool `yaml:"accept_new,omitempty"`
 	// ForwardAgent forwards the operator's local ssh-agent to each host, so commands there (notably git) authenticate to
 	// remotes with the operator's keys. nil means the default (false - the host uses its own keys); a stage can
 	// explicitly set false to disable forwarding the base enabled.

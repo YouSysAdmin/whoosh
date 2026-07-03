@@ -19,6 +19,7 @@ func sshOptions(cfg *ast.DeployFile) ssh.Options {
 	return ssh.Options{
 		StrictHostKey:  strict,
 		KnownHostsFile: cfg.SSH.KnownHostsFile,
+		AcceptNew:      cfg.SSH.AcceptNew == nil || *cfg.SSH.AcceptNew,
 		ForwardAgent:   cfg.SSH.ForwardAgent != nil && *cfg.SSH.ForwardAgent,
 		ForwardKey:     cfg.SSH.ForwardKey,
 	}

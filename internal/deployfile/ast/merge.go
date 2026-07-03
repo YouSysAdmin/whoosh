@@ -109,6 +109,9 @@ func mergeSSH(base, ov SSH) SSH {
 	if ov.StrictHostKey != nil {
 		base.StrictHostKey = ov.StrictHostKey
 	}
+	if ov.AcceptNew != nil {
+		base.AcceptNew = ov.AcceptNew
+	}
 	if ov.ForwardAgent != nil {
 		base.ForwardAgent = ov.ForwardAgent
 	}

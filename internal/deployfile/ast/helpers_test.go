@@ -56,6 +56,17 @@ func TestMerge_SSHForwardAgentTriState(t *testing.T) {
 	}
 }
 
+// accept_new is tri-state like forward_agent: unset inherits the base, an explicit false disables it.
+func TestMerge_SSHAcceptNewTriState(t *testing.T) {
+	base := &DeployFile{SSH: SSH{AcceptNew: new(true)}}
+	if out := Merge(base, &DeployFile{}); out.SSH.AcceptNew == nil || !*out.SSH.AcceptNew {
+		t.Errorf("unset override should keep base accept_new=true, got %v", out.SSH.AcceptNew)
+	}
+	if out := Merge(base, &DeployFile{SSH: SSH{AcceptNew: new(false)}}); out.SSH.AcceptNew == nil || *out.SSH.AcceptNew {
+		t.Errorf("explicit false override should disable accept_new, got %v", out.SSH.AcceptNew)
+	}
+}
+
 func TestMerge_CustomPhasesConcatenate(t *testing.T) {
 	base := &DeployFile{CustomPhases: []CustomPhase{{Name: "deploy:a", After: "deploy:check"}}}
 	ov := &DeployFile{CustomPhases: []CustomPhase{{Name: "deploy:b", Before: "deploy:finishing"}}}

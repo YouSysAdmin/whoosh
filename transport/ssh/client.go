@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -53,8 +54,12 @@ func (t Target) addr() string {
 
 // Options holds connection settings shared by all targets in a run.
 type Options struct {
-	StrictHostKey  bool          // verify the host key against KnownHostsFile (false accepts any key)
-	KnownHostsFile string        // known_hosts path used for verification
+	StrictHostKey  bool   // verify the host key against KnownHostsFile (false accepts any key)
+	KnownHostsFile string // known_hosts path used for verification
+	// AcceptNew, together with StrictHostKey, trusts a host seen for the first time (OpenSSH StrictHostKeyChecking=accept-new):
+	// its key is appended to KnownHostsFile - created along with its parent dir when missing - and the connection proceeds.
+	// A key that conflicts with an existing entry still fails. No effect without StrictHostKey.
+	AcceptNew      bool
 	ConnectTimeout time.Duration // bound on the TCP connect + SSH handshake (zero uses the default)
 	// KeepaliveInterval/KeepaliveMaxFails detect a host that vanishes mid-command.
 	// Zero uses the defaults, a negative interval disables keepalive.
@@ -359,11 +364,81 @@ func hostKeyCallback(opts Options) (ssh.HostKeyCallback, error) {
 	} else {
 		khFile = expandHome(khFile)
 	}
+	if opts.AcceptNew {
+		if err := ensureKnownHosts(khFile); err != nil {
+			return nil, fmt.Errorf("known_hosts %s: %w", khFile, err)
+		}
+	}
 	cb, err := knownhosts.New(khFile)
 	if err != nil {
 		return nil, fmt.Errorf("known_hosts %s: %w (set ssh.strict_host_key: false to skip verification)", khFile, err)
 	}
+	if opts.AcceptNew {
+		return acceptNewCallback(khFile, cb), nil
+	}
 	return cb, nil
+}
+
+// ensureKnownHosts creates the known_hosts file (and its parent dir) when missing, so accept_new works on a fresh
+// machine where nothing has populated ~/.ssh yet - knownhosts.New errors on a nonexistent file.
+func ensureKnownHosts(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// acceptNewMu guards appends to known_hosts files: parallel dials each verify against a snapshot of the file
+// (knownhosts.New reads it once), so without the recorded set two first contacts with the same host would both append.
+var acceptNewMu struct {
+	sync.Mutex
+	recorded map[string]bool // "path\n" + known_hosts line
+}
+
+// acceptNewCallback wraps a knownhosts callback with trust-on-first-use: an unknown host's key is appended to path and
+// accepted, while a key conflicting with an existing entry (or any other verification failure) is still rejected.
+func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		err := cb(hostname, remote, key)
+		var kerr *knownhosts.KeyError
+		if !errors.As(err, &kerr) || len(kerr.Want) > 0 {
+			return err // nil (host already known), a conflicting key, or an unrelated failure
+		}
+		line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
+		entry := path + "\n" + line
+
+		acceptNewMu.Lock()
+		defer acceptNewMu.Unlock()
+		if acceptNewMu.recorded[entry] {
+			return nil // a parallel dial already recorded it
+		}
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			return fmt.Errorf("known_hosts %s: record new host key: %w", path, err)
+		}
+		_, werr := f.WriteString(line + "\n")
+		if cerr := f.Close(); werr == nil {
+			werr = cerr
+		}
+		if werr != nil {
+			return fmt.Errorf("known_hosts %s: record new host key: %w", path, werr)
+		}
+		if acceptNewMu.recorded == nil {
+			acceptNewMu.recorded = map[string]bool{}
+		}
+		acceptNewMu.recorded[entry] = true
+		slog.Info("accepted new host key", "host", hostname, "fingerprint", ssh.FingerprintSHA256(key), "known_hosts", path)
+		return nil
+	}
 }
 
 func expandHome(p string) string {
