@@ -66,6 +66,7 @@ lint: vet
 ## schema: Generate the Deployfile JSON Schema (deployfile.schema.json) for editor validation
 schema:
 	go run ./cmd/gen-schema -o deployfile.schema.json
+	go run ./cmd/gen-schema -o docs/static/deployfile.schema.json
 
 ## clean: Remove built binaries
 clean:
