@@ -21,10 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
  - `whoosh <stage> config` now redacts registered secrets (e.g. `envSecret` values in vars or plugin params) in
-   the dumped config, like every other output path. You can use `--log-level=debud` for show 'secrets' as plain text.
+   the dumped config, like every other output path. You can use `--log-level=debug` for show 'secrets' as plain text.
  - Configuration verification and validation process, now configuration validation works correctly for all phases.
 
-# [1.3.0] - 2026-07-04
+## [1.3.0] - 2026-07-04
 ### Added
  - template helpers: `toYaml`, `fromYaml`, `fromYamlArray`, and `required "msg" .val` (fail the render when a
    value is nil/empty) - the gaps sprig doesn't cover. The full sprig set (`toJson`, `join`, `default`, ...) was
@@ -46,10 +46,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      VAR: "{{ .var }}"
    ```
 
-### Fixed:
- - `--dry-tun` verbose and JSON log output
+### Fixed
+ - `--dry-run` verbose and JSON log output
 
-# [1.2.0] - 2026-07-04
+## [1.2.0] - 2026-07-04
 ### Added
  - plugins: bundled default-on `systemd` plugin - `systemd:start`/`stop`/`restart`/`enable`/`disable`/`daemon-reload`
    actions run `systemctl` on the task's hosts (system and `--user` units, optional `sudo -n`, `daemon_reload`,
@@ -75,14 +75,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.1.0] - 2026-07-03
 
-#### Changed
+### Changed
  - deployfile.schema.json updated
 
-#### Fixed
+### Fixed
  - logs: small fixes for JSON log format
  - docs: fix internal links and typos
 
-#### Added
+### Added
  - plugins: Slack plugin imported into Whoosh
 
 ## [1.0.0] - 2026-07-03
@@ -90,9 +90,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/jc2aws/compare/v1.3.0...HEAD
-[1.3.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.3.0
-[1.2.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.2.0
-[1.1.1]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.1.1
-[1.1.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.1.0
-[1.0.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.0.0
+[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.3.0
+[1.2.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.2.0
+[1.1.1]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.1.1
+[1.1.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.1.0
+[1.0.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.0.0
