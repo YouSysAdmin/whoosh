@@ -5,6 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+
+	"github.com/yousysadmin/whoosh/internal/masking"
 )
 
 func newConfigCmd(stage string, gf *globalFlags) *cobra.Command {
@@ -17,11 +19,14 @@ func newConfigCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out, err := yaml.Marshal(cfg)
+			b, err := yaml.Marshal(cfg)
 			if err != nil {
 				return fmt.Errorf("marshal config: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "# resolved config for stage %q\n%s", stage, out)
+			// The resolved vars/params may carry envSecret values - redact the dump like every other output path.
+			out := masking.NewWriter(cmd.OutOrStdout())
+			defer out.Flush()
+			fmt.Fprintf(out, "# resolved config for stage %q\n%s", stage, b)
 			return nil
 		},
 	}
