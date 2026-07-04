@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
  - `whoosh <stage> config` now redacts registered secrets (e.g. `envSecret` values in vars or plugin params) in
    the dumped config, like every other output path. You can use `--log-level=debug` for show 'secrets' as plain text.
  - Configuration verification and validation process, now configuration validation works correctly for all phases.
+ - Template check skips templates using run-time task state
 
 ## [1.3.0] - 2026-07-04
 ### Added
