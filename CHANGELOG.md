@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+# [1.3.0] - 2026-07-04
 ### Added
  - template helpers: `toYaml`, `fromYaml`, `fromYamlArray`, and `required "msg" .val` (fail the render when a
    value is nil/empty) - the gaps sprig doesn't cover. The full sprig set (`toJson`, `join`, `default`, ...) was
@@ -18,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    but it greatly increases the volume of commands transmitted over SSH connections
    and can cause silent conflicts between variables. 
    Such functionality should be investigated more carefully to prevent side effects.
+
    If you need to export a variable as an environment variable, you should use the old method at the global or task level:
    ```yaml
    vars:
@@ -70,7 +72,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/jc2aws/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/YouSysAdmin/jc2aws/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.3.0
 [1.2.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.2.0
 [1.1.1]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.1.1
 [1.1.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.1.0
