@@ -8,13 +8,19 @@ Both inject values into your commands, but they are different mechanisms:
 
 - **`vars`** - template values.
   Each key is available as `{{.KEY}}` (Go template, rendered by whoosh). Vars are **not** exported to the shell.
+  Var values are **themselves templates**, rendered once at config load, so a var can pull from whoosh's environment
+  (or `env_files`, below): `app_version: '{{ env "APP_VERSION" }}'`. The load-time context is static - app/stage/path
+  keys, sprig, `env`/`envSecret`/`sensitive` - a var cannot reference another var, `{{.config}}`, plugin imports, or
+  run-time values (`release_path`/`host`/... render empty at load). Template string args need **double quotes**
+  (`{{ env 'X' }}` is a parse error); escape a literal `{{` as `{{ "{{" }}`.
 - **`envs`** - the shell environment for commands.
   Values are **shell-expanded** (so they can reference `$HOME`/`$PATH`) *and* **Go-templated** (so they can pull from
-  vars with `{{ .var }}` or from whoosh's own environment with sprig's `env`).
+  vars with `{{ .var }}` or from whoosh's own environment with `env`).
 
 ```yaml
 vars:
   RAILS_ENV: production # -> {{.RAILS_ENV}} in templates
+  app_version: '{{ env "APP_VERSION" }}' # rendered once at load: process env, else env_files
 
 envs:
   # surface a var to the shell explicitly:
@@ -44,6 +50,10 @@ env_files:
 - The loaded values are **not** emitted by `whoosh <stage> config`, so `.env` secrets stay out of the dumped config.
   They are *not* auto-masked in command output, though - use `envSecret`/`sensitive` (below) for values that must be
   hidden.
+- The values are also visible to the `env`/`envSecret` **template helpers**: anywhere a template renders (`vars`,
+  plugin `params`, `cmds`, ...), `{{ env "NAME" }}` reads whoosh's own environment first and falls back to the
+  `env_files` value when the process var is unset (a set-but-empty process var still wins - the usual dotenv
+  convention). Sprig's `expandenv` reads only the process environment - use `env`.
 
 {{< callout type="info" >}}
 A value injected with `{{ env "X" }}` is visible in `--dry-run` output and the remote process list - it's for

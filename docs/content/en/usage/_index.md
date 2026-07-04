@@ -17,22 +17,22 @@ The stage-less commands are `whoosh init`, `whoosh version`, `whoosh plugins`, a
 
 ## Commands
 
-| Command                                      | Description                                                                                                                                                                  |
-|----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `whoosh init`                                | Scaffold `Whooshfile.yml`, `whoosh/<stage>.yml` files, and `whoosh/scripts/` (the `Deployfile.yml` + `deploy/` spelling is also accepted).                                   |
-| `whoosh version`                             | Print the version (and the compiled-in plugin versions).                                                                                                                     |
-| `whoosh plugins`                             | List the plugins compiled into this binary.                                                                                                                                  |
-| `whoosh build`                               | Compose a custom binary with extra plugin modules - see [Installation -> With custom plugins](/installation/custom-plugins/).                                                |
-| `whoosh <stage> deploy`                      | Build and publish a new release.                                                                                                                                             |
-| `whoosh <stage> deploy:rollback [--cleanup]` | Repoint `current` at the previous release (`--cleanup` removes the rolled-back release).                                                                                     |
-| `whoosh <stage> deploy:check`                | Validate connectivity, ensure the directory tree exists, and verify every `linked_files` entry is present in `shared/`.                                                      |
-| `whoosh <stage> deploy:unlock`               | Clear a stale deploy lock on the primary host.                                                                                                                               |
-| `whoosh <stage> releases`                    | List the releases present on each host.                                                                                                                                      |
-| `whoosh <stage> deploy:hosts`                | Print the stage's resolved hosts (including `deploy: false`) as a table. Provided by the default-on `print-hosts-table` plugin.                                                |
-| `whoosh <stage> config`                      | Print the fully resolved, merged configuration.                                                                                                                              |
-| `whoosh <stage> validate`                    | Validate the configuration **offline** (parse + merge + schema checks + plugin param templates). No host or cloud access, no dynamic inventory. A fast CI / pre-commit gate. |
-| `whoosh <stage> run "<cmd>"`                 | Run an ad-hoc command on the stage's hosts.                                                                                                                                  |
-| `whoosh <stage> <task>`                      | Run a named task from the Deployfile.                                                                                                                                        |
+| Command                                      | Description                                                                                                                                |
+|----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `whoosh init`                                | Scaffold `Whooshfile.yml`, `whoosh/<stage>.yml` files, and `whoosh/scripts/` (the `Deployfile.yml` + `deploy/` spelling is also accepted). |
+| `whoosh version`                             | Print the version (and the compiled-in plugin versions).                                                                                   |
+| `whoosh plugins`                             | List the plugins compiled into this binary.                                                                                                |
+| `whoosh build`                               | Compose a custom binary with extra plugin modules - see [Installation -> With custom plugins](/installation/custom-plugins/).              |
+| `whoosh <stage> deploy`                      | Build and publish a new release.                                                                                                           |
+| `whoosh <stage> deploy:rollback [--cleanup]` | Repoint `current` at the previous release (`--cleanup` removes the rolled-back release).                                                   |
+| `whoosh <stage> deploy:check`                | Validate connectivity, ensure the directory tree exists, and verify every `linked_files` entry is present in `shared/`.                    |
+| `whoosh <stage> deploy:unlock`               | Clear a stale deploy lock on the primary host.                                                                                             |
+| `whoosh <stage> releases`                    | List the releases present on each host.                                                                                                    |
+| `whoosh <stage> deploy:hosts`                | Print the stage's resolved hosts (including `deploy: false`) as a table. Provided by the default-on `print-hosts-table` plugin.            |
+| `whoosh <stage> config`                      | Print the fully resolved, merged configuration.                                                                                            |
+| `whoosh <stage> validate`                    | Validate the configuration.                                                                                                                |
+| `whoosh <stage> run "<cmd>"`                 | Run an ad-hoc command on the stage's hosts.                                                                                                |
+| `whoosh <stage> <task>`                      | Run a named task from the Deployfile.                                                                                                      |
 
 Task commands are discovered from your Deployfile per stage, so `whoosh production --help` lists the tasks available
 for that stage (tasks marked `hidden: true` are omitted but still runnable).

@@ -33,7 +33,8 @@ Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 Plus:
 
 - **Your `vars`** - each key is a template value (`{{.KEY}}`). To surface one to the shell, map it explicitly:
-  `envs: { KEY: "{{ .KEY }}" }`.
+  `envs: { KEY: "{{ .KEY }}" }`. Var values are themselves templates, rendered once at load - see
+  [Vars & envs](/configuration/vars-and-envs/).
 - **`envs:` entries** (global and per-task) - exported as env vars.
 - **`{{.config}}`** (template only) - the whole resolved Deployfile keyed by its YAML field names:
   `{{.config.app.name}}`, `{{range .config.hosts}}{{.address}} {{end}}`.
@@ -55,7 +56,7 @@ helpers). Some of the most useful ones:
 | `default` / `coalesce` / `ternary`        | `{{ .region \| default "eu-west-1" }}`              |
 | `upper` / `lower` / `trim` / `replace`    | `{{ .app_name \| upper }}`                          |
 | `b64enc` / `b64dec`                       | `{{ .docker_auth \| b64enc }}`                      |
-| `env`                                     | `{{ env "CI_COMMIT_SHA" }}`                         |
+| `env` (falls back to `env_files` values)  | `{{ env "CI_COMMIT_SHA" }}`                         |
 | `now` / `date`                            | `{{ now \| date "2006-01-02" }}`                    |
 
 Whoosh adds the gaps sprig doesn't cover:

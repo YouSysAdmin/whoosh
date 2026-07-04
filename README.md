@@ -395,10 +395,16 @@ output, dry-run plans, logs:
   overrides.
   Paths resolve against the Deployfile dir, later files win (a stage file's `env_files` are appended after the shared
   ones), a missing file is skipped, and the loaded values are kept out of `whoosh <stage> config`.
+  The values are also visible to the `env`/`envSecret` template helpers - anywhere a template runs (`vars`, plugin
+  `params`, `cmds`, ...), `{{ env "NAME" }}` reads whoosh's own environment first and falls back to the `env_files`
+  value when the process var is unset (a set-but-empty process var still wins, the usual dotenv convention).
+  Sprig's `expandenv` reads only the process environment - use `env`.
 
   ```yaml
   env_files:
     - .env
+  vars:
+    app_version: '{{ env "APP_VERSION" }}' # process env, else .env
   ```
 
 ### Scripts
@@ -427,8 +433,8 @@ tasks:
   over SSH and in local mode, no upload needed.
 - **Environment**: each script gets the task's `envs` and the deployment context exported as standard
   env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`, `$COMMIT_HASH`,
-  `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`. 
-   Config `vars` are template-only - surface one explicitly with `envs: { NAME: "{{ .var }}" }`.
+  `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`.
+  Config `vars` are template-only - surface one explicitly with `envs: { NAME: "{{ .var }}" }`.
 - **Templating**: inline scripts are always Go-templated, while a file script is templated when its path ends in
   `.tmpl` or it sets `template: true`.
   Templates see the deployment context (`{{.release_path}}`, `{{.host}}`, `{{.stage}}`, your vars) plus the **whole
@@ -453,18 +459,18 @@ Each one validates its params on load (`Configure`) and registers what it contri
 
 **Bundled** (in every binary, on by default - disable with `enabled: false`):
 
-| Plugin              | What it does                                                                                                  | Docs                                                       |
-|---------------------|---------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
-| `print-hosts-table` | Prints the resolved hosts table at deploy start and via `whoosh <stage> deploy:hosts`                          | [README](plugins/standard/print_hosts_table/README.md)     |
-| `systemd`           | `systemd:start/stop/restart/enable/disable/daemon-reload` actions run `systemctl` on the task's hosts, ad-hoc or hooked to a deploy phase | [README](plugins/standard/systemd/README.md) |
+| Plugin              | What it does                                                                                                                              | Docs                                                   |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| `print-hosts-table` | Prints the resolved hosts table at deploy start and via `whoosh <stage> deploy:hosts`                                                     | [README](plugins/standard/print_hosts_table/README.md) |
+| `systemd`           | `systemd:start/stop/restart/enable/disable/daemon-reload` actions run `systemctl` on the task's hosts, ad-hoc or hooked to a deploy phase | [README](plugins/standard/systemd/README.md)           |
 
 **Separate modules** (compiled in with `whoosh build --with <module>`):
 
-| Plugin  | What it does                                                                                       | Docs                                |
-|---------|-----------------------------------------------------------------------------------------------------|-------------------------------------|
-| `aws`   | EC2 inventory, ASG refresh/rollback, AMI create/cleanup, SSM & Secrets Manager env files and imports | [README](plugins/aws/README.md)     |
-| `slack` | Deploy start/success/failure notifications and the `slack:send` action                               | [README](plugins/slack/README.md)   |
-| `rbenv` | Installs rbenv + ruby-build and the app's Ruby versions on the hosts before the release goes live    | [README](plugins/rbenv/README.md)   |
+| Plugin  | What it does                                                                                         | Docs                              |
+|---------|------------------------------------------------------------------------------------------------------|-----------------------------------|
+| `aws`   | EC2 inventory, ASG refresh/rollback, AMI create/cleanup, SSM & Secrets Manager env files and imports | [README](plugins/aws/README.md)   |
+| `slack` | Deploy start/success/failure notifications and the `slack:send` action                               | [README](plugins/slack/README.md) |
+| `rbenv` | Installs rbenv + ruby-build and the app's Ruby versions on the hosts before the release goes live    | [README](plugins/rbenv/README.md) |
 
 To write your own, copy [`plugins/plugin-template`](plugins/plugin-template/) - a compiling, tested stub exercising
 the full plugin interface.
@@ -498,6 +504,12 @@ Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 Plus:
 
 - **Your `vars`** - each key is a template value: `vars: { RAILS_ENV: production }` -> `{{.RAILS_ENV}}`.
+  Var values are **themselves Go templates**, rendered once at config load - so
+  `vars: { app_version: '{{ env "APP_VERSION" }}' }` resolves from whoosh's environment (or `env_files`, see below)
+  before anything uses the var. The load-time context is static: the app/stage/path keys, sprig, and
+  `env`/`envSecret`/`sensitive` - a var cannot reference another var, `{{.config}}`, plugin imports, or run-time
+  values (`release_path`/`host`/... render empty at load). Template string args need **double quotes**
+  (`{{ env 'X' }}` is a parse error), and a literal `{{` in a var value must be escaped as `{{ "{{" }}`.
 - **`envs:` entries** (global and per-task) - exported as env vars (`$NAME`).
 - **`{{.config}}`** (template only) - the whole resolved Deployfile keyed by its YAML field names, for flexible logic:
   `{{.config.app.name}}`, `{{range .config.hosts}}{{.address}} {{end}}`.
@@ -505,7 +517,8 @@ Plus:
   state](#task-state-output)) - e.g. `{{ .tasks.whoami.Account }}`.
 - **Helper functions** in templates - the full [sprig](https://masterminds.github.io/sprig/) set
   (`{{ toJson .config.app }}`, `{{ join "," .roles }}`, `{{ .region | default "eu-west-1" }}`,
-  `{{ env "CI_COMMIT_SHA" }}` reads whoosh's own environment, `{{ now | date "2006-01-02" }}`, ...) plus whoosh's
+  `{{ env "CI_COMMIT_SHA" }}` reads whoosh's own environment falling back to `env_files` values,
+  `{{ now | date "2006-01-02" }}`, ...) plus whoosh's
   own `toYaml`/`fromYaml`/`fromYamlArray` and `required "msg" .val` (fail the render when a value is nil/empty) -
   see [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
 
@@ -615,9 +628,9 @@ Use it to fix up shared state on rollback (e.g. restore a shared asset manifest)
 | `whoosh <stage> releases`                    | List releases per host                                                    |
 | `whoosh <stage> <task>`                      | Run a Deployfile task                                                     |
 | `whoosh <stage> run "<cmd>"`                 | Run an ad-hoc command                                                     |
-| `whoosh <stage> deploy:hosts`                | Print the stage's hosts as a table (print-hosts-table plugin)               |
+| `whoosh <stage> deploy:hosts`                | Print the stage's hosts as a table (print-hosts-table plugin)             |
 | `whoosh <stage> config`                      | Print the resolved, merged config                                         |
-| `whoosh <stage> validate`                    | Validate the config offline (no host/cloud access) - a fast CI gate       |
+| `whoosh <stage> validate`                    | Validate the config                                                       |
 
 Global flags: `--dry-run`, `--verbose/-v`, `--roles`, `--host/-H <host>`, `--concurrency <n>` (max hosts running a
 command at once, `0` = all), `--deployfile <path>`.
