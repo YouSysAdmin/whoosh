@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+ - config `vars:` values are themselves Go templates, rendered once at config load against the static context
+   (app/stage/paths, sprig, `env`/`envSecret`/`sensitive`) - so a var can pull from the environment:
+   ```yaml
+   env_files: [ ./dev.env ]
+   vars:
+     app_version: '{{ env "APP_VERSION" }}' # process env, else dev.env
+   ```
+   Limitations: a var cannot reference another var, `{{.config}}`, plugin imports, or run-time values
+   (`release_path`/`host`/... render empty at load).
+ - the `env`/`envSecret` template helpers now fall back to the `env_files` (dotenv) values when the process
+   env var is unset (a set-but-empty process var still wins) - everywhere templates render: vars, plugin
+   `params:`, `cmds`, scripts, `envs:`.
+
+### Fixed
+ - `whoosh <stage> config` now redacts registered secrets (e.g. `envSecret` values in vars or plugin params) in
+   the dumped config, like every other output path. You can use `--log-level=debud` for show 'secrets' as plain text.
+ - Configuration verification and validation process, now configuration validation works correctly for all phases.
 
 # [1.3.0] - 2026-07-04
 ### Added
