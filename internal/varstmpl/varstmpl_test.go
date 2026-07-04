@@ -226,6 +226,53 @@ func TestEnvSecret_RegistersForRedaction(t *testing.T) {
 	}
 }
 
+// env resolves from the process environment first, falling back to the context's env_files values.
+func TestRender_EnvFallsBackToEnvFileValues(t *testing.T) {
+	const name = "WHOOSH_TEST_ENVFILE_VAR"
+	c := varstmpl.Context{EnvFileValues: map[string]string{name: "from-file"}}
+
+	// Unset in the process env: the env_files value is used.
+	got, err := varstmpl.Render(`v={{ env "`+name+`" }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "v=from-file" {
+		t.Fatalf("env fallback = %q, want v=from-file", got)
+	}
+
+	// A set process var wins over the file value...
+	t.Setenv(name, "from-proc")
+	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=from-proc" {
+		t.Fatalf("process env should win, got %q", got)
+	}
+	// ...even when set to empty (dotenv non-override convention).
+	t.Setenv(name, "")
+	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=" {
+		t.Fatalf("set-but-empty process env should win, got %q", got)
+	}
+
+	// No env_files at all keeps sprig parity: unset renders empty.
+	if got, _ := varstmpl.Render(`v={{ env "WHOOSH_TEST_DEFINITELY_UNSET" }}`, varstmpl.Context{}); got != "v=" {
+		t.Fatalf("unset env without env_files = %q, want v=", got)
+	}
+}
+
+// envSecret resolves through the same env_files fallback and still registers the value for redaction.
+func TestEnvSecret_EnvFileValueRedacted(t *testing.T) {
+	const val = "filetok_not-a-known-pattern_112233"
+	c := varstmpl.Context{EnvFileValues: map[string]string{"WHOOSH_TEST_FILE_SECRET": val}}
+	got, err := varstmpl.Render(`auth {{ envSecret "WHOOSH_TEST_FILE_SECRET" }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "auth "+val {
+		t.Fatalf("envSecret should return the env_files value, got %q", got)
+	}
+	if red := masking.String(got); strings.Contains(red, val) {
+		t.Errorf("envSecret env_files value not redacted: %q", red)
+	}
+}
+
 // sensitive marks an arbitrary value (var, expression) sensitive.
 func TestSensitive_RegistersForRedaction(t *testing.T) {
 	c := varstmpl.Context{Vars: map[string]any{"db_password": "pw_abc_XYZ_123456"}}

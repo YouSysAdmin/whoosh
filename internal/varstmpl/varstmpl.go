@@ -10,8 +10,9 @@
 //
 // Referencing an undefined key is an error, so typos surface immediately.
 //
-// Sprig supplies the general-purpose helpers (toJson/fromJson, join/splitList, default/ternary, env, ...); whoosh
-// adds toYaml/fromYaml/fromYamlArray/required (helperFuncs) and the secret-marking envSecret/sensitive (secretFuncs).
+// Sprig supplies the general-purpose helpers (toJson/fromJson, join/splitList, default/ternary, ...); whoosh
+// adds toYaml/fromYaml/fromYamlArray/required (helperFuncs), the secret-marking sensitive (secretFuncs), and
+// env/envSecret (envFuncs) - which read the process environment falling back to the Deployfile's env_files values.
 package varstmpl
 
 import (
@@ -62,6 +63,18 @@ type Context struct {
 	// Imports are values a plugin injected at load (e.g. SSM parameters), keyed namespace -> key -> value.
 	// Each namespace is exposed as {{ .<ns>.<key> }}.
 	Imports map[string]map[string]string
+	// EnvFileValues are the Deployfile's env_files (dotenv) values. The env/envSecret template funcs consult them when
+	// the process env var is unset (a set process var wins, even when empty - the dotenv non-override convention).
+	EnvFileValues map[string]string
+}
+
+// lookupEnv resolves an env/envSecret name: the process environment first (a set-but-empty var still wins), then the
+// env_files values, else "".
+func (c Context) lookupEnv(name string) string {
+	if v, ok := os.LookupEnv(name); ok {
+		return v
+	}
+	return c.EnvFileValues[name]
 }
 
 // Data flattens the context into the map exposed to templates.
@@ -130,6 +143,7 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 		Funcs(sprigFuncs).
 		Funcs(helperFuncs()).
 		Funcs(secretFuncs()).
+		Funcs(envFuncs(c)).
 		Option("missingkey=" + missingkey).
 		Parse(text)
 	if err != nil {
@@ -189,21 +203,34 @@ func helperFuncs() template.FuncMap {
 // also registered with redact, so it is masked everywhere whoosh prints it (command echo, output, dry-run plans, logs)
 // - even when no built-in pattern would recognize it.
 //
-//	{{ envSecret "REG_TOKEN" }}   // like env, but the value is always redacted
 //	{{ sensitive .db_password }}  // mark any value (var, expression) sensitive
 //
-// (Template function names can't contain '-', so it's envSecret, not env-sens.)
+// (envSecret, the env-reading counterpart, lives in envFuncs since it needs the context's env_files values.)
 func secretFuncs() template.FuncMap {
 	return template.FuncMap{
-		"envSecret": func(name string) string {
-			v := os.Getenv(name)
-			masking.AddSecret(v)
-			return v
-		},
 		"sensitive": func(v any) string {
 			s := fmt.Sprint(v)
 			masking.AddSecret(s)
 			return s
+		},
+	}
+}
+
+// envFuncs returns the environment-reading helpers, bound to c so they see the Deployfile's env_files values (process
+// env wins; see Context.lookupEnv). "env" deliberately overrides sprig's os.Getenv alias - chained after sprigFuncs,
+// last registration wins - and the tiny per-render map keeps the shared sprigFuncs cache intact.
+//
+//	{{ env "APP_VERSION" }}       // process env, else env_files
+//	{{ envSecret "REG_TOKEN" }}   // like env, but the value is always redacted
+//
+// (Template function names can't contain '-', so it's envSecret, not env-sens.)
+func envFuncs(c Context) template.FuncMap {
+	return template.FuncMap{
+		"env": c.lookupEnv,
+		"envSecret": func(name string) string {
+			v := c.lookupEnv(name)
+			masking.AddSecret(v)
+			return v
 		},
 	}
 }

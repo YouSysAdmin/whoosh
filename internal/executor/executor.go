@@ -104,6 +104,9 @@ func New(cfg *ast.DeployFile, opts Options) *Executor {
 		Tasks: map[string]any{},
 		// Values a plugin injected at load (e.g. SSM params): {{ .ssm.<key> }}.
 		Imports: cfg.Imports,
+		// env_files values, consulted by {{ env }}/{{ envSecret }} when the process var is unset - consistent with
+		// env_files being the base layer of the task shell env (execEnv).
+		EnvFileValues: cfg.EnvFileValues,
 	}
 	e := &Executor{
 		cfg:         cfg,

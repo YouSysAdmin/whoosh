@@ -1515,3 +1515,26 @@ func TestRunTask_ContinueOnError(t *testing.T) {
 		t.Errorf("continue_on_error should make the failure non-fatal, got %v", err)
 	}
 }
+
+// The env template func in task commands falls back to the Deployfile's env_files values when the process var is unset
+// (the executor's base context carries EnvFileValues).
+func TestRunTask_EnvTemplateFuncSeesEnvFiles(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:           ast.App{Name: "myapp", DeployTo: deployTree(t), Branch: "main"},
+		Stage:         "test",
+		EnvFileValues: map[string]string{"WHOOSH_TEST_EXEC_FILE_VAR": "exec-from-file"},
+		Hosts:         []ast.Host{{Address: "localhost", Local: true, Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"show": {Roles: []string{"app"}, Cmds: []string{`echo {{ env "WHOOSH_TEST_EXEC_FILE_VAR" }}`}},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "show"); err != nil {
+		t.Fatalf("RunTask: %v\noutput:\n%s", err, buf.String())
+	}
+	if !strings.Contains(buf.String(), "exec-from-file") {
+		t.Fatalf("env func should resolve from env_files, got:\n%s", buf.String())
+	}
+}
