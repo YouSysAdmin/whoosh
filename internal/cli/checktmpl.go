@@ -28,6 +28,11 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 
 	var errs []error
 	check := func(what, text string) {
+		// Task output ({{ .tasks.<name>.* }}) exists only at run time, so a template using it can't be checked
+		// offline - a `required` guard on it would false-fail here (like plugin imports; see validateContext).
+		if strings.Contains(text, ".tasks.") {
+			return
+		}
 		if err := render(text); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %s", what, conciseErr(err)))
 		}
@@ -53,9 +58,7 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 			check(fmt.Sprintf("task %q dir", name), t.Dir)
 		}
 		if len(t.With) > 0 {
-			if _, err := varstmpl.RenderParams(t.With, ctx, false); err != nil {
-				errs = append(errs, fmt.Errorf("task %q with: %s", name, conciseErr(err)))
-			}
+			checkParamValue(fmt.Sprintf("task %q with", name), t.With, check)
 		}
 		for _, sc := range t.Scripts {
 			label := scriptRef(sc)
@@ -123,7 +126,8 @@ func conciseErr(err error) string {
 func validateContext(cfg *ast.DeployFile) varstmpl.Context {
 	// Plugin imports ({{ .ssm.* }}, ...) and dynamic inventory don't exist yet - the check runs before plugins load -
 	// so those keys resolve through the lenient missingkey handling, a `required` guard on an import value can't be
-	// verified offline and would fail here, guard imports at run time instead (e.g. in the script).
+	// verified offline and would fail here, guard imports at run time instead (e.g. in the script). Task output
+	// ({{ .tasks.* }}) is likewise run-time-only; checkTemplates skips templates that reference it.
 	ctx := loadTimeContext(cfg)
 	ctx.KeepReleases = cfg.App.KeepReleases
 	ctx.Config, _ = cfg.AsMap()
@@ -136,6 +140,23 @@ func validateContext(cfg *ast.DeployFile) varstmpl.Context {
 		ctx.Roles = hosts[0].Roles
 	}
 	return ctx
+}
+
+// checkParamValue walks a params value (an action task's `with:`) and checks each string leaf, labeled with its key
+// path - the string-by-string walk is what lets the run-time-state skip in `check` apply to individual params.
+func checkParamValue(what string, v any, check func(what, text string)) {
+	switch t := v.(type) {
+	case string:
+		check(what, t)
+	case map[string]any:
+		for _, k := range sortedKeys(t) {
+			checkParamValue(what+"."+k, t[k], check)
+		}
+	case []any:
+		for i, el := range t {
+			checkParamValue(fmt.Sprintf("%s[%d]", what, i), el, check)
+		}
+	}
 }
 
 func scriptRef(sc ast.Script) string {

@@ -148,6 +148,20 @@ app:
 			name: "task inactive for the stage is skipped",
 			body: "tasks:\n  t:\n    except: [ uat ]\n    cmds: [ 'echo {{ env BROKEN }}' ]",
 		},
+		{
+			// Task output exists only at run time - a required guard on it must not fail the offline check.
+			name: "required guard on task output is skipped",
+			body: "tasks:\n  t:\n    cmds: [ 'deploy {{ required \"no ami\" .tasks.build.ami }}' ]",
+		},
+		{
+			name:    "bad with param is caught with its key",
+			body:    "tasks:\n  t:\n    action: systemd:restart\n    with:\n      name: '{{ env BAD }}'",
+			wantErr: `task "t" with.name`,
+		},
+		{
+			name: "with param using task output is skipped",
+			body: "tasks:\n  t:\n    action: systemd:restart\n    with:\n      name: '{{ required \"x\" .tasks.build.name }}'",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
