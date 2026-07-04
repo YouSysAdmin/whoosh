@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+# [1.2.0] - 2026-07-04
 ### Added
  - plugins: bundled default-on `systemd` plugin - `systemd:start`/`stop`/`restart`/`enable`/`disable`/`daemon-reload`
    actions run `systemctl` on the task's hosts (system and `--user` units, optional `sudo -n`, `daemon_reload`,
@@ -14,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
  - plugin SDK: `HostCommandRunner` - the command counterpart to `HostFileWriter`. The executor hands it to every
    action via ctx (`whoosh.HostCommandRunnerFrom`), so a plugin action can run a command on the hosts its task
    targets (parallel, fail-fast, echoed per host).
+ - Deployfile JSON Schema added to the docs
+   ```
+   https://whoosh.yousysadmin.com/deployfile.schema.json  
+   https://yousysadmin.github.io/whoosh/deployfile.schema.json  
+   https://raw.githubusercontent.com/YouSysAdmin/whoosh/refs/heads/master/deployfile.schema.json  
+   ```
 
 ## [1.1.1] - 2026-07-03
 ### Changed
@@ -40,7 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/jc2aws/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/YouSysAdmin/jc2aws/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.2.0
 [1.1.1]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.1.1
 [1.1.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.1.0
 [1.0.0]: https://github.com/YouSysAdmin/jc2aws/releases/tag/v1.0.0
