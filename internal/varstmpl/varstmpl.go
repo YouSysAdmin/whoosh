@@ -9,6 +9,9 @@
 //	{{range .config.hosts}}{{if has "web" .roles}}{{.address}} {{end}}{{end}}
 //
 // Referencing an undefined key is an error, so typos surface immediately.
+//
+// Sprig supplies the general-purpose helpers (toJson/fromJson, join/splitList, default/ternary, env, ...); whoosh
+// adds toYaml/fromYaml/fromYamlArray/required (helperFuncs) and the secret-marking envSecret/sensitive (secretFuncs).
 package varstmpl
 
 import (
@@ -18,6 +21,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+	"gopkg.in/yaml.v3"
 
 	"github.com/yousysadmin/whoosh/internal/masking"
 )
@@ -124,6 +128,7 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 	}
 	t, err := template.New("cmd").
 		Funcs(sprigFuncs).
+		Funcs(helperFuncs()).
 		Funcs(secretFuncs()).
 		Option("missingkey=" + missingkey).
 		Parse(text)
@@ -135,6 +140,49 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 		return "", fmt.Errorf("render template %q: %w", text, err)
 	}
 	return sb.String(), nil
+}
+
+// helperFuncs returns whoosh's own general-purpose helpers - the gaps sprig doesn't cover (its JSON funcs have no
+// YAML counterparts, and missingkey=error only catches undefined keys, not defined-but-empty values). Each returns an
+// error so a bad value fails the render loudly:
+//
+//	{{ toYaml .config.app }}                     // any value as YAML (no trailing newline)
+//	{{ (fromYaml .tasks.info).version }}         // parse a YAML mapping
+//	{{ range fromYamlArray .hosts_yaml }}...     // parse a YAML sequence
+//	{{ required "vars.bucket must be set" .bucket }}  // fail with the message when nil/empty
+func helperFuncs() template.FuncMap {
+	return template.FuncMap{
+		"toYaml": func(v any) (string, error) {
+			b, err := yaml.Marshal(v)
+			if err != nil {
+				return "", fmt.Errorf("toYaml: %w", err)
+			}
+			return strings.TrimSuffix(string(b), "\n"), nil
+		},
+		"fromYaml": func(s string) (map[string]any, error) {
+			var m map[string]any
+			if err := yaml.Unmarshal([]byte(s), &m); err != nil {
+				return nil, fmt.Errorf("fromYaml: %w", err)
+			}
+			return m, nil
+		},
+		"fromYamlArray": func(s string) ([]any, error) {
+			var a []any
+			if err := yaml.Unmarshal([]byte(s), &a); err != nil {
+				return nil, fmt.Errorf("fromYamlArray: %w", err)
+			}
+			return a, nil
+		},
+		"required": func(msg string, v any) (any, error) {
+			if v == nil {
+				return nil, fmt.Errorf("required: %s", msg)
+			}
+			if s, ok := v.(string); ok && s == "" {
+				return nil, fmt.Errorf("required: %s", msg)
+			}
+			return v, nil
+		},
+	}
 }
 
 // secretFuncs returns template helpers that mark a value sensitive: the value is returned for use in the command but

@@ -40,7 +40,34 @@ Plus:
   deploy by the default `print-hosts-table` plugin).
   To iterate hosts in a template, use `{{ range .config.hosts }}{{ .address }}{{ end }}`.
 - **`{{.tasks.<name>}}`** (template only) - captured [task state](/configuration/task-state/).
-- **sprig functions** - e.g. `{{ env "CI_COMMIT_SHA" }}`, `{{ now | date "2006-01-02" }}`.
+- **Helper functions** - the full sprig set plus whoosh's own, see below.
+
+## Helper functions
+
+Every template renders with the complete [sprig](https://masterminds.github.io/sprig/) function library (~100
+helpers). Some of the most useful ones:
+
+| Helper                                    | Example                                             |
+|-------------------------------------------|-----------------------------------------------------|
+| `toJson` / `toPrettyJson` / `fromJson`    | `{{ toJson .config.app }}`                          |
+| `join` / `splitList`                      | `{{ join "," .roles }}`                             |
+| `default` / `coalesce` / `ternary`        | `{{ .region \| default "eu-west-1" }}`              |
+| `upper` / `lower` / `trim` / `replace`    | `{{ .app_name \| upper }}`                          |
+| `b64enc` / `b64dec`                       | `{{ .docker_auth \| b64enc }}`                      |
+| `env`                                     | `{{ env "CI_COMMIT_SHA" }}`                         |
+| `now` / `date`                            | `{{ now \| date "2006-01-02" }}`                    |
+
+Whoosh adds the gaps sprig doesn't cover:
+
+| Helper                       | Use                                                                                    |
+|------------------------------|----------------------------------------------------------------------------------------|
+| `{{ toYaml .v }}`            | Render any value as YAML (no trailing newline).                                        |
+| `{{ fromYaml .s }}`          | Parse a YAML mapping - `{{ (fromYaml .tasks.info).version }}`.                         |
+| `{{ fromYamlArray .s }}`     | Parse a YAML sequence - `{{ range fromYamlArray .s }}...{{ end }}`.                    |
+| `{{ required "msg" .v }}`    | Fail the render with `msg` when the value is nil or empty (undefined keys already error). |
+
+Plus the secret-marking helpers `envSecret`/`sensitive` - see
+[Vars & envs -> Secrets in templates](/configuration/vars-and-envs/#secrets-in-templates).
 
 {{< callout type="note" >}}
 Template keys are lowercase, env names UPPERCASE.

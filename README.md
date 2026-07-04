@@ -504,8 +504,11 @@ Plus:
   `{{.config.app.name}}`, `{{range .config.hosts}}{{.address}} {{end}}`.
 - **`{{.tasks.<name>}}`** (template only) - captured output of a task declaring `output:` (see [Task
   state](#task-state-output)) - e.g. `{{ .tasks.whoami.Account }}`.
-- **sprig functions** in templates - e.g. `{{ env "CI_COMMIT_SHA" }}` reads
-  whoosh's own environment, `{{ now | date "2006-01-02" }}`, etc.
+- **Helper functions** in templates - the full [sprig](https://masterminds.github.io/sprig/) set
+  (`{{ toJson .config.app }}`, `{{ join "," .roles }}`, `{{ .region | default "eu-west-1" }}`,
+  `{{ env "CI_COMMIT_SHA" }}` reads whoosh's own environment, `{{ now | date "2006-01-02" }}`, ...) plus whoosh's
+  own `toYaml`/`fromYaml`/`fromYamlArray` and `required "msg" .val` (fail the render when a value is nil/empty) -
+  see [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
 
 Notes: template keys are lowercase, env names are UPPERCASE.
 During a deployment, `release_path`/`release_timestamp` point at the new release and `commit_hash` is the SHA being

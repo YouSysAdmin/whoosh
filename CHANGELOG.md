@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+ - template helpers: `toYaml`, `fromYaml`, `fromYamlArray`, and `required "msg" .val` (fail the render when a
+   value is nil/empty) - the gaps sprig doesn't cover. The full sprig set (`toJson`, `join`, `default`, ...) was
+   already available in every template and is now documented in
+   [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
+
 ### Fixed:
  - `--dry-tun` verbose and JSON log output
 

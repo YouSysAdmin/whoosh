@@ -86,6 +86,78 @@ func TestRender_SprigHelpers(t *testing.T) {
 	}
 }
 
+// The full sprig set is documented as available - pin the serialization/list helpers the docs call out.
+func TestRender_SprigSerializationHelpers(t *testing.T) {
+	c := varstmpl.Context{Vars: map[string]any{
+		"opts": map[string]any{"region": "eu-west-1", "keep": 3},
+		"svcs": []any{"web", "worker"},
+	}}
+	got, err := varstmpl.Render(`{{ toJson .opts }} {{ join "," .svcs }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if want := `{"keep":3,"region":"eu-west-1"} web,worker`; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestRender_ToYaml(t *testing.T) {
+	c := varstmpl.Context{Vars: map[string]any{
+		"opts": map[string]any{"region": "eu-west-1", "tags": []any{"a", "b"}},
+	}}
+	got, err := varstmpl.Render("{{ toYaml .opts }}", c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	// yaml.Marshal sorts map keys; the trailing newline is trimmed.
+	want := "region: eu-west-1\ntags:\n    - a\n    - b"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestRender_FromYaml(t *testing.T) {
+	c := varstmpl.Context{Vars: map[string]any{"y": "region: eu-west-1\nkeep: 3"}}
+	got, err := varstmpl.Render("{{ (fromYaml .y).region }}/{{ (fromYaml .y).keep }}", c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "eu-west-1/3" {
+		t.Fatalf("got %q, want eu-west-1/3", got)
+	}
+	// Invalid YAML fails the render.
+	if _, err := varstmpl.Render("{{ fromYaml .y }}", varstmpl.Context{Vars: map[string]any{"y": ": ["}}); err == nil {
+		t.Fatal("expected error for invalid YAML, got nil")
+	}
+}
+
+func TestRender_FromYamlArray(t *testing.T) {
+	c := varstmpl.Context{Vars: map[string]any{"y": "- web1\n- web2"}}
+	got, err := varstmpl.Render(`{{ join "," (fromYamlArray .y) }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "web1,web2" {
+		t.Fatalf("got %q, want web1,web2", got)
+	}
+}
+
+func TestRender_Required(t *testing.T) {
+	c := varstmpl.Context{Vars: map[string]any{"bucket": "my-bucket", "empty": ""}}
+	got, err := varstmpl.Render(`{{ required "bucket must be set" .bucket }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "my-bucket" {
+		t.Fatalf("got %q, want my-bucket", got)
+	}
+	// An empty value fails with the given message.
+	_, err = varstmpl.Render(`{{ required "bucket must be set" .empty }}`, c)
+	if err == nil || !strings.Contains(err.Error(), "bucket must be set") {
+		t.Fatalf("expected error containing the message, got %v", err)
+	}
+}
+
 func TestRender_BuiltinWinsOverVar(t *testing.T) {
 	// A user var must not shadow a well-known key.
 	c := varstmpl.Context{Vars: map[string]any{"app_name": "shadow"}, AppName: "real"}
