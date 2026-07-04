@@ -126,8 +126,9 @@ Register it with `reg.AddAction("ns:verb", fn)` (duplicate names error). Key fac
 
 - **It runs operator-side**, once, on the machine running whoosh - not over SSH.
   There is no host, so `{{.host}}` in the task renders empty.
-  (To act on the deploy hosts, contribute a *task* from a startup hook instead - see below - or write a file to them
-  with the [host-file writer](#writing-files-on-the-tasks-hosts).)
+  (To act on the deploy hosts, contribute a *task* from a startup hook instead - see below - or use the executor-supplied
+  bridges: write a file to them with the [host-file writer](#writing-files-on-the-tasks-hosts), or run a command on them
+  with the [host-command runner](#running-commands-on-the-tasks-hosts).)
 - **Write progress to `out`**, not directly to stdout. The executor wraps `out` with masking and host-prefixing.
 - **`--dry-run` does not call your action** - the executor prints the planned call and skips it.
   So an action may assume it only runs for real.
@@ -291,14 +292,36 @@ This is exactly how `aws:ssm:to-dotenv` / `aws:secrets:to-dotenv` work: one oper
 host.
 Pick the hosts with the task's `roles:`, and run it from a hook after `deploy:updated` so the release dir exists.
 
+## Running commands on the task's hosts
+
+The command counterpart to the host-file writer: the executor also puts a `whoosh.HostCommandRunner` in the action's
+`ctx` - retrieve it with `whoosh.HostCommandRunnerFrom(ctx)`:
+
+```go
+func (p *plugin) restart(ctx context.Context, with map[string]any, out io.Writer) error {
+	r := whoosh.HostCommandRunnerFrom(ctx)
+	if r == nil {
+		return fmt.Errorf("no host command runner in context (the action must run as a whoosh task)")
+	}
+	// Runs on every host the task targets, in parallel, fail-fast - echoed per host
+	// to the (redacted) command stream like a task cmd.
+	return r.RunCommand(ctx, "systemctl restart 'app'")
+}
+```
+
+The command runs verbatim (no release-dir `cd`, no task env preamble), so use absolute paths or self-contained
+commands, and **quote or validate anything you interpolate** - the string reaches a shell on every host.
+This is how the bundled [`systemd`](/plugins/systemd/) plugin runs `systemctl` on the deploy hosts.
+
 ## Default-on plugins
 
 Register with `whoosh.RegisterDefault(name, factory)` instead of `Register` to make a plugin **always-on**: it loads
 in every stage without a `plugins:` entry.
 A Deployfile can still turn it off by listing it disabled (`enabled: false`, or an `only`/`except` that excludes the
 stage) - a declared spec always wins. This is for zero-config convenience plugins.
-`print-hosts-table` is the bundled example: its startup hook registers a func-hook that prints the hosts table before
-`deploy:starting`, and it contributes the `deploy:hosts` CLI command (see below).
+`print-hosts-table` is one bundled example: its startup hook registers a func-hook that prints the hosts table before
+`deploy:starting`, and it contributes the `deploy:hosts` CLI command (see below). [`systemd`](/plugins/systemd/) is
+another: its actions are usable from any task with zero config.
 
 ```go
 func init() { whoosh.RegisterDefault("print-hosts-table", func () whoosh.Plugin { return &plugin{} }) }
@@ -386,8 +409,9 @@ t.Fatal("startup hook did not add the task")
 }
 ```
 
-(No `HostFileWriter` is present in such a context, so an action that writes host files should fall back to a local
-write - see above.)
+(No `HostFileWriter` or `HostCommandRunner` is present in such a context - an action that writes host files should
+fall back to a local write, and a command-running action should return a clear error or take a fake runner in tests -
+see above.)
 
 ## Building a binary with your plugin
 
@@ -450,6 +474,7 @@ Everything you need is in `github.com/yousysadmin/whoosh`:
 | `HookFunc`                                                                                    | `func(ctx, out io.Writer) error` - a phase func-hook (see above).                                                                        |
 | `PhaseStarting` ... `PhaseFinished` / `PhaseFailed` / `PhaseRollback`                         | The built-in phase names as constants, for hook/phase anchors.                                                                           |
 | `HostFileWriterFrom(ctx) HostFileWriter`                                                      | Render a file onto the task's hosts (`WriteFile(ctx, path, content)`).                                                                   |
+| `HostCommandRunnerFrom(ctx) HostCommandRunner`                                                | Run a command on the task's hosts (`RunCommand(ctx, cmd)`), parallel and fail-fast.                                                      |
 | `AddSecret(string)` / `Masking(string) string`                                                | Register a literal to redact / apply the same masking (tests).                                                                           |
 | `Registered() []string` / `IsRegistered(name) bool` / `Load([]PluginSpec) (*Registry, error)` | Introspection and test harness.                                                                                                          |
 
@@ -460,6 +485,10 @@ does **not** pull in the CLI - keeping a plugin module light.
 
 Copy-ready starting points (each its own module, importing only the public API):
 
+- [`plugins/plugin-template`](https://github.com/YouSysAdmin/whoosh/tree/master/plugins/plugin-template)
+    - **the template to copy**: a compiling, tested stub exercising the full interface - params + offline validation,
+      an action with both host bridges (command runner + file writer), a startup hook (task + phase hook, func-hook,
+      imports), Versioner, and a CLI command.
 - [`examples/plugins/hello`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/plugins/hello)
     - the minimal plugin: register a name, decode params, one action.
 - [`examples/plugins`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/plugins)
