@@ -459,7 +459,7 @@
     },
     "vars": {
       "type": "object",
-      "description": "Template/env values"
+      "description": "Template values ({{.key}}); not exported to the shell - use envs for that"
     },
     "envs": {
       "additionalProperties": {

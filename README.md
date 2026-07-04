@@ -425,10 +425,10 @@ tasks:
 - **Interpreter**: defaults to `/bin/sh`. Set `interpreter` for `bash`, `python3`, etc.
 - **Transport**: the script is read on your machine and streamed to the interpreter over stdin - so it works the same
   over SSH and in local mode, no upload needed.
-- **Environment**: each script gets the task's `envs`, the config `vars`, and the deployment context exported as
-  standard
+- **Environment**: each script gets the task's `envs` and the deployment context exported as standard
   env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`, `$COMMIT_HASH`,
-  `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`.
+  `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`. 
+   Config `vars` are template-only - surface one explicitly with `envs: { NAME: "{{ .var }}" }`.
 - **Templating**: inline scripts are always Go-templated, while a file script is templated when its path ends in
   `.tmpl` or it sets `template: true`.
   Templates see the deployment context (`{{.release_path}}`, `{{.host}}`, `{{.stage}}`, your vars) plus the **whole
@@ -497,8 +497,7 @@ Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 
 Plus:
 
-- **Your `vars`** - each key is both a template value and an env var: `vars: { RAILS_ENV: production }` ->
-  `{{.RAILS_ENV}}` and `$RAILS_ENV`.
+- **Your `vars`** - each key is a template value: `vars: { RAILS_ENV: production }` -> `{{.RAILS_ENV}}`.
 - **`envs:` entries** (global and per-task) - exported as env vars (`$NAME`).
 - **`{{.config}}`** (template only) - the whole resolved Deployfile keyed by its YAML field names, for flexible logic:
   `{{.config.app.name}}`, `{{range .config.hosts}}{{.address}} {{end}}`.

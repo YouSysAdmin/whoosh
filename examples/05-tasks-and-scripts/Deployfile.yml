@@ -22,7 +22,8 @@ app:
   branch: master
   deploy_to: /tmp/cookbook
 
-# vars: usable as {{.KEY}} in templates AND exported as $KEY. Any YAML type.
+# vars: usable as {{.KEY}} in templates. Any YAML type.
+# Not exported to the shell - surface one explicitly with envs: { KEY: "{{ .KEY }}" }.
 vars:
   GREETING: "hello"
   REPLICAS: 3

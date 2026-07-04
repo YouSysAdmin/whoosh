@@ -589,7 +589,7 @@ func TestRunTask_Scripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(scriptsDir, "aa.sh"),
-		[]byte("echo file-script app=$APP_NAME host=$HOST greeting=$GREETING custom=$CUSTOM\n"), 0o644); err != nil {
+		[]byte("echo file-script app=$APP_NAME host=$HOST greeting=$GREETING custom=$CUSTOM tov=$template_only_var.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(dir, "current"), 0o755); err != nil {
@@ -598,14 +598,15 @@ func TestRunTask_Scripts(t *testing.T) {
 
 	cfg := &ast.DeployFile{
 		App:   ast.App{Name: "myapp", DeployTo: dir, Branch: "main"},
-		Vars:  map[string]any{"GREETING": "hello"},
+		Vars:  map[string]any{"GREETING": "hello", "template_only_var": "stay-out-of-env"},
 		Stage: "test",
 		Dir:   dir,
 		Hosts: []ast.Host{{Address: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile, Roles: []string{"app"}}},
 		Tasks: map[string]*ast.Task{
 			"scripted": {
 				Roles: []string{"app"},
-				Envs:  map[string]string{"CUSTOM": "xyz"},
+				// A var reaches the shell only through an explicit envs mapping; vars themselves are template-only.
+				Envs: map[string]string{"CUSTOM": "xyz", "GREETING": "{{ .GREETING }}"},
 				Scripts: []ast.Script{
 					{Path: "aa.sh", Interpreter: "/bin/bash"},                           // file from scripts dir
 					{Name: "inline", Script: "echo inline-host={{.host}}-stage=$STAGE"}, // templated + env
@@ -623,12 +624,18 @@ func TestRunTask_Scripts(t *testing.T) {
 
 	out := buf.String()
 	for _, want := range []string{
-		"file-script app=myapp host=" + srv.Host + " greeting=hello custom=xyz",
+		// GREETING reaches the shell via the explicit envs mapping; the bare var is template-only, so $template_only_var
+		// expands empty.
+		"file-script app=myapp host=" + srv.Host + " greeting=hello custom=xyz tov=.",
 		"inline-host=" + srv.Host + "-stage=test",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in output:\n%s", want, out)
 		}
+	}
+	// Config vars are not auto-exported to the shell environment.
+	if strings.Contains(out, "stay-out-of-env") {
+		t.Fatalf("config var leaked into the environment:\n%s", out)
 	}
 }
 

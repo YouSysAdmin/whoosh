@@ -32,7 +32,8 @@ Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 
 Plus:
 
-- **Your `vars`** - each key is a template value and an env var.
+- **Your `vars`** - each key is a template value (`{{.KEY}}`). To surface one to the shell, map it explicitly:
+  `envs: { KEY: "{{ .KEY }}" }`.
 - **`envs:` entries** (global and per-task) - exported as env vars.
 - **`{{.config}}`** (template only) - the whole resolved Deployfile keyed by its YAML field names:
   `{{.config.app.name}}`, `{{range .config.hosts}}{{.address}} {{end}}`.

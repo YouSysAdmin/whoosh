@@ -1,22 +1,24 @@
 ---
 title: "Vars & envs"
-description: "vars (template + env values) vs envs (the shell environment), and how to mark secrets sensitive so they're redacted everywhere."
+description: "vars (template values) vs envs (the shell environment), and how to mark secrets sensitive so they're redacted everywhere."
 weight: 40
 ---
 
 Both inject values into your commands, but they are different mechanisms:
 
-- **`vars`** - template values *and* env vars.
-  Each key is available as `{{.KEY}}` (Go template, rendered by whoosh) and `$KEY` (shell env).
+- **`vars`** - template values.
+  Each key is available as `{{.KEY}}` (Go template, rendered by whoosh). Vars are **not** exported to the shell.
 - **`envs`** - the shell environment for commands.
   Values are **shell-expanded** (so they can reference `$HOME`/`$PATH`) *and* **Go-templated** (so they can pull from
-  whoosh's own environment with sprig's `env`).
+  vars with `{{ .var }}` or from whoosh's own environment with sprig's `env`).
 
 ```yaml
 vars:
-  RAILS_ENV: production # -> {{.RAILS_ENV}} and $RAILS_ENV
+  RAILS_ENV: production # -> {{.RAILS_ENV}} in templates
 
 envs:
+  # surface a var to the shell explicitly:
+  RAILS_ENV: "{{ .RAILS_ENV }}"
   # rbenv/nvm/asdf shims on PATH for the non-login SSH shell:
   PATH: "$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
   # a secret pulled from the operator's / CI environment at run time:
@@ -64,8 +66,6 @@ output, dry-run, logs):
 cmds:
   - bundle config set --global rubygems.pkg.github.com {{ envSecret "REG_TOKEN" }}
 ```
-
-(Template function names can't contain `-`, so it's `envSecret`, not `env-sens`.)
 
 See [Usage -> Logging & secret masking](/usage/#logging--secret-masking) for the full masking model (built-in
 patterns + user-marked secrets).

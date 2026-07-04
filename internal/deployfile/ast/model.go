@@ -62,7 +62,7 @@ type DeployFile struct {
 	App         App            `yaml:"app,omitempty"`          // The application being deployed: name, repo, branch, deploy_to, keep_releases
 	LinkedFiles []string       `yaml:"linked_files,omitempty"` // Files symlinked from shared/ into every release; "source:dest" rewrites the release-side path
 	LinkedDirs  []string       `yaml:"linked_dirs,omitempty"`  // Dirs symlinked from shared/ into every release; "source:dest" rewrites the release-side path
-	Vars        map[string]any `yaml:"vars,omitempty"`         // Template/env values
+	Vars        map[string]any `yaml:"vars,omitempty"`         // Template values ({{.key}})
 	// Envs is a default environment exported for every task command and script (merged with a task's own `envs`, which
 	// wins). Values are shell-expanded, so e.g. PATH can reference $HOME/$PATH - useful for rbenv/nvm shims.
 	Envs map[string]string `yaml:"envs,omitempty"`

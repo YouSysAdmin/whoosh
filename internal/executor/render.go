@@ -11,16 +11,14 @@ import (
 	"github.com/yousysadmin/whoosh/internal/varstmpl"
 )
 
-// execEnv builds the environment exported for a task's commands and scripts: config vars, then env_files (dotenv), then
-// the global env, then the deploy context as standard names ($RELEASE_PATH, $HOST, ...), then the task's env (most
-// specific wins). cmds and scripts share this, so $RELEASE_PATH/$HOST resolve in either.
+// execEnv builds the environment exported for a task's commands and scripts: env_files (dotenv), then the global env,
+// then the deploy context as standard names ($RELEASE_PATH, $HOST, ...), then the task's env (most specific wins).
+// cmds and scripts share this, so $RELEASE_PATH/$HOST resolve in either.
+// Config vars are template-only ({{ .var }}), surface one to the shell explicitly with `envs: { NAME: "{{ .var }}" }`.
 // The user-supplied env values (global and task) are Go-templated, so they can pull from whoosh's own environment with
 // {{ env "VAR" }} (e.g. a registry credential).
 func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, error) {
-	env := make(map[string]string, len(e.cfg.Vars)+len(e.cfg.EnvFileValues)+len(e.env)+len(task.Envs)+15)
-	for k, v := range e.cfg.Vars {
-		env[k] = fmt.Sprintf("%v", v)
-	}
+	env := make(map[string]string, len(e.cfg.EnvFileValues)+len(e.env)+len(task.Envs)+15)
 	// env_files values are a base layer that the global/task `envs` override.
 	for k, v := range e.cfg.EnvFileValues {
 		env[k] = v

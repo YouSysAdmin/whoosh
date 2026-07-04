@@ -12,6 +12,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    already available in every template and is now documented in
    [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
 
+### Changed
+ - config `vars:` are no longer auto-exported as shell environment variables of task commands and scripts.
+   This functionality was new and added with the aim of reducing the configuration volume,
+   but it greatly increases the volume of commands transmitted over SSH connections
+   and can cause silent conflicts between variables. 
+   Such functionality should be investigated more carefully to prevent side effects.
+   If you need to export a variable as an environment variable, you should use the old method at the global or task level:
+   ```yaml
+   vars:
+     var: ""
+   envs:
+     VAR: "{{ .var }}"
+   ```
+
 ### Fixed:
  - `--dry-tun` verbose and JSON log output
 
