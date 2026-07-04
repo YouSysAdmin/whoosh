@@ -451,27 +451,23 @@ Each one validates its params on load (`Configure`) and registers what it contri
 - a **startup hook** - runs at load and can append to `hosts:` (dynamic inventory), or
 - one or more **actions** - invoked by name from a task or hook.
 
-see [README.md](plugins/aws/README.md) for the Whoosh AWS Plugin
+**Bundled** (in every binary, on by default - disable with `enabled: false`):
 
-There is also a **`slack`** plugin - its own module (`github.com/yousysadmin/whoosh/plugins/slack`, added with a
-custom build like the AWS one): list it with a webhook URL and every deploy posts start / success / failure
-notifications (opt-in rollback too), and any task can post a custom message via the `slack:send` action:
+| Plugin              | What it does                                                                                                  | Docs                                                       |
+|---------------------|---------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `print-hosts-table` | Prints the resolved hosts table at deploy start and via `whoosh <stage> deploy:hosts`                          | [README](plugins/standard/print_hosts_table/README.md)     |
+| `systemd`           | `systemd:start/stop/restart/enable/disable/daemon-reload` actions run `systemctl` on the task's hosts, ad-hoc or hooked to a deploy phase | [README](plugins/standard/systemd/README.md) |
 
-```yaml
-plugins:
-  - name: slack
-    params:
-      webhook_url: '{{ env "SLACK_WEBHOOK_URL" }}'
-      channel: "#deploys"
+**Separate modules** (compiled in with `whoosh build --with <module>`):
 
-tasks:
-  announce:
-    action: slack:send
-    with: { message: "Migrations done on *{{.stage}}*", color: good, optional: true }
-```
+| Plugin  | What it does                                                                                       | Docs                                |
+|---------|-----------------------------------------------------------------------------------------------------|-------------------------------------|
+| `aws`   | EC2 inventory, ASG refresh/rollback, AMI create/cleanup, SSM & Secrets Manager env files and imports | [README](plugins/aws/README.md)     |
+| `slack` | Deploy start/success/failure notifications and the `slack:send` action                               | [README](plugins/slack/README.md)   |
+| `rbenv` | Installs rbenv + ruby-build and the app's Ruby versions on the hosts before the release goes live    | [README](plugins/rbenv/README.md)   |
 
-The automatic notifications are best-effort - a Slack outage never fails the deploy.
-See [README.md](plugins/slack/README.md) for the Whoosh Slack Plugin.
+To write your own, copy [`plugins/plugin-template`](plugins/plugin-template/) - a compiling, tested stub exercising
+the full plugin interface.
 
 ### Available variables
 
