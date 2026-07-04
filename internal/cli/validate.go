@@ -10,8 +10,8 @@ import (
 )
 
 // newValidateCmd validates the stage's configuration *offline*: it discovers and parses the Deployfile(s), merges
-// shared + stage, runs the schema checks (deployfile.Load -> Validate), and renders the active plugins' param
-// templates.
+// shared + stage, runs the schema checks (deployfile.Load -> Validate), renders the active plugins' param templates,
+// and render-checks every user template (all inside loadOffline, shared with every other command).
 // It deliberately does NOT load plugins or run their startup, so it makes no SSH or cloud calls and fetches no dynamic
 // inventory - a fast CI / pre-commit gate.
 // (For the fully-resolved view including discovered hosts, use `config`/`deploy:hosts`, which do connect.)

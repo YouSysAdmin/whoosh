@@ -356,11 +356,17 @@ func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.Deploy
 	if err := renderPluginParams(cfg); err != nil {
 		return nil, "", err
 	}
+	// Render-check every user template (envs, cmds, dir, with, scripts) as the last load step, so any command fails
+	// up front on a config mistake - before plugins load (which may dial SSH/cloud for credentials or inventory).
+	if err := reportTemplateFindings(cmd.OutOrStdout(), checkTemplates(cfg)); err != nil {
+		return nil, "", err
+	}
 	return cfg, path, nil
 }
 
-// loadConfig loads the resolved config for the stage (loadOffline), then loads the declared plugins and runs their
-// startup hooks (which may populate Servers). The returned registry supplies plugins actions to action tasks.
+// loadConfig loads the resolved config for the stage (loadOffline, which ends with the template check), then loads
+// the declared plugins and runs their startup hooks (which may populate Servers). The returned registry supplies
+// plugins actions to action tasks.
 func loadConfig(ctx context.Context, cmd *cobra.Command, gf *globalFlags, stage string) (*ast.DeployFile, *plugins.Registry, error) {
 	cfg, _, err := loadOffline(cmd, gf, stage)
 	if err != nil {

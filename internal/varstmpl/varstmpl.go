@@ -16,6 +16,7 @@
 package varstmpl
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -151,9 +152,23 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 	}
 	var sb strings.Builder
 	if err := t.Execute(&sb, c.Data()); err != nil {
-		return "", fmt.Errorf("render template %q: %w", text, err)
+		return "", fmt.Errorf("render template %q: %w", text, rootCause(err))
 	}
 	return sb.String(), nil
+}
+
+// rootCause returns the innermost error of a template execution failure - the actual cause, e.g. the error a helper
+// like `required` returned. text/template wraps it in location noise (`executing "cmd" at <...>: error calling
+// required: ...`) that buries the message; errors it formats itself (like a strict missing key) have no inner error
+// and are returned as-is.
+func rootCause(err error) error {
+	for {
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			return err
+		}
+		err = inner
+	}
 }
 
 // helperFuncs returns whoosh's own general-purpose helpers - the gaps sprig doesn't cover (its JSON funcs have no
