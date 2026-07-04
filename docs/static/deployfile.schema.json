@@ -459,7 +459,7 @@
     },
     "vars": {
       "type": "object",
-      "description": "Template values ({{.key}}); not exported to the shell - use envs for that"
+      "description": "Vars are template values ({{.key}}); not exported to the shell - use envs for that.\nEach value is itself a Go template, rendered once at load against the static context (app/stage/paths, sprig,\nenv/envSecret - which fall back to env_files values): e.g. app_version: '{{ env \"APP_VERSION\" }}'."
     },
     "envs": {
       "additionalProperties": {

@@ -58,11 +58,14 @@ type DeployFile struct {
 	// Include lists other config files to merge underneath this one (require_relative style: paths resolve against this
 	// file's directory). Includes are layered in listed order with this file winning, then nested recursively.
 	// Resolved at load time; never present on the merged result.
-	Include     StringList     `yaml:"include,omitempty"`
-	App         App            `yaml:"app,omitempty"`          // The application being deployed: name, repo, branch, deploy_to, keep_releases
-	LinkedFiles []string       `yaml:"linked_files,omitempty"` // Files symlinked from shared/ into every release; "source:dest" rewrites the release-side path
-	LinkedDirs  []string       `yaml:"linked_dirs,omitempty"`  // Dirs symlinked from shared/ into every release; "source:dest" rewrites the release-side path
-	Vars        map[string]any `yaml:"vars,omitempty"`         // Template values ({{.key}})
+	Include     StringList `yaml:"include,omitempty"`
+	App         App        `yaml:"app,omitempty"`          // The application being deployed: name, repo, branch, deploy_to, keep_releases
+	LinkedFiles []string   `yaml:"linked_files,omitempty"` // Files symlinked from shared/ into every release; "source:dest" rewrites the release-side path
+	LinkedDirs  []string   `yaml:"linked_dirs,omitempty"`  // Dirs symlinked from shared/ into every release; "source:dest" rewrites the release-side path
+	// Vars are template values ({{.key}}); not exported to the shell - use envs for that.
+	// Each value is itself a Go template, rendered once at load against the static context (app/stage/paths, sprig,
+	// env/envSecret - which fall back to env_files values): e.g. app_version: '{{ env "APP_VERSION" }}'.
+	Vars map[string]any `yaml:"vars,omitempty"`
 	// Envs is a default environment exported for every task command and script (merged with a task's own `envs`, which
 	// wins). Values are shell-expanded, so e.g. PATH can reference $HOME/$PATH - useful for rbenv/nvm shims.
 	Envs map[string]string `yaml:"envs,omitempty"`

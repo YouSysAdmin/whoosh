@@ -242,29 +242,55 @@ func registerTaskCmds(stageCmd *cobra.Command, stage string, gf *globalFlags) {
 	}
 }
 
+// loadTimeContext builds the template context available at config-load time: the stage's vars plus the static config
+// (app, stage, paths) and the env_files values for the env/envSecret funcs - not run-time values such as release_path
+// or commit_hash, which don't exist yet.
+func loadTimeContext(cfg *ast.DeployFile) varstmpl.Context {
+	layout := paths.For(cfg.App.DeployTo)
+	return varstmpl.Context{
+		Vars:          cfg.Vars,
+		AppName:       cfg.App.Name,
+		Repo:          cfg.App.Repo,
+		Branch:        cfg.App.Branch,
+		Stage:         cfg.Stage,
+		DeployTo:      layout.DeployTo,
+		ReleasesPath:  layout.ReleasesPath,
+		SharedPath:    layout.SharedPath,
+		RepoPath:      layout.RepoPath,
+		CurrentPath:   layout.CurrentPath,
+		EnvFileValues: cfg.EnvFileValues,
+	}
+}
+
+// renderVars renders the string values in vars: as Go templates, once at load time, so e.g.
+// `app_version: '{{ env "APP_VERSION" }}'` resolves from the process env / env_files before anything consumes the var.
+// The context is the static load-time one (loadTimeContext) minus the vars themselves - a var cannot reference another
+// var, run-time keys render empty, and strict rendering surfaces anything else undefined.
+func renderVars(cfg *ast.DeployFile) error {
+	if len(cfg.Vars) == 0 {
+		return nil
+	}
+	ctx := loadTimeContext(cfg)
+	ctx.Vars = nil
+	rendered, err := varstmpl.RenderParams(cfg.Vars, ctx, true)
+	if err != nil {
+		return fmt.Errorf("vars: %w", err)
+	}
+	cfg.Vars = rendered
+	return nil
+}
+
 // renderPluginParams renders each plugin's params as Go templates before the plugins load, so they can be
 // parameterized per stage via vars - e.g. `credentials_from_host: { host: "{{ .bastion }}" }` with `bastion` set (and
 // overridden) in the stage files.
-// Plugins load at startup, before any release exists, so the context is the stage's vars plus the static config (app,
-// stage, paths) and sprig helpers like `{{ env "X" }}` - not run-time values such as release_path or commit_hash.
-// Strict rendering surfaces an undefined var.
+// Plugins load at startup, before any release exists, so the context is the load-time one (loadTimeContext) - the
+// stage's (already rendered) vars, the static config, and env/env_files - not run-time values such as release_path or
+// commit_hash. Strict rendering surfaces an undefined var.
 func renderPluginParams(cfg *ast.DeployFile) error {
 	if len(cfg.Plugins) == 0 {
 		return nil
 	}
-	layout := paths.For(cfg.App.DeployTo)
-	ctx := varstmpl.Context{
-		Vars:         cfg.Vars,
-		AppName:      cfg.App.Name,
-		Repo:         cfg.App.Repo,
-		Branch:       cfg.App.Branch,
-		Stage:        cfg.Stage,
-		DeployTo:     layout.DeployTo,
-		ReleasesPath: layout.ReleasesPath,
-		SharedPath:   layout.SharedPath,
-		RepoPath:     layout.RepoPath,
-		CurrentPath:  layout.CurrentPath,
-	}
+	ctx := loadTimeContext(cfg)
 	for i := range cfg.Plugins {
 		p := &cfg.Plugins[i]
 		rendered, err := varstmpl.RenderParams(p.Params, ctx, true)
@@ -317,6 +343,10 @@ func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.Deploy
 	}
 	// Re-apply logging now that the Deployfile's log: config is known (CLI --log-* flags still take priority over it).
 	if err := applyLogConfig(cmd, &cfg.Log); err != nil {
+		return nil, "", err
+	}
+	// Resolve templated vars first, so plugin params (below) and everything downstream see final values.
+	if err := renderVars(cfg); err != nil {
 		return nil, "", err
 	}
 	// Add always-on (default) plugins not already declared, then drop plugins not active for this stage (and record them,

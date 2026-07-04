@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
@@ -37,6 +38,62 @@ func TestDetectStage(t *testing.T) {
 				t.Errorf("detectStage(%v) = (%q, %v), want (%q, %v)", tc.args, got, ok, tc.want, tc.ok)
 			}
 		})
+	}
+}
+
+func TestRenderVars(t *testing.T) {
+	t.Setenv("WHOOSH_TEST_PROC_VAR", "v1.2.3")
+	cfg := &ast.DeployFile{
+		App:           ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage:         "uat",
+		EnvFileValues: map[string]string{"WHOOSH_TEST_FILE_VAR": "hook-url"},
+		Vars: map[string]any{
+			"app_version": `{{ env "WHOOSH_TEST_PROC_VAR" }}`, // process env
+			"webhook":     `{{ env "WHOOSH_TEST_FILE_VAR" }}`, // env_files fallback
+			"stage_name":  "{{ .stage }}",                     // static load-time key
+			"nested":      map[string]any{"list": []any{"{{ .app_name }}"}},
+			"count":       3, // non-string preserved
+		},
+	}
+	if err := renderVars(cfg); err != nil {
+		t.Fatalf("renderVars: %v", err)
+	}
+	if cfg.Vars["app_version"] != "v1.2.3" {
+		t.Errorf("app_version = %v, want v1.2.3", cfg.Vars["app_version"])
+	}
+	if cfg.Vars["webhook"] != "hook-url" {
+		t.Errorf("webhook (env_files fallback) = %v, want hook-url", cfg.Vars["webhook"])
+	}
+	if cfg.Vars["stage_name"] != "uat" {
+		t.Errorf("stage_name = %v, want uat", cfg.Vars["stage_name"])
+	}
+	nested, _ := cfg.Vars["nested"].(map[string]any)
+	list, _ := nested["list"].([]any)
+	if len(list) != 1 || list[0] != "myapp" {
+		t.Errorf("nested list not templated: %v", cfg.Vars["nested"])
+	}
+	if cfg.Vars["count"] != 3 {
+		t.Errorf("int var changed: %v", cfg.Vars["count"])
+	}
+}
+
+func TestRenderVars_SingleQuoteIsParseError(t *testing.T) {
+	// Go template string args need double quotes; 'X' is a (single-char) rune literal.
+	cfg := &ast.DeployFile{Vars: map[string]any{"app_version": `{{ env 'APP_VERSION' }}`}}
+	err := renderVars(cfg)
+	if err == nil {
+		t.Fatal("single-quoted template arg should be a parse error")
+	}
+	if !strings.Contains(err.Error(), "app_version") {
+		t.Errorf("error should name the var, got: %v", err)
+	}
+}
+
+func TestRenderVars_VarInVarIsError(t *testing.T) {
+	// Vars render against the static context only - one var cannot reference another.
+	cfg := &ast.DeployFile{Vars: map[string]any{"a": "x", "b": "{{ .a }}"}}
+	if err := renderVars(cfg); err == nil {
+		t.Fatal("a var referencing another var should strict-fail")
 	}
 }
 
