@@ -193,14 +193,19 @@ func (e *Executor) RunOnReport(ctx context.Context, hosts []ast.Host, command st
 }
 
 // runOn is the shared body of RunOn/RunOnReport: the dry-run plan, the verbose echo, then the fanout with the given
-// fail-fast policy. Dry-run (and an empty host list) returns nil results.
+// fail-fast policy. Dry-run (and an empty host list) returns nil results, like the live echo, the built-in command is
+// dumped per host only under --verbose (the phase narrative already names each step).
 func (e *Executor) runOn(ctx context.Context, hosts []ast.Host, command string, failFast bool) []runner.Result {
 	if len(hosts) == 0 {
 		return nil
 	}
 	if e.dryRun {
-		for _, h := range hosts {
-			fmt.Fprintf(e.out, "[dry-run] %s: %s\n", h.Address, command)
+		if e.verbose {
+			for _, h := range hosts {
+				if !e.logDryRun(h.Address, command) {
+					fmt.Fprintf(e.out, "[dry-run] %s: %s\n", h.Address, command)
+				}
+			}
 		}
 		return nil
 	}

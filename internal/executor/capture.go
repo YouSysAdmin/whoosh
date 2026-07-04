@@ -38,7 +38,13 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 		}
 		e.announceStep(st)
 		if e.dryRun {
-			fmt.Fprintf(e.out, "[dry-run] capture %s: %s\n", target.Host, cmd)
+			line, err := e.dryRunLine(st, target.Host, cmd)
+			if err != nil {
+				return err
+			}
+			if !e.logDryRun(target.Host, "capture: "+line) {
+				fmt.Fprintf(e.out, "[dry-run] capture %s: %s\n", target.Host, line)
+			}
 			continue
 		}
 		s, err := e.cluster.Capture(ctx, target, cmd)

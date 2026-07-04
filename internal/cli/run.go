@@ -36,9 +36,15 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 			defer out.Flush()
 
 			if gf.dryRun {
+				// Show the operator's command as typed, the full wrapped form (cd + env exports) only under --verbose,
+				// like the live echo.
+				shown := args[0]
+				if gf.verbose {
+					shown = command
+				}
 				fmt.Fprintf(out, "[dry-run] would run on %d host(s):\n", len(hosts))
 				for _, h := range hosts {
-					fmt.Fprintf(out, "  %s: %s\n", h.Address, command)
+					fmt.Fprintf(out, "  %s: %s\n", h.Address, shown)
 				}
 				return nil
 			}

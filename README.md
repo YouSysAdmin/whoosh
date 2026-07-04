@@ -619,6 +619,9 @@ Use it to fix up shared state on rollback (e.g. restore a shared asset manifest)
 
 Global flags: `--dry-run`, `--verbose/-v`, `--roles`, `--host/-H <host>`, `--concurrency <n>` (max hosts running a
 command at once, `0` = all), `--deployfile <path>`.
+`--dry-run` executes nothing and prints the plan at the same detail level as a live run's echo: task `cmds` in their
+clean rendered form, scripts by name, built-in git/symlink commands omitted. Add `-v` to expand the plan to the full
+commands that would be sent to each host (env exports, `cd`, script bodies, built-in steps).
 
 Logging flags: `--log-level` (debug/info/warn/error, default info), `--log-format` (text/json, default text),
 `--log-output` (stdout, stderr, or a file path), `--log-color` (on by default, automatically suppressed when output is

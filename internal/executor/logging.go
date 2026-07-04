@@ -18,7 +18,7 @@ func (e *Executor) logLine(host, line string) {
 	slog.Info("output", args...)
 }
 
-// logExec shows the command about to run on host. In log mode it emits an "exec" record and returns true; in raw mode
+// logExec shows the command about to run on host. In log mode it emits an "exec" record and returns true, in raw mode
 // it returns false so the caller writes its host-prefixed "$" line to the console as before.
 func (e *Executor) logExec(host, command string) bool {
 	if !e.logMode {
@@ -30,6 +30,17 @@ func (e *Executor) logExec(host, command string) bool {
 		return true
 	}
 	slog.Info("exec", args...)
+	return true
+}
+
+// logDryRun shows one dry-run plan line. In log mode it emits a "dry-run" record (so a --log-format json stream stays
+// one valid JSON stream) and returns true, in raw mode it returns false so the caller prints its "[dry-run]" line as
+// before. No capture branch: silent_output capture is skipped under dry-run.
+func (e *Executor) logDryRun(host, command string) bool {
+	if !e.logMode {
+		return false
+	}
+	slog.Info("dry-run", e.outputArgs(host, "command", command)...)
 	return true
 }
 

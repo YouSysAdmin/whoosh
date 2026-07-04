@@ -335,7 +335,8 @@ func TestRunTaskInPhase_ExposesPhase(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
+	// Verbose so the dry-run plan shows the full built command (the env-export preamble carries $DEPLOY_PHASE).
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
 	defer ex.Close()
 	if err := ex.RunTaskInPhase(context.Background(), "note", "deploy:publishing"); err != nil {
 		t.Fatalf("RunTaskInPhase: %v", err)
@@ -702,12 +703,12 @@ func TestRunTask_ScriptMissingFile(t *testing.T) {
 	}
 }
 
-// dryRunPlan runs a task in dry-run and returns the printed plan, so we can assert the generated command (env exports,
-// cd) without a live host.
+// dryRunPlan runs a task in verbose dry-run and returns the printed plan, so we can assert the full generated command
+// (env exports, cd) without a live host - the non-verbose plan shows only the clean rendered command.
 func dryRunPlan(t *testing.T, cfg *ast.DeployFile, task string) string {
 	t.Helper()
 	var buf bytes.Buffer
-	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
 	defer ex.Close()
 	if err := ex.RunTask(context.Background(), task); err != nil {
 		t.Fatalf("RunTask(%q): %v", task, err)
@@ -737,6 +738,43 @@ func TestTask_DefaultsToReleaseDir(t *testing.T) {
 	// Local task: no cd (runs in the operator's cwd).
 	if out := dryRunPlan(t, cfg, "local"); strings.Contains(out, "cd ") {
 		t.Errorf("local task should not cd, got %q", out)
+	}
+}
+
+// The default (non-verbose) dry-run plan mirrors the live echo: the clean rendered command for cmds - no env-export/cd
+// preamble - and only the script's name for scripts. --verbose (what dryRunPlan uses) upgrades to the full built
+// command.
+func TestDryRun_DefaultPlanIsClean(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage: "test",
+		Envs:  map[string]string{"TOKEN": "tok-value"},
+		Hosts: []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"t": {
+				Roles:   []string{"app"},
+				Cmds:    []string{"echo hi"},
+				Scripts: []ast.Script{{Name: "greet", Script: "echo from-script-body"}},
+			},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "t"); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "[dry-run] h1: echo hi") {
+		t.Errorf("cmd not shown in its clean form:\n%s", out)
+	}
+	if !strings.Contains(out, "[dry-run] h1: script greet") {
+		t.Errorf("script step not listed by name:\n%s", out)
+	}
+	for _, leak := range []string{"export ", "cd '", "from-script-body"} {
+		if strings.Contains(out, leak) {
+			t.Errorf("non-verbose plan leaks %q:\n%s", leak, out)
+		}
 	}
 }
 
@@ -864,6 +902,36 @@ func TestRunTask_LogModeRoutesRemoteOutput(t *testing.T) {
 	// The echoed command is logged too (as an "exec" record), not streamed raw.
 	if !strings.Contains(got, `"msg":"exec"`) {
 		t.Fatalf("echoed command not routed through logger:\n%s", got)
+	}
+}
+
+// In log mode the dry-run plan routes through slog as "dry-run" records instead of raw "[dry-run]" lines, so a
+// --log-format json dry-run stays one valid JSON stream.
+func TestDryRun_LogModeRoutesPlan(t *testing.T) {
+	logs := captureLogs(t)
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage: "test",
+		Log:   ast.Log{RawRemoteLog: new(false)},
+		Hosts: []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"t": {Roles: []string{"app"}, Cmds: []string{"echo hi"}},
+		},
+	}
+	var raw bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &raw, DryRun: true})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "t"); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+	if r := raw.String(); strings.Contains(r, "[dry-run]") {
+		t.Fatalf("dry-run plan leaked to raw stream in log mode:\n%s", r)
+	}
+	got := logs.String()
+	for _, want := range []string{`"msg":"dry-run"`, `"host":"h1"`, `"command":"echo hi"`, `"task":"t"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %s in log output:\n%s", want, got)
+		}
 	}
 }
 

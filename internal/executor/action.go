@@ -21,7 +21,10 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 		return fmt.Errorf("action %q: %w", task.Action, err)
 	}
 	if e.dryRun {
-		fmt.Fprintf(e.out, "[dry-run] action %s with %v\n", task.Action, with)
+		plan := fmt.Sprintf("action %s with %v", task.Action, with)
+		if !e.logDryRun("", plan) {
+			fmt.Fprintf(e.out, "[dry-run] %s\n", plan)
+		}
 		return nil
 	}
 	if e.reg == nil {

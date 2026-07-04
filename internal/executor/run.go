@@ -138,7 +138,13 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 		if e.dryRun {
 			e.announceStep(st)
 			for _, h := range hosts {
-				fmt.Fprintf(e.out, "[dry-run] %s: %s\n", h.Address, rendered[h.Address])
+				line, err := e.dryRunLine(st, h.Address, rendered[h.Address])
+				if err != nil {
+					return err
+				}
+				if !e.logDryRun(h.Address, line) {
+					fmt.Fprintf(e.out, "[dry-run] %s: %s\n", h.Address, line)
+				}
 			}
 			continue
 		}
@@ -188,7 +194,13 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 		}
 		if e.dryRun {
 			e.announceStep(st)
-			fmt.Fprintf(e.out, "[dry-run][local] %s\n", cmd)
+			line, err := e.dryRunLine(st, "local", cmd)
+			if err != nil {
+				return err
+			}
+			if !e.logDryRun("local", line) {
+				fmt.Fprintf(e.out, "[dry-run][local] %s\n", line)
+			}
 			continue
 		}
 		e.announceStep(st)
@@ -228,4 +240,17 @@ func (e *Executor) announceStep(st step) {
 	if st.isScript {
 		slog.Info("script", "name", st.label)
 	}
+}
+
+// dryRunLine picks what the dry-run plan shows for one step on one host, mirroring the live run's echo policy: the
+// clean rendered command for cmds (no env-export/cd preamble) and just the script's name for scripts. --verbose
+// upgrades both to the full built command actually sent to the host.
+func (e *Executor) dryRunLine(st step, host, built string) (string, error) {
+	if e.verbose {
+		return built, nil
+	}
+	if st.isScript {
+		return "script " + st.label, nil
+	}
+	return st.shown(host)
 }
