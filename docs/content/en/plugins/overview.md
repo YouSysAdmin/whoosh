@@ -19,7 +19,7 @@ plugins:
         params: { tags: { App: [ myapp ] } }
 ```
 
-Bundled plugins (like the default-on `print-hosts-table`) are in every binary, the separate plugin modules
+Bundled plugins (like the default-on `print-hosts-table` and [`systemd`](/plugins/systemd/)) are in every binary, the separate plugin modules
 ([`aws`](/plugins/aws/), [`slack`](/plugins/slack/), [`rbenv`](/plugins/rbenv-p/)) are compiled in with
 `whoosh build --with ...` - see [Installation -> With custom plugins](/installation/custom-plugins/).
 To write your own, see [Developing](/plugins/developing/).
@@ -85,7 +85,9 @@ Because it is never loaded, a disabled plugin need not even be compiled into the
 
 Some bundled plugins are **on by default** - they load without a `plugins:` entry.
 The `print-hosts-table` plugin is one: it prints the resolved hosts table at the start of every deploy (before
-`deploy:starting`). Turn a default-on plugin off the same way, by listing it disabled:
+`deploy:starting`). The [`systemd`](/plugins/systemd/) plugin is another: its `systemd:start`/`stop`/`restart`/
+`enable`/`disable`/`daemon-reload` actions are usable from any task without a `plugins:` entry.
+Turn a default-on plugin off the same way, by listing it disabled:
 
 ```yaml
 plugins:
