@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
+ - builtin in-memory SSH agent, fed by the new `ssh.identities` map - so CI and multi-key setups need no
+   `ssh-agent` on the operator machine.
+   Each entry loads a key file, a directory of keys (`recursive` descends into subdirectories),
+   or an inline PEM, with an optional `passphrase` for encrypted keys:
+   ```yaml
+   ssh:
+     identities:
+       app_hosts:
+         path: ~/.ssh/id_app
+       ci:
+         content: '{{ env "CI_DEPLOY_KEY" }}'
+         passphrase: '{{ envSecret "CI_KEY_PASS" }}'
+   ```
+   When `ssh.identity_file` or `ssh.identities` is set, whoosh authenticates with the builtin agent and the
+   system ssh-agent (`SSH_AUTH_SOCK`) is no longer consulted.
+   With `forward_agent: true` the builtin agent is what gets forwarded to the hosts (`forward_key` still takes precedence).
+   `content` and `passphrase` are masking in the `config` dump, `{{.config}}`, and logs.
+ - `identity_file_passphrase` decrypts an encrypted `identity_file`, at the `ssh:` level and per host.
+   A host inherits the global pass phrase only together with the global `identity_file`.
  - config `vars:` values are themselves Go templates, rendered once at config load against the static context
    (app/stage/paths, sprig, `env`/`envSecret`/`sensitive`) - so a var can pull from the environment:
    ```yaml

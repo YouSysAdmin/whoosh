@@ -23,6 +23,7 @@ hosts:
 | `address`                         | Hostname or IP (required unless `local: true`).                                                      |
 | `roles`                           | Roles this host fills, tasks/hooks target by role.                                                   |
 | `user` / `port` / `identity_file` | Per-host SSH overrides.                                                                              |
+| `identity_file_passphrase`        | Decrypts this host's encrypted `identity_file` (templatable, redacted everywhere).                   |
 | `local`                           | Run on the operator's machine via the local shell - see [local mode](#local-execution-mode).         |
 | `deploy`                          | `false` keeps the host in inventory without deploying - see [below](#inventory-vs-deploy-targets).   |
 | `required`                        | `true` makes its unreachability always fatal - see [unreachable](#unreachable-hosts-on_unreachable). |
@@ -38,15 +39,44 @@ Defaults applied to every host. A host may override `user`/`port`/`identity_file
 ssh:
   user: deploy
   port: 22
-  identity_file: ~/.ssh/deploy_key     # optional, ssh-agent is also used
+  identity_file: ~/.ssh/deploy_key     # optional, joins the builtin agent (see below)
+  identity_file_passphrase: '{{ envSecret "DEPLOY_KEY_PASS" }}'  # decrypts an encrypted identity_file
   known_hosts_file: ~/.ssh/known_hosts # optional custom path
   strict_host_key: true                # verify host keys (default true)
   accept_new: true                     # trust first-seen hosts, record their key (default true)
-  forward_agent: false                 # forward your ssh-agent to the host (for remote git auth)
+  forward_agent: false                 # forward an ssh-agent to the host (for remote git auth)
   forward_key: ~/.ssh/deploy           # OR forward just this one key, in-memory
+  identities:                          # optional, feeds the builtin in-memory agent
+    worker_hosts:
+      path: ~/.ssh/id_worker           # a key file
+    app_hosts:
+      content: '{{ envSecret "APP_DEPLOY_KEY" }}'    # or the key PEM inline, e.g. from the env
+      passphrase: '{{ envSecret "APP_KEY_PASS" }}'   # decrypts an encrypted key
+    all_keys:
+      path: ~/.ssh                     # or a directory: every key file in it is loaded
+      recursive: true                  # include subdirectories
 ```
 
-- **Auth** uses your `ssh-agent` (`SSH_AUTH_SOCK`) and/or `identity_file`.
+- **Auth**: with no `identity_file` and no `identities`, whoosh uses your `ssh-agent` (`SSH_AUTH_SOCK`).
+  When either is set, whoosh builds its own in-memory agent from those keys and the system agent is **not**
+  consulted - so CI and multi-key setups need no `ssh-agent` on the operator machine.
+- **Builtin agent (`identities`)**: each entry is a key source, the name is just a label for logs and errors.
+  Set exactly one of `path` (a key file, or a directory whose key files are all loaded - `recursive` descends into
+  subdirectories) or `content` (the key PEM inline).
+  All keys are offered to every host, like a real agent, and per-host `identity_file` overrides keep working.
+  An encrypted key needs `passphrase` - the field is a Go template rendered at load time, so it can come from the
+  environment or an [env file](/configuration/overview/#env_files) via `envSecret`.
+  A directory scan skips non-key files and encrypted keys it cannot open (with a warning), while an explicit file or
+  inline key that fails to load is a hard error.
+  `content` and `passphrase` are always redacted in the `config` dump, `{{.config}}`, and logs.
+- **Encrypted identity files**: `identity_file_passphrase` decrypts an encrypted `identity_file`, at the `ssh:` level
+  or per host. Like the identities' `passphrase`, it is a Go template rendered at load time (so it can come from
+  `envSecret`) and always redacted.
+  A host inherits the global passphrase only together with the global `identity_file` - a host that sets its own
+  `identity_file` (even repeating the global path) sets its own passphrase, so a wrong global passphrase is never
+  tried against a different key.
+  Hosts discovered by an inventory plugin arrive after load-time rendering: a passphrase the plugin sets is used
+  verbatim, only the inherited global one is templated.
 - **Host keys** are verified against `~/.ssh/known_hosts` by default, OpenSSH `accept-new` style: a host seen for
   the first time is trusted and its key appended to the known_hosts file (created, along with its directory, when
   missing), while a **changed** key fails - so fresh environments (containers, CI) work out of the box without losing
@@ -58,8 +88,10 @@ ssh:
   ASG instances from one AMI), without loosening the rest of the deploy.
 - **Agent forwarding** lets the remote `git` clone/fetch authenticate with *your* credentials (e.g. for a private
   repo).
+  With `forward_agent: true`, the builtin agent is forwarded when it is active, otherwise your local ssh-agent
+  (`SSH_AUTH_SOCK`) - so forwarding with `identities` needs no system agent either.
   `forward_key` forwards a single unencrypted key in memory (never written to the host) and takes precedence over
-  `forward_agent`.
+  both.
   Forwarding is best-effort: a host with `AllowAgentForwarding no` will still run, but its git won't see your keys.
 - **Liveness**: a new connection times out after ~15s.
   On an established connection whoosh sends a keepalive every 10s and drops a silent host after 3 misses (~30s) so a

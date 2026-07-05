@@ -648,7 +648,30 @@ Redaction is **disabled at `--log-level debug`**, so you can see raw output when
 
 ## Notes
 
-- **Auth**: uses your `ssh-agent` (`SSH_AUTH_SOCK`) and/or `ssh.identity_file`.
+- **Auth**: with no `ssh.identity_file` and no `ssh.identities`, whoosh uses your `ssh-agent` (`SSH_AUTH_SOCK`).
+  When either is set, whoosh builds its own in-memory agent from those keys and the system agent is not consulted -
+  so CI and multi-key setups need no `ssh-agent` on the operator machine:
+
+  ```yaml
+  ssh:
+    identity_file: ~/.ssh/deploy       # joins the builtin agent
+    identity_file_passphrase: '{{ envSecret "DEPLOY_KEY_PASS" }}'  # decrypts it when encrypted
+    identities:                        # each entry is a key source, the name is just a label
+      worker_hosts:
+        path: ~/.ssh/id_worker         # a key file
+      app_hosts:
+        content: '{{ envSecret "APP_DEPLOY_KEY" }}'    # or the key PEM inline, e.g. from the env
+        passphrase: '{{ envSecret "APP_KEY_PASS" }}'   # decrypts an encrypted key
+      all_keys:
+        path: ~/.ssh                   # or a directory: every key file in it is loaded
+        recursive: true                # include subdirectories
+  ```
+
+  All keys are offered to every host (like a real agent), per-host `identity_file` overrides keep working - a host
+  entry can also set its own `identity_file_passphrase` for an encrypted key (inherited from the global one only
+  together with the global `identity_file`).
+  A directory scan skips non-key files and encrypted keys it cannot open, while an explicit file or inline key that
+  fails to load is a hard error. `content` and the passphrases are always redacted in the `config` dump and logs.
 - **Host keys**: verified against `~/.ssh/known_hosts` by default, OpenSSH `accept-new` style: a host seen for the
   first time is trusted and its key appended to the known_hosts file (created, along with its directory, when missing),
   while a **changed** key fails - so fresh environments (containers, CI) work out of the box without losing
@@ -672,12 +695,13 @@ Redaction is **disabled at `--log-level debug`**, so you can see raw output when
 
   ```yaml
   ssh:
-    forward_agent: true            # forward your local ssh-agent (SSH_AUTH_SOCK)
+    forward_agent: true            # forward the builtin agent when active, else your local ssh-agent
     # forward_key: ~/.ssh/deploy   # OR forward just this key, in-memory (never written to the host)
   ```
 
 `forward_key` takes precedence if both are set, and must be an unencrypted key (use `forward_agent` for
-passphrase-protected keys). Forwarding applies to all remote hosts in the run.
+passphrase-protected keys). With `ssh.identities` configured, `forward_agent` forwards the builtin agent and needs no
+`SSH_AUTH_SOCK`. Forwarding applies to all remote hosts in the run.
 The request is best-effort (like `ssh -A`): if a host refuses it (`AllowAgentForwarding no` in its `sshd_config`) the
 command still runs, but git there won't see your keys - enable agent forwarding on the host for forwarded git auth to
 work.
