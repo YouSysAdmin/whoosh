@@ -25,8 +25,12 @@ func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.C
 			if err != nil {
 				return err
 			}
+			sshOpts, err := sshOptions(cfg)
+			if err != nil {
+				return err
+			}
 			ex := executor.New(cfg, executor.Options{
-				SSH:         sshOptions(cfg),
+				SSH:         sshOpts,
 				Out:         cmd.OutOrStdout(),
 				DryRun:      gf.dryRun,
 				Verbose:     gf.verbose,

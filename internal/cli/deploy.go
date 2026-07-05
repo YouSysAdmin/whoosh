@@ -46,8 +46,12 @@ func newDeployer(cmd *cobra.Command, stage string, gf *globalFlags) (*deploy.Dep
 	if err != nil {
 		return nil, nil, err
 	}
+	sshOpts, err := sshOptions(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
 	ex := executor.New(cfg, executor.Options{
-		SSH:         sshOptions(cfg),
+		SSH:         sshOpts,
 		Out:         cmd.OutOrStdout(),
 		DryRun:      gf.dryRun,
 		Verbose:     gf.verbose,

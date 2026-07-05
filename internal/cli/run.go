@@ -49,7 +49,11 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 				return nil
 			}
 
-			results := runner.RunCommand(cmd.Context(), executor.Targets(hosts), sshOptions(cfg), command, out, colorOutput(cmd, cfg.Log), gf.conc, false)
+			sshOpts, err := sshOptions(cfg)
+			if err != nil {
+				return err
+			}
+			results := runner.RunCommand(cmd.Context(), executor.Targets(hosts), sshOpts, command, out, colorOutput(cmd, cfg.Log), gf.conc, false)
 			return reportResults(results)
 		},
 	}

@@ -26,8 +26,25 @@ type Server struct {
 	dir string
 }
 
+// Option adjusts the server before it starts listening.
+type Option func(*config)
+
+type config struct {
+	authorizedKeys []gssh.PublicKey
+}
+
+// WithAuthorizedKeys restricts public-key auth to these keys. Without it the server accepts any key.
+func WithAuthorizedKeys(keys ...gssh.PublicKey) Option {
+	return func(c *config) { c.authorizedKeys = append(c.authorizedKeys, keys...) }
+}
+
 // Start launches the server on a random localhost port.
-func Start() (*Server, error) {
+func Start(opts ...Option) (*Server, error) {
+	var cfg config
+	for _, o := range opts {
+		o(&cfg)
+	}
+
 	dir, err := os.MkdirTemp("", "sshtest-")
 	if err != nil {
 		return nil, err
@@ -51,7 +68,7 @@ func Start() (*Server, error) {
 
 	srv := &gssh.Server{
 		Handler:          handleSession,
-		PublicKeyHandler: func(gssh.Context, gssh.PublicKey) bool { return true },
+		PublicKeyHandler: authHandler(cfg.authorizedKeys),
 	}
 	srv.AddHostKey(hostSigner)
 	go func() { _ = srv.Serve(ln) }()
@@ -71,6 +88,21 @@ func (s *Server) Close() {
 	_ = s.srv.Close()
 	_ = s.ln.Close()
 	_ = os.RemoveAll(s.dir)
+}
+
+// authHandler accepts any public key by default, or only the authorized ones when the list is non-empty.
+func authHandler(authorized []gssh.PublicKey) gssh.PublicKeyHandler {
+	if len(authorized) == 0 {
+		return func(gssh.Context, gssh.PublicKey) bool { return true }
+	}
+	return func(_ gssh.Context, key gssh.PublicKey) bool {
+		for _, a := range authorized {
+			if gssh.KeysEqual(key, a) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // handleSession runs the requested command through the local shell and relays stdout/stderr and the exit code back to

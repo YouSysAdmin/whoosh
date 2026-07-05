@@ -287,10 +287,13 @@ type App struct {
 
 // SSH holds connection defaults applied to every host unless the host overrides them.
 type SSH struct {
-	User           string `yaml:"user,omitempty"`             // SSH login user
-	Port           int    `yaml:"port,omitempty"`             // SSH port (default: 22)
-	IdentityFile   string `yaml:"identity_file,omitempty"`    // Private key file used to authenticate
-	KnownHostsFile string `yaml:"known_hosts_file,omitempty"` // known_hosts file for host-key verification
+	User         string `yaml:"user,omitempty"`          // SSH login user
+	Port         int    `yaml:"port,omitempty"`          // SSH port (default: 22)
+	IdentityFile string `yaml:"identity_file,omitempty"` // Private key file used to authenticate
+	// IdentityFilePassphrase decrypts an encrypted identity_file. Rendered as a Go template at load time, so it can
+	// come from the environment (e.g. "{{ envSecret \"KEY_PASS\" }}"), and is redacted everywhere.
+	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty"`
+	KnownHostsFile         string `yaml:"known_hosts_file,omitempty"` // known_hosts file for host-key verification
 	// StrictHostKey toggles host-key verification. nil means "use the default" (true).
 	StrictHostKey *bool `yaml:"strict_host_key,omitempty"`
 	// AcceptNew, with strict host-key checking, trusts a host seen for the first time (OpenSSH accept-new): its key is
@@ -304,6 +307,62 @@ type SSH struct {
 	// ForwardKey forwards only the key at this path, presented in-memory over the agent protocol (never written to the
 	// host). Takes precedence over ForwardAgent when both are set.
 	ForwardKey string `yaml:"forward_key,omitempty"`
+	// Identities feeds the builtin in-memory SSH agent. When identities or identity_file is set, whoosh authenticates
+	// with these keys and the system ssh-agent (SSH_AUTH_SOCK) is not consulted. With forward_agent, this builtin agent
+	// is what gets forwarded to the hosts. The map key is a label used only in logs and error messages.
+	Identities map[string]SSHIdentity `yaml:"identities,omitempty"`
+}
+
+// SSHIdentity is one private-key source for the builtin in-memory SSH agent. Set exactly one of path or content.
+type SSHIdentity struct {
+	// Path is a private key file, or a directory whose key files are all loaded (unparsable files, *.pub and other
+	// obvious non-key files are skipped). Rendered as a Go template at load time. A leading ~/ expands to the home dir.
+	Path string `yaml:"path,omitempty"`
+	// Content is the private key PEM inline. Rendered as a Go template at load time and redacted in the config dump
+	// and {{.config}}.
+	Content string `yaml:"content,omitempty"`
+	// Passphrase decrypts an encrypted key. Rendered as a Go template at load time, so it can come from the
+	// environment (e.g. "{{ envSecret \"KEY_PASS\" }}"), and is redacted everywhere.
+	Passphrase string `yaml:"passphrase,omitempty"`
+	// Recursive includes subdirectories when path is a directory.
+	Recursive bool `yaml:"recursive,omitempty"`
+}
+
+// MarshalYAML redacts content and passphrase so the config dump and {{.config}} never carry key material,
+// even at debug log level where output masking is disabled.
+// The local defined type keeps the fields and tags but drops the methods, so marshaling it does not recurse.
+func (i SSHIdentity) MarshalYAML() (any, error) {
+	type masked SSHIdentity
+	m := masked(i)
+	if m.Content != "" {
+		m.Content = "[MASKED]"
+	}
+	if m.Passphrase != "" {
+		m.Passphrase = "[MASKED]"
+	}
+	return m, nil
+}
+
+// MarshalYAML redacts the identity_file passphrase in the config dump and {{.config}}, even at debug log level where
+// output masking is disabled. Identities redact themselves (SSHIdentity.MarshalYAML still fires per map entry).
+func (s SSH) MarshalYAML() (any, error) {
+	type masked SSH
+	m := masked(s)
+	if m.IdentityFilePassphrase != "" {
+		m.IdentityFilePassphrase = "[MASKED]"
+	}
+	return m, nil
+}
+
+// MarshalYAML redacts the per-host identity_file passphrase in the config dump and {{.config}}, even at debug log
+// level where output masking is disabled.
+func (h Host) MarshalYAML() (any, error) {
+	type masked Host
+	m := masked(h)
+	if m.IdentityFilePassphrase != "" {
+		m.IdentityFilePassphrase = "[MASKED]"
+	}
+	return m, nil
 }
 
 // Host is a single deployment target, tagged with the roles it fills.
@@ -315,7 +374,11 @@ type Host struct {
 	User         string   `yaml:"user,omitempty" json:"user,omitempty"`                   // Overrides ssh.user for this host
 	Port         int      `yaml:"port,omitempty" json:"port,omitempty"`                   // Overrides ssh.port for this host
 	IdentityFile string   `yaml:"identity_file,omitempty" json:"identity_file,omitempty"` // Overrides ssh.identity_file for this host
-	Local        bool     `yaml:"local,omitempty" json:"local,omitempty"`                 // Run on the operator's machine via the local shell (SSH fields ignored)
+	// IdentityFilePassphrase decrypts this host's encrypted identity_file. Inherited from ssh.identity_file_passphrase
+	// only together with ssh.identity_file - a host with its own identity_file sets its own passphrase. Rendered as a
+	// Go template at load time and redacted everywhere (excluded from JSON so log records never carry it).
+	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty" json:"-"`
+	Local                  bool   `yaml:"local,omitempty" json:"local,omitempty"` // Run on the operator's machine via the local shell (SSH fields ignored)
 	// Deploy gates whether the release lifecycle, tasks, hooks, and ad-hoc run target this host. nil means the default
 	// (true).
 	// Set false to keep a host in inventory - listed by `config` and the `deploy:hosts` command - without deploying the
