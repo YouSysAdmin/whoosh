@@ -5,11 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.4.0] - 2026-07-05
 ### Added
  - builtin in-memory SSH agent, fed by the new `ssh.identities` map - so CI and multi-key setups need no
    `ssh-agent` on the operator machine.
-   Each entry loads a key file, a directory of keys (`recursive` descends into subdirectories),
-   or an inline PEM, with an optional `passphrase` for encrypted keys:
+   Each entry loads a key file, a directory of keys (`recursive` descends into subdirectories), or an inline PEM,
+   with an optional `passphrase` for encrypted keys:
+
    ```yaml
    ssh:
      identities:
@@ -23,8 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    system ssh-agent (`SSH_AUTH_SOCK`) is no longer consulted.
    With `forward_agent: true` the builtin agent is what gets forwarded to the hosts (`forward_key` still takes precedence).
    `content` and `passphrase` are masking in the `config` dump, `{{.config}}`, and logs.
+
  - `identity_file_passphrase` decrypts an encrypted `identity_file`, at the `ssh:` level and per host.
    A host inherits the global pass phrase only together with the global `identity_file`.
+
  - config `vars:` values are themselves Go templates, rendered once at config load against the static context
    (app/stage/paths, sprig, `env`/`envSecret`/`sensitive`) - so a var can pull from the environment:
    ```yaml
@@ -34,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    ```
    Limitations: a var cannot reference another var, `{{.config}}`, plugin imports, or run-time values
    (`release_path`/`host`/... render empty at load).
+
  - the `env`/`envSecret` template helpers now fall back to the `env_files` (dotenv) values when the process
    env var is unset (a set-but-empty process var still wins) - everywhere templates render: vars, plugin
    `params:`, `cmds`, scripts, `envs:`.
@@ -110,7 +116,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
 [1.3.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.3.0
 [1.2.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.2.0
 [1.1.1]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.1.1
