@@ -59,7 +59,7 @@ func (e *Executor) targetsForTask(task *ast.Task) []ast.Host {
 func Targets(hosts []ast.Host) []runner.Target {
 	targets := make([]runner.Target, len(hosts))
 	for i, h := range hosts {
-		targets[i] = runner.Target{Host: h.Address, Port: h.Port, User: h.User, IdentityFile: h.IdentityFile, Local: h.Local}
+		targets[i] = runner.Target{Host: h.Address, Port: h.Port, User: h.User, IdentityFile: h.IdentityFile, Passphrase: h.IdentityFilePassphrase, Local: h.Local}
 	}
 	return targets
 }

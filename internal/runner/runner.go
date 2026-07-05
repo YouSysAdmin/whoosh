@@ -27,6 +27,7 @@ type Target struct {
 	Port         int    // SSH port
 	User         string // SSH login user
 	IdentityFile string // private key file used to authenticate
+	Passphrase   string // optional, decrypts an encrypted IdentityFile
 	Local        bool   // run via the local shell instead of SSH
 	// StrictHostKey, when non-nil, overrides the cluster's StrictHostKey for this host's dial (a task may skip known_hosts
 	// verification for ephemeral hosts).

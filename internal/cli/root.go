@@ -20,6 +20,7 @@ import (
 	"github.com/yousysadmin/whoosh/internal/deployfile"
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/errors"
+	"github.com/yousysadmin/whoosh/internal/masking"
 	"github.com/yousysadmin/whoosh/internal/paths"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 	"github.com/yousysadmin/whoosh/internal/varstmpl"
@@ -280,6 +281,65 @@ func renderVars(cfg *ast.DeployFile) error {
 	return nil
 }
 
+// renderSSHSecrets renders the SSH auth secrets as Go templates at load time, so a passphrase can come from the
+// environment (e.g. `passphrase: '{{ envSecret "KEY_PASS" }}'`): each identity's path, content, and passphrase, the
+// global ssh.identity_file_passphrase, and each host's identity_file_passphrase. The context is the static load-time
+// one (loadTimeContext) with the already-rendered vars, strict rendering surfaces an undefined var.
+// The rendered secrets are registered with the masker, so they never reach logs or error output.
+// Hosts a plugin discovers later arrive after this pass and keep their passphrase verbatim - only the inherited
+// global one is templated (ApplyDefaults copies the rendered value onto them).
+func renderSSHSecrets(cfg *ast.DeployFile) error {
+	ctx := loadTimeContext(cfg)
+	renderSecret := func(label string, value *string) error {
+		if *value == "" {
+			return nil
+		}
+		rendered, err := varstmpl.RenderWith(*value, ctx, true)
+		if err != nil {
+			return fmt.Errorf("%s: %w", label, err)
+		}
+		*value = rendered
+		masking.AddSecret(rendered)
+		return nil
+	}
+	if err := renderSecret("ssh.identity_file_passphrase", &cfg.SSH.IdentityFilePassphrase); err != nil {
+		return err
+	}
+	for i := range cfg.Hosts {
+		if err := renderSecret(fmt.Sprintf("hosts[%d].identity_file_passphrase", i), &cfg.Hosts[i].IdentityFilePassphrase); err != nil {
+			return err
+		}
+	}
+	for _, name := range sortedKeys(cfg.SSH.Identities) {
+		id := cfg.SSH.Identities[name]
+		for _, f := range []struct {
+			label string
+			value *string
+		}{
+			{"path", &id.Path},
+			{"content", &id.Content},
+			{"passphrase", &id.Passphrase},
+		} {
+			if *f.value == "" {
+				continue
+			}
+			rendered, err := varstmpl.RenderWith(*f.value, ctx, true)
+			if err != nil {
+				return fmt.Errorf("ssh.identities.%s.%s: %w", name, f.label, err)
+			}
+			*f.value = rendered
+		}
+		if id.Content != "" {
+			masking.AddSecret(id.Content)
+		}
+		if id.Passphrase != "" {
+			masking.AddSecret(id.Passphrase)
+		}
+		cfg.SSH.Identities[name] = id
+	}
+	return nil
+}
+
 // renderPluginParams renders each plugin's params as Go templates before the plugins load, so they can be
 // parameterized per stage via vars - e.g. `credentials_from_host: { host: "{{ .bastion }}" }` with `bastion` set (and
 // overridden) in the stage files.
@@ -347,6 +407,11 @@ func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.Deploy
 	}
 	// Resolve templated vars first, so plugin params (below) and everything downstream see final values.
 	if err := renderVars(cfg); err != nil {
+		return nil, "", err
+	}
+	// Resolve ssh secret templates next (they may reference vars), so a broken identity or passphrase template fails
+	// offline and the secret values are registered with the masker before anything can print them.
+	if err := renderSSHSecrets(cfg); err != nil {
 		return nil, "", err
 	}
 	// Add always-on (default) plugins not already declared, then drop plugins not active for this stage (and record them,

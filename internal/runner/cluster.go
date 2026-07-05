@@ -161,6 +161,7 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 			Port:         t.Port,
 			User:         t.User,
 			IdentityFile: t.IdentityFile,
+			Passphrase:   t.Passphrase,
 		}, opts)
 		if err != nil {
 			e.err = err

@@ -1,6 +1,11 @@
 package ast
 
-import "github.com/yousysadmin/whoosh/internal/errors"
+import (
+	"maps"
+	"slices"
+
+	"github.com/yousysadmin/whoosh/internal/errors"
+)
 
 // Validate checks the resolved config for the fields a deploy needs.
 // Every failure is an errors.ConfigError (or the version gate's errors.VersionError), so the CLI exits with the config
@@ -25,9 +30,15 @@ func (c *DeployFile) Validate() error {
 	default:
 		return errors.Config("on_unreachable %q is invalid (want %q or %q)", c.OnUnreachable, OnUnreachableAbort, OnUnreachableSkip)
 	}
+	if c.SSH.IdentityFilePassphrase != "" && c.SSH.IdentityFile == "" {
+		return errors.Config("ssh.identity_file_passphrase requires ssh.identity_file (identities entries have their own passphrase)")
+	}
 	for i, h := range c.Hosts {
 		if h.Address == "" && !h.Local {
 			return errors.Config("hosts[%d].address is required (or set local: true)", i)
+		}
+		if h.IdentityFilePassphrase != "" && h.IdentityFile == "" && !h.Local {
+			return errors.Config("hosts[%d].identity_file_passphrase set but no identity_file to decrypt", i)
 		}
 	}
 	for i, f := range c.LinkedFiles {
@@ -66,6 +77,17 @@ func (c *DeployFile) Validate() error {
 	for i, spec := range c.Plugins {
 		if spec.Name == "" {
 			return errors.Config("plugins[%d]: 'name' is required", i)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(c.SSH.Identities)) {
+		id := c.SSH.Identities[name]
+		hasPath := id.Path != ""
+		hasContent := id.Content != ""
+		if hasPath == hasContent {
+			return errors.Config("ssh.identities.%s: set exactly one of 'path' or 'content'", name)
+		}
+		if id.Recursive && !hasPath {
+			return errors.Config("ssh.identities.%s: 'recursive' requires 'path'", name)
 		}
 	}
 	return nil

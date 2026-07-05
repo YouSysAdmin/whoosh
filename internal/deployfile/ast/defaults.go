@@ -58,6 +58,11 @@ func (c *DeployFile) ApplyDefaults() {
 		}
 		if c.Hosts[i].IdentityFile == "" {
 			c.Hosts[i].IdentityFile = c.SSH.IdentityFile
+			// The passphrase belongs to its key, so it is inherited only together with the identity file - a host
+			// with its own identity_file sets its own passphrase.
+			if c.Hosts[i].IdentityFilePassphrase == "" {
+				c.Hosts[i].IdentityFilePassphrase = c.SSH.IdentityFilePassphrase
+			}
 		}
 	}
 }

@@ -103,6 +103,9 @@ func mergeSSH(base, ov SSH) SSH {
 	if ov.IdentityFile != "" {
 		base.IdentityFile = ov.IdentityFile
 	}
+	if ov.IdentityFilePassphrase != "" {
+		base.IdentityFilePassphrase = ov.IdentityFilePassphrase
+	}
 	if ov.KnownHostsFile != "" {
 		base.KnownHostsFile = ov.KnownHostsFile
 	}
@@ -118,6 +121,7 @@ func mergeSSH(base, ov SSH) SSH {
 	if ov.ForwardKey != "" {
 		base.ForwardKey = ov.ForwardKey
 	}
+	base.Identities = mergeMap(base.Identities, ov.Identities)
 	return base
 }
 

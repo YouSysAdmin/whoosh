@@ -42,6 +42,7 @@ type Target struct {
 	Port         int
 	User         string
 	IdentityFile string
+	Passphrase   string // optional, decrypts an encrypted IdentityFile
 }
 
 func (t Target) addr() string {
@@ -71,6 +72,10 @@ type Options struct {
 	// ForwardKey forwards only the key at this path via an in-memory agent (the key is never written to the host).
 	// Takes precedence over ForwardAgent.
 	ForwardKey string
+	// Agent is the builtin in-memory ssh-agent (from NewAgent). When set, its keys are offered to every host and the
+	// system agent (SSH_AUTH_SOCK) is not consulted for authentication. With ForwardAgent it is also the agent forwarded
+	// to the hosts (ForwardKey still takes precedence).
+	Agent agent.Agent
 }
 
 // Client is a live SSH connection to one host.
@@ -84,7 +89,7 @@ type Client struct {
 
 // Dial opens an SSH connection to the target.
 func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
-	auth, err := authMethods(t.IdentityFile)
+	auth, err := authMethods(t.IdentityFile, t.Passphrase, opts.Agent)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +202,8 @@ func (c *Client) ping(timeout time.Duration) bool {
 // name OpenSSH uses).
 const agentForwardRequest = "auth-agent-req@openssh.com"
 
-// setupForwarding routes agent-auth requests from the host to either an in-memory keyring holding ForwardKey, or the
-// operator's local ssh-agent.
+// setupForwarding routes agent-auth requests from the host to an in-memory keyring holding ForwardKey, the builtin
+// agent, or the operator's local ssh-agent - in that precedence order.
 func setupForwarding(conn *ssh.Client, opts Options) error {
 	if opts.ForwardKey != "" {
 		kr, err := keyringFromFile(opts.ForwardKey)
@@ -206,6 +211,10 @@ func setupForwarding(conn *ssh.Client, opts Options) error {
 			return err
 		}
 		return agent.ForwardToAgent(conn, kr)
+	}
+
+	if opts.Agent != nil {
+		return agent.ForwardToAgent(conn, opts.Agent)
 	}
 
 	sock, err := localAgentSocket()
@@ -315,15 +324,21 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func authMethods(identityFile string) ([]ssh.AuthMethod, error) {
+func authMethods(identityFile, passphrase string, ag agent.Agent) ([]ssh.AuthMethod, error) {
 	var methods []ssh.AuthMethod
 
 	if identityFile != "" {
-		signer, err := loadIdentity(identityFile)
+		signer, err := loadIdentity(identityFile, passphrase)
 		if err != nil {
 			return nil, err
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
+	}
+
+	// The builtin agent replaces the system agent: its keys are the operator's declared identities, so falling back to
+	// SSH_AUTH_SOCK on top of them would defeat the point of pinning the keys in config.
+	if ag != nil {
+		return append(methods, ssh.PublicKeysCallback(ag.Signers)), nil
 	}
 
 	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
@@ -333,17 +348,21 @@ func authMethods(identityFile string) ([]ssh.AuthMethod, error) {
 	}
 
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("no SSH auth available: set ssh.identity_file or start an ssh-agent (SSH_AUTH_SOCK)")
+		return nil, fmt.Errorf("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
 	}
 	return methods, nil
 }
 
-func loadIdentity(path string) (ssh.Signer, error) {
+func loadIdentity(path, passphrase string) (ssh.Signer, error) {
 	data, err := os.ReadFile(expandHome(path))
 	if err != nil {
 		return nil, fmt.Errorf("read identity %s: %w", path, err)
 	}
-	signer, err := ssh.ParsePrivateKey(data)
+	key, err := parsePrivateKey(data, passphrase)
+	if err != nil {
+		return nil, fmt.Errorf("parse identity %s: %w", path, err)
+	}
+	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
 		return nil, fmt.Errorf("parse identity %s: %w", path, err)
 	}

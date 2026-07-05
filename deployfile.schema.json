@@ -107,6 +107,10 @@
           "type": "string",
           "description": "Overrides ssh.identity_file for this host"
         },
+        "identity_file_passphrase": {
+          "type": "string",
+          "description": "IdentityFilePassphrase decrypts this host's encrypted identity_file. Inherited from ssh.identity_file_passphrase\nonly together with ssh.identity_file - a host with its own identity_file sets its own passphrase. Rendered as a\nGo template at load time and redacted everywhere (excluded from JSON so log records never carry it)."
+        },
         "local": {
           "type": "boolean",
           "description": "Run on the operator's machine via the local shell (SSH fields ignored)"
@@ -248,6 +252,10 @@
           "type": "string",
           "description": "Private key file used to authenticate"
         },
+        "identity_file_passphrase": {
+          "type": "string",
+          "description": "IdentityFilePassphrase decrypts an encrypted identity_file. Rendered as a Go template at load time, so it can\ncome from the environment (e.g. \"{{ envSecret \\\"KEY_PASS\\\" }}\"), and is redacted everywhere."
+        },
         "known_hosts_file": {
           "type": "string",
           "description": "known_hosts file for host-key verification"
@@ -267,11 +275,41 @@
         "forward_key": {
           "type": "string",
           "description": "ForwardKey forwards only the key at this path, presented in-memory over the agent protocol (never written to the\nhost). Takes precedence over ForwardAgent when both are set."
+        },
+        "identities": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SSHIdentity"
+          },
+          "type": "object",
+          "description": "Identities feeds the builtin in-memory SSH agent. When identities or identity_file is set, whoosh authenticates\nwith these keys and the system ssh-agent (SSH_AUTH_SOCK) is not consulted. With forward_agent, this builtin agent\nis what gets forwarded to the hosts. The map key is a label used only in logs and error messages."
         }
       },
       "additionalProperties": false,
       "type": "object",
       "description": "SSH holds connection defaults applied to every host unless the host overrides them."
+    },
+    "SSHIdentity": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path is a private key file, or a directory whose key files are all loaded (unparsable files, *.pub and other\nobvious non-key files are skipped). Rendered as a Go template at load time. A leading ~/ expands to the home dir."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content is the private key PEM inline. Rendered as a Go template at load time and redacted in the config dump\nand {{.config}}."
+        },
+        "passphrase": {
+          "type": "string",
+          "description": "Passphrase decrypts an encrypted key. Rendered as a Go template at load time, so it can come from the\nenvironment (e.g. \"{{ envSecret \\\"KEY_PASS\\\" }}\"), and is redacted everywhere."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "Recursive includes subdirectories when path is a directory."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SSHIdentity is one private-key source for the builtin in-memory SSH agent."
     },
     "Script": {
       "properties": {
