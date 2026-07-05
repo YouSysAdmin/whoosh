@@ -2,7 +2,17 @@ name: Test
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE"
+      - ".gitmodules"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "LICENSE"
+      - ".gitmodules"
 
 permissions:
   contents: read
