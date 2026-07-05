@@ -132,7 +132,7 @@ the next invocation, not to a hook within the same deploy.
 Run these as their own post-deploy step (`whoosh prod asg-healthcheck`), not as a deploy hook.
 {{< /callout >}}
 
-## Unreachable hosts (`on_unreachable`)
+## Unreachable hosts
 
 By default, a host that becomes unreachable mid-deploy aborts the whole run.
 Set `on_unreachable: skip` to drop the unreachable host and finish on the survivors.
