@@ -170,18 +170,22 @@ Files pulled in with [`include:`](#sharing-config-between-stages) are combined w
 
 ## Editor support (JSON Schema)
 
-Whoosh ships a JSON Schema (`deployfile.schema.json`) generated from the config model, so editors can autocomplete
-fields, validate values (e.g.
-`on_unreachable` must be `abort`/`skip`), flag typo'd keys, and show each field's documentation on hover.
+Whoosh ships a JSON Schema (`deployfile.schema.json`) generated from the config model.
 Regenerate it after upgrading whoosh (or changing the model) with `make schema` (or `go run ./cmd/gen-schema`).
 
 Point your editor at it with a modeline on the **first line** of each config file:
 
-<!-- TODO: replace local path with http after publishing documents in public access -->
-
 ```yaml
 # yaml-language-server: $schema=./deployfile.schema.json
 version: "1"
+```
+
+```yaml
+# yaml-language-server: $schema=https://whoosh.yousysadmin.com/deployfile.schema.json
+
+# yaml-language-server: $schema=https://yousysadmin.github.io/whoosh/deployfile.schema.json
+
+# yaml-language-server: $schema=https://raw.githubusercontent.com/YouSysAdmin/whoosh/refs/heads/master/deployfile.schema.json
 ```
 
 **VS Code** needs the Red Hat *YAML* extension.

@@ -83,48 +83,32 @@ deploy
 .deploy
 ```
 
-### Editor support (JSON Schema)
+**Editor support (JSON Schema)**
 
-whoosh ships a JSON Schema (`deployfile.schema.json`) generated from the config model, so editors can autocomplete
-fields, validate values (e.g.`on_unreachable` must be `abort`/`skip`), flag typo keys, and show the model's
-documentation on hover.
-Regenerate it after changing the config with `make schema` (or `go run ./cmd/gen-schema`).
-
-**VS Code** (with the Red Hat *YAML* extension) - either add a modeline to the top of each config file:
+whoosh ships a JSON Schema (`deployfile.schema.json`) generated from the config model.
+Regenerate it after changing the config with `make schema`.
 
 ```yaml
 # yaml-language-server: $schema=./deployfile.schema.json
+
+# https://whoosh.yousysadmin.com/deployfile.schema.json
+# https://yousysadmin.github.io/whoosh/deployfile.schema.json
+# https://raw.githubusercontent.com/YouSysAdmin/whoosh/refs/heads/master/deployfile.schema.json  
 ```
-
-or map the files once in `settings.json`:
-
-```json
-{
-  "yaml.schemas": {
-    "./deployfile.schema.json": [
-      "Deployfile.y*ml",
-      "deploy/*.y*ml"
-    ]
-  }
-}
-```
-
-**JetBrains IDEs** - *Settings -> Languages & Frameworks -> Schemas and DTDs -> JSON Schema Mappings*: add
-`deployfile.schema.json` and map the patterns `Deployfile.yml`, `Deployfile.yaml`, and `deploy/*.yml`.
-(The modeline above also works.)
 
 > The schema validates the config structure and all core fields, but **not** plugin-specific `params:`/`with:` keys
 > (e.g. the AWS plugin's options) - those live outside the core model and stay open (`additionalProperties`).
 
 ```yaml
 # Deployfile.yaml
+# yaml-language-server: $schema=https://whoosh.yousysadmin.com/deployfile.schema.json
 version: "1"
 app:
   name: myapp
   repo: git@github.com:org/myapp.git
   branch: main
   deploy_to: /var/www/myapp
-keep_releases: 5
+  keep_releases: 5
 linked_files: [ config/database.yaml, .env ]    # symlinked from shared/ - must exist there (checked)
 linked_dirs: [ log, tmp/pids, public/uploads ] # symlinked from shared/ - created if missing
 vars:
