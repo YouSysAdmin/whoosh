@@ -1,3 +1,0 @@
-# Reusable tooltip definitions for {{< tooltip term="…" >}}.
-TOML = "Tom's Obvious, Minimal Language - the configuration format Hugo uses for site config and front matter."
-TOC = "Table of contents - the on-this-page list of headings generated from a page's Markdown."
