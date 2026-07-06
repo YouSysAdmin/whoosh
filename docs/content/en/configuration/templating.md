@@ -56,7 +56,7 @@ helpers). Some of the most useful ones:
 | `default` / `coalesce` / `ternary`        | `{{ .region \| default "eu-west-1" }}`              |
 | `upper` / `lower` / `trim` / `replace`    | `{{ .app_name \| upper }}`                          |
 | `b64enc` / `b64dec`                       | `{{ .docker_auth \| b64enc }}`                      |
-| `env` (falls back to `env_files` values)  | `{{ env "CI_COMMIT_SHA" }}`                         |
+| `env` (falls back to global `envs:` at task time, then `env_files` values) | `{{ env "CI_COMMIT_SHA" }}`       |
 | `now` / `date`                            | `{{ now \| date "2006-01-02" }}`                    |
 
 Whoosh adds the gaps sprig doesn't cover:

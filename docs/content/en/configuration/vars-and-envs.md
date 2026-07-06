@@ -54,6 +54,10 @@ env_files:
   plugin `params`, `cmds`, ...), `{{ env "NAME" }}` reads whoosh's own environment first and falls back to the
   `env_files` value when the process var is unset (a set-but-empty process var still wins - the usual dotenv
   convention). Sprig's `expandenv` reads only the process environment - use `env`.
+- In **task-time templates** (`cmds`, `scripts`, task `envs`, `dir`, `with`) the resolved global `envs:` values sit
+  between the two, so the full lookup order is: process env > global `envs` > `env_files`. Global env values
+  themselves render **without** that layer (they cannot reference each other - only the process env and `env_files`),
+  and load-time templates (`vars`, plugin `params`) keep the plain process > `env_files` lookup.
 
 {{< callout type="info" >}}
 A value injected with `{{ env "X" }}` is visible in `--dry-run` output and the remote process list - it's for

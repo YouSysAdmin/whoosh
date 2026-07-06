@@ -382,6 +382,10 @@ output, dry-run plans, logs:
   The values are also visible to the `env`/`envSecret` template helpers - anywhere a template runs (`vars`, plugin
   `params`, `cmds`, ...), `{{ env "NAME" }}` reads whoosh's own environment first and falls back to the `env_files`
   value when the process var is unset (a set-but-empty process var still wins, the usual dotenv convention).
+  In task-time templates (`cmds`, `scripts`, task `envs`, `dir`, `with`) the resolved global `envs:` values sit between
+  the two: process env > global `envs` > `env_files`. Global env values themselves render without that layer, so they
+  cannot reference each other - and load-time templates (`vars`, plugin `params`) keep the plain process > `env_files`
+  lookup.
   Sprig's `expandenv` reads only the process environment - use `env`.
 
   ```yaml
@@ -501,7 +505,8 @@ Plus:
   state](#task-state-output)) - e.g. `{{ .tasks.whoami.Account }}`.
 - **Helper functions** in templates - the full [sprig](https://masterminds.github.io/sprig/) set
   (`{{ toJson .config.app }}`, `{{ join "," .roles }}`, `{{ .region | default "eu-west-1" }}`,
-  `{{ env "CI_COMMIT_SHA" }}` reads whoosh's own environment falling back to `env_files` values,
+  `{{ env "CI_COMMIT_SHA" }}` reads whoosh's own environment falling back to the resolved global `envs:` (in
+  task-time templates) and then `env_files` values,
   `{{ now | date "2006-01-02" }}`, ...) plus whoosh's
   own `toYaml`/`fromYaml`/`fromYamlArray` and `required "msg" .val` (fail the render when a value is nil/empty) -
   see [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
@@ -622,7 +627,8 @@ command at once, `0` = all), `--deployfile <path>`.
 clean rendered form, scripts by name, built-in git/symlink commands omitted. Add `-v` to expand the plan to the full
 commands that would be sent to each host (env exports, `cd`, script bodies, built-in steps).
 
-Logging flags: `--log-level` (debug/info/warn/error, default info), `--log-format` (text/json, default text),
+Logging flags: `--log-level` (debug/info/warn/error, default info; `debug` implies `--verbose` and disables secret
+redaction), `--log-format` (text/json, default text),
 `--log-output` (stdout, stderr, or a file path), `--log-color` (on by default, automatically suppressed when output is
 a file or a pipe, so logs stay clean).
 Use `--log-file <path>` to **also** write a deployment log to a file alongside the console (`--log-file-format`, default
@@ -634,6 +640,9 @@ Whoosh's progress (phases, tasks, results) is logged via `slog`, while remote co
 prefixed by host - and the transcript captures both.
 **Each task command is also echoed before it runs** (`[host] $ <command>`), so logs show what was sent to the host,
 not just its output. (`cmds` always, but `scripts` and built-in git/symlink commands only under `--verbose`.)
+Without `--verbose` a `cmd` is echoed in its clean rendered form. With `--verbose` the echo is the **full built
+command** actually sent to the host - env exports and `cd` included - so you can see exactly which environment each
+command ran with.
 
 **Secret redaction**: command output, the echoed commands, dry-run plans, and verbose command logs are scrubbed before
 they reach the console or the transcript.

@@ -44,7 +44,7 @@ Available on any `<stage> <action>`:
 | Flag                  | Meaning                                                                 |
 |-----------------------|-------------------------------------------------------------------------|
 | `--dry-run`           | Print the exact plan without contacting a host (see [below](#dry-run)). |
-| `-v`, `--verbose`     | Verbose output (logs each command before running it).                   |
+| `-v`, `--verbose`     | Verbose output: echo the full built command (env exports, `cd`) for every step, script bodies, and built-in lifecycle commands. |
 | `--roles <r1,r2>`     | Restrict to hosts filling these roles.                                  |
 | `-H`, `--host <host>` | Restrict to specific hosts (repeatable / comma-separated).              |
 | `--concurrency <n>`   | Max hosts to run a command on at once (`0` = all, the default).         |
@@ -54,7 +54,7 @@ Logging flags:
 
 | Flag                | Meaning                                                                                                  |
 |---------------------|----------------------------------------------------------------------------------------------------------|
-| `--log-level`       | `debug` / `info` (default) / `warn` / `error`.                                                           |
+| `--log-level`       | `debug` / `info` (default) / `warn` / `error`. `debug` implies `--verbose` and disables secret masking. |
 | `--log-format`      | `text` (default) or `json`.                                                                              |
 | `--log-output`      | `stdout`, `stderr`, or a file path.                                                                      |
 | `--log-color`       | On by default, auto-suppressed when output is a file or a pipe.                                          |
@@ -245,7 +245,9 @@ prefixed by host.
 [10.0.0.5] ... compiling ...
 ```
 
-(`cmds` are echoed. Multi-line `scripts` are announced by name and only echoed in full under `--verbose`.
+(`cmds` are echoed in their clean rendered form. Under `--verbose` the echo is upgraded to the **full built command**
+actually sent to the host - env exports and `cd` included - so you can see exactly which environment each command ran
+with. Multi-line `scripts` are announced by name and only echoed in full under `--verbose`.
 Built-in lifecycle commands - git, symlink swaps - also echo only under `--verbose`.)
 
 When color is enabled (`--log-color`, on by default) **and** the output is a terminal, the `[host]` prefix is shown in
@@ -281,7 +283,8 @@ Values shorter than 4 characters are ignored so a near-empty var can't blank the
 
 {{< callout type="warning" title="Debug disables masking" >}}
 masking is **turned off at `--log-level debug`** so you can see raw output when debugging - including user-marked
-secrets. Don't ship debug logs.
+secrets. Debug also implies `--verbose`, so the full built commands (env exports included) are echoed unmasked.
+Don't ship debug logs.
 {{< /callout >}}
 
 ## Cancellation & liveness
