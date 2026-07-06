@@ -39,7 +39,7 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 				// Show the operator's command as typed, the full wrapped form (cd + env exports) only under --verbose,
 				// like the live echo.
 				shown := args[0]
-				if gf.verbose {
+				if effectiveVerbose(cmd, gf.verbose, cfg.Log) {
 					shown = command
 				}
 				fmt.Fprintf(out, "[dry-run] would run on %d host(s):\n", len(hosts))

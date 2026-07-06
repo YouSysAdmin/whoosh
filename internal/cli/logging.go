@@ -121,6 +121,13 @@ func applyLogConfig(cmd *cobra.Command, lc *ast.Log) error {
 	return nil
 }
 
+// effectiveVerbose reports whether verbose output is enabled: the --verbose flag, or an effective log level of debug
+// (flag > Deployfile `log:` > flag default) - a debug run should show everything, including the full built commands.
+// Call it after loadConfig so lc reflects the Deployfile's log config.
+func effectiveVerbose(cmd *cobra.Command, verbose bool, lc ast.Log) bool {
+	return verbose || strings.EqualFold(logStr(cmd, "log-level", lc.Level), "debug")
+}
+
 // colorOutput reports whether the raw command-output stream (host prefixes and echoed commands) should be colorized:
 // the resolved --log-color preference AND a terminal destination, so a redirected, piped, or --log-file transcript
 // never receives ANSI codes.

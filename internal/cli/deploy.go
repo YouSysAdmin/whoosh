@@ -54,7 +54,7 @@ func newDeployer(cmd *cobra.Command, stage string, gf *globalFlags) (*deploy.Dep
 		SSH:         sshOpts,
 		Out:         cmd.OutOrStdout(),
 		DryRun:      gf.dryRun,
-		Verbose:     gf.verbose,
+		Verbose:     effectiveVerbose(cmd, gf.verbose, cfg.Log),
 		Roles:       gf.roles,
 		Limit:       gf.limit,
 		Concurrency: gf.conc,

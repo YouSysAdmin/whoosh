@@ -37,7 +37,7 @@ func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.C
 				SSH:         sshOpts,
 				Out:         cmd.OutOrStdout(),
 				DryRun:      gf.dryRun,
-				Verbose:     gf.verbose,
+				Verbose:     effectiveVerbose(cmd, gf.verbose, cfg.Log),
 				Roles:       gf.roles,
 				Limit:       gf.limit,
 				Concurrency: gf.conc,

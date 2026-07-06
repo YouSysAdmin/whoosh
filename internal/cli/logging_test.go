@@ -97,6 +97,41 @@ func TestApplyLogConfig_MaterializesFlags(t *testing.T) {
 	}
 }
 
+// Debug log level implies verbose output: a debug run should show everything, including the full built commands.
+func TestEffectiveVerbose(t *testing.T) {
+	// Defaults (info level, no --verbose) -> false.
+	sub := rootWithAllLogFlags(t)
+	if effectiveVerbose(sub, false, ast.Log{}) {
+		t.Error("defaults: want false")
+	}
+
+	// --verbose set -> true regardless of level.
+	sub = rootWithAllLogFlags(t)
+	if !effectiveVerbose(sub, true, ast.Log{}) {
+		t.Error("--verbose: want true")
+	}
+
+	// --log-level=debug flag -> implied verbose.
+	sub = rootWithAllLogFlags(t)
+	_ = sub.Root().PersistentFlags().Set("log-level", "debug")
+	if !effectiveVerbose(sub, false, ast.Log{}) {
+		t.Error("--log-level=debug: want true")
+	}
+
+	// Deployfile log: level debug, flag unchanged -> implied verbose.
+	sub = rootWithAllLogFlags(t)
+	if !effectiveVerbose(sub, false, ast.Log{Level: "DEBUG"}) {
+		t.Error("Deployfile debug level: want true")
+	}
+
+	// Explicit --log-level=info overrides a Deployfile debug level -> false.
+	sub = rootWithAllLogFlags(t)
+	_ = sub.Root().PersistentFlags().Set("log-level", "info")
+	if effectiveVerbose(sub, false, ast.Log{Level: "debug"}) {
+		t.Error("explicit info over Deployfile debug: want false")
+	}
+}
+
 func TestColorOutput_NonTerminalIsPlain(t *testing.T) {
 	sub := rootWithLogFlags(t)
 	sub.Root().SetOut(&bytes.Buffer{}) // a buffer is never a terminal

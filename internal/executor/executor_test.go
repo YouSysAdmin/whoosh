@@ -1220,6 +1220,49 @@ func TestRunTask_EchoesLocalCommand(t *testing.T) {
 	}
 }
 
+// Under --verbose the live echo shows the full built command (env exports, cd), not just the clean rendered form, so
+// the operator can see exactly what was sent to the host - including the exported environment.
+func TestRunTask_VerboseEchoesBuiltCommand(t *testing.T) {
+	newCfg := func() *ast.DeployFile {
+		return &ast.DeployFile{
+			App:   ast.App{Name: "myapp", DeployTo: deployTree(t), Branch: "main"},
+			Stage: "test",
+			Envs:  map[string]string{"GLOBAL_ONE": "g1"},
+			Hosts: []ast.Host{{Address: "localhost", Local: true, Roles: []string{"app"}}},
+			Tasks: map[string]*ast.Task{
+				"env-echo": {Local: true, Envs: map[string]string{"TASK_ONE": "t1"}, Cmds: []string{"echo $TASK_ONE"}},
+			},
+		}
+	}
+
+	var verbose bytes.Buffer
+	ex := executor.New(newCfg(), executor.Options{Out: &verbose, Verbose: true})
+	if err := ex.RunTask(context.Background(), "env-echo"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, verbose.String())
+	}
+	ex.Close()
+	out := verbose.String()
+	for _, want := range []string{`export GLOBAL_ONE="g1"`, `export TASK_ONE="t1"`, "echo $TASK_ONE"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("verbose echo missing %q, got:\n%s", want, out)
+		}
+	}
+
+	var quiet bytes.Buffer
+	ex = executor.New(newCfg(), executor.Options{Out: &quiet})
+	if err := ex.RunTask(context.Background(), "env-echo"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, quiet.String())
+	}
+	ex.Close()
+	out = quiet.String()
+	if strings.Contains(out, "export ") {
+		t.Fatalf("non-verbose echo must not show env exports, got:\n%s", out)
+	}
+	if !strings.Contains(out, "[local] $ echo $TASK_ONE") {
+		t.Fatalf("non-verbose echo missing clean command form, got:\n%s", out)
+	}
+}
+
 func TestRunTask_LocalOutputHostPrefixed(t *testing.T) {
 	srv, err := sshtest.Start()
 	if err != nil {
