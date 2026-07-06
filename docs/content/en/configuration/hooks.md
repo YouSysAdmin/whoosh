@@ -57,6 +57,8 @@ deploy:updating ---> deploy:symlink ---> deploy:updated ---> deploy:publishing
   ```
 - **`deploy:failed`** - a special key whose `after` tasks run when a deploy errors (the deploy still fails afterward).
   The failure message is exposed as `{{.error}}` / `$DEPLOY_ERROR`. Good for failure notifications.
+  A task run as its own CLI invocation (`whoosh <stage> <task>`) fires these hooks on failure too, so a post-deploy
+  pipeline (e.g. an ASG refresh) notifies like a failed deploy - a task opts out with `notify_failure: false`.
 - **`deploy:rollback`** - `before`/`after` tasks wrap the symlink swap of `whoosh <stage> deploy:rollback`, and
   `after` tasks run with `current` already repointed at the restored release.
   See [`examples/07-rails-assets`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/07-rails-assets).

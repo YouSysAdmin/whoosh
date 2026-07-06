@@ -22,6 +22,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    `strict_host_key`/`known_hosts_file`/`accept_new` settings. Agent forwarding never applies to the bastion
    itself. Local hosts bypass it, inventory-discovered hosts are tunneled like any other host.
 
+ - a task run as its own CLI invocation (`whoosh <stage> <task>`) now fires the after `deploy:failed` hooks
+   when it fails, so a pipeline run outside the deploy lifecycle (e.g. an ASG refresh) notifies like a
+   failed deploy - the slack plugin's failure message, `{{.error}}` / `$DEPLOY_ERROR`, etc. all work.
+   Opt a task out with the new `notify_failure: false` field (default `true`). Hook errors are logged
+   best-effort, the command still exits with the task's own error.
+
 ## [1.4.0] - 2026-07-05
 ### Added
  - builtin in-memory SSH agent, fed by the new `ssh.identities` map - so CI and multi-key setups need no
