@@ -9,7 +9,7 @@ RUN /whoosh build -o /whoosh-ext \
 
 FROM alpine:3.24
 COPY --from=builder /whoosh-ext /usr/bin/whoosh
-RUN apk add --no-cache ca-certificates git openssh-client tar
+RUN apk add --no-cache ca-certificates git openssh-client tar jq yq curl wget bash
 
 WORKDIR /work
 ENTRYPOINT ["/usr/bin/whoosh"]
