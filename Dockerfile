@@ -1,7 +1,7 @@
 # The Dockerfile for bild whoosh image via GoReleaser.
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates git openssh-client tar
+RUN apk add --no-cache ca-certificates git openssh-client tar jq yq curl wget bash
 
 WORKDIR /work
 COPY whoosh /usr/bin/whoosh
