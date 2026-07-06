@@ -112,9 +112,17 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 
 // renderParams deep-renders the string values in an action task's `with:` map as Go templates (so e.g. name: "{{
 // .asg_name }}" resolves from vars / the deploy context), leaving numbers, bools, and nesting intact.
-// Action tasks run operator-side, so there is no host - {{.host}} renders empty.
+// Action tasks run operator-side, so there is no host - {{.host}} renders empty. Like every task-time render, {{ env
+// "X" }} sees the resolved global envs (dry-run stays lenient when they need run-time state).
 func (e *Executor) renderParams(in map[string]any) (map[string]any, error) {
-	c := e.base
-	c.Host = ""
+	c := e.baseContext("")
+	ge, err := e.globalEnv("")
+	if err != nil {
+		if !e.dryRun {
+			return nil, err
+		}
+	} else {
+		c.GlobalEnvValues = ge
+	}
 	return varstmpl.RenderParams(in, c, !e.dryRun)
 }

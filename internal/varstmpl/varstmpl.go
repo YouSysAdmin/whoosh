@@ -12,7 +12,8 @@
 //
 // Sprig supplies the general-purpose helpers (toJson/fromJson, join/splitList, default/ternary, ...); whoosh
 // adds toYaml/fromYaml/fromYamlArray/required (helperFuncs), the secret-marking sensitive (secretFuncs), and
-// env/envSecret (envFuncs) - which read the process environment falling back to the Deployfile's env_files values.
+// env/envSecret (envFuncs) - which read the process environment, falling back to the resolved global `envs:` values
+// (task-time renders only) and then the Deployfile's env_files values.
 package varstmpl
 
 import (
@@ -67,12 +68,20 @@ type Context struct {
 	// EnvFileValues are the Deployfile's env_files (dotenv) values. The env/envSecret template funcs consult them when
 	// the process env var is unset (a set process var wins, even when empty - the dotenv non-override convention).
 	EnvFileValues map[string]string
+	// GlobalEnvValues are the resolved global `envs:` values for the current render target, consulted by env/envSecret
+	// between the process environment and EnvFileValues (a set-but-empty entry wins over env_files, matching the dotenv
+	// convention). The executor populates it for task-time renders only - global env values themselves render without
+	// it, so they cannot self-reference. Load-time renders (vars:, plugin params) never see it.
+	GlobalEnvValues map[string]string
 }
 
 // lookupEnv resolves an env/envSecret name: the process environment first (a set-but-empty var still wins), then the
-// env_files values, else "".
+// resolved global envs (task-time renders only), then the env_files values, else "".
 func (c Context) lookupEnv(name string) string {
 	if v, ok := os.LookupEnv(name); ok {
+		return v
+	}
+	if v, ok := c.GlobalEnvValues[name]; ok {
 		return v
 	}
 	return c.EnvFileValues[name]
@@ -231,11 +240,12 @@ func secretFuncs() template.FuncMap {
 	}
 }
 
-// envFuncs returns the environment-reading helpers, bound to c so they see the Deployfile's env_files values (process
-// env wins; see Context.lookupEnv). "env" deliberately overrides sprig's os.Getenv alias - chained after sprigFuncs,
-// last registration wins - and the tiny per-render map keeps the shared sprigFuncs cache intact.
+// envFuncs returns the environment-reading helpers, bound to c so they see the resolved global envs and the
+// Deployfile's env_files values (process env wins; see Context.lookupEnv). "env" deliberately overrides sprig's
+// os.Getenv alias - chained after sprigFuncs, last registration wins - and the tiny per-render map keeps the shared
+// sprigFuncs cache intact.
 //
-//	{{ env "APP_VERSION" }}       // process env, else env_files
+//	{{ env "APP_VERSION" }}       // process env, else global envs (task time), else env_files
 //	{{ envSecret "REG_TOKEN" }}   // like env, but the value is always redacted
 //
 // (Template function names can't contain '-', so it's envSecret, not env-sens.)

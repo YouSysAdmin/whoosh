@@ -833,6 +833,113 @@ func TestTask_EnvTemplatesFromSystem(t *testing.T) {
 	}
 }
 
+// The env template func in task-time renders sees the resolved global envs (process env > global envs > env_files).
+func TestRunTask_EnvFuncSeesGlobalEnvs(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: deployTree(t), Branch: "main"},
+		Stage: "test",
+		Envs:  map[string]string{"GLOBAL_TOK": "g-{{ .stage }}"},
+		Hosts: []ast.Host{{Address: "localhost", Local: true, Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"show": {Local: true, Cmds: []string{`echo {{ env "GLOBAL_TOK" }}`}},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{Out: &buf})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "show"); err != nil {
+		t.Fatalf("RunTask: %v\noutput:\n%s", err, buf.String())
+	}
+	if !strings.Contains(buf.String(), "g-test") {
+		t.Fatalf("env func should resolve the rendered global env, got:\n%s", buf.String())
+	}
+}
+
+// A task env value templated with {{ env }} resolves the rendered global env for the same name.
+func TestRunTask_TaskEnvSeesGlobalEnvs(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage: "test",
+		Envs:  map[string]string{"RAILS_ENV": `{{ env "WHOOSH_TEST_UNSET_RAILS_ENV" | default "production" }}`},
+		Hosts: []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"t": {Roles: []string{"app"}, Envs: map[string]string{"E": `{{ env "RAILS_ENV" }}`}, Cmds: []string{"echo $E"}},
+		},
+	}
+	out := dryRunPlan(t, cfg, "t")
+	if !strings.Contains(out, `export E="production"`) {
+		t.Errorf("task env should see the resolved global env, got:\n%s", out)
+	}
+}
+
+// Precedence of the env func at task time: process env > resolved global envs > env_files, with a set-but-empty
+// global entry winning over env_files (dotenv convention).
+func TestRunTask_EnvFuncPrecedence(t *testing.T) {
+	const name = "WHOOSH_TEST_PRECEDENCE_VAR"
+	newCfg := func(globalVal string) *ast.DeployFile {
+		return &ast.DeployFile{
+			App:           ast.App{Name: "myapp", DeployTo: "/srv/app"},
+			Stage:         "test",
+			Envs:          map[string]string{name: globalVal},
+			EnvFileValues: map[string]string{name: "from-file"},
+			Hosts:         []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+			Tasks: map[string]*ast.Task{
+				"t": {Roles: []string{"app"}, Envs: map[string]string{"OUT": `{{ env "` + name + `" }}`}, Cmds: []string{"echo $OUT"}},
+			},
+		}
+	}
+
+	// Global env beats env_files.
+	if out := dryRunPlan(t, newCfg("from-global"), "t"); !strings.Contains(out, `export OUT="from-global"`) {
+		t.Errorf("global env should beat env_files, got:\n%s", out)
+	}
+	// A set-but-empty global env still beats env_files.
+	if out := dryRunPlan(t, newCfg(""), "t"); !strings.Contains(out, `export OUT=""`) {
+		t.Errorf("set-but-empty global env should beat env_files, got:\n%s", out)
+	}
+	// A set process var beats the global env.
+	t.Setenv(name, "from-proc")
+	if out := dryRunPlan(t, newCfg("from-global"), "t"); !strings.Contains(out, `export OUT="from-proc"`) {
+		t.Errorf("process env should beat global env, got:\n%s", out)
+	}
+}
+
+// Global env values render without the global layer, so {{ env }} inside them cannot self-reference another global
+// env - it falls through to env_files.
+func TestRunTask_GlobalEnvNoSelfReference(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:           ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage:         "test",
+		Envs:          map[string]string{"A": `{{ env "B" }}-x`, "B": "bee"},
+		EnvFileValues: map[string]string{"B": "file-b"},
+		Hosts:         []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"t": {Roles: []string{"app"}, Cmds: []string{"echo hi"}},
+		},
+	}
+	out := dryRunPlan(t, cfg, "t")
+	if !strings.Contains(out, `export A="file-b-x"`) {
+		t.Errorf("global env value must not see other global envs, got:\n%s", out)
+	}
+}
+
+// A global env needing run-time state ({{.tasks.*}}) must not break a dry-run preview.
+func TestDryRun_BrokenGlobalEnvStillPreviews(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage: "test",
+		Envs:  map[string]string{"LATER": "{{ .tasks.missing.val }}"},
+		Hosts: []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"t": {Roles: []string{"app"}, Cmds: []string{"echo hi"}},
+		},
+	}
+	out := dryRunPlan(t, cfg, "t")
+	if !strings.Contains(out, "echo hi") {
+		t.Errorf("dry-run plan should still print, got:\n%s", out)
+	}
+}
+
 func TestRunTask_RedactsOutput(t *testing.T) {
 	srv, err := sshtest.Start()
 	if err != nil {

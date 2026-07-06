@@ -23,9 +23,12 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	for k, v := range e.cfg.EnvFileValues {
 		env[k] = v
 	}
-	globalEnv, err := e.renderEnvMap(e.env, host)
+	globalEnv, err := e.globalEnv(host)
 	if err != nil {
-		return nil, err
+		// Dry-run previews leniently: a global env that needs run-time state must not break the plan.
+		if !e.dryRun {
+			return nil, err
+		}
 	}
 	for k, v := range globalEnv {
 		env[k] = v
@@ -81,8 +84,9 @@ func envName(s string) string {
 	return strings.Trim(b.String(), "_")
 }
 
-// renderEnvMap Go-templates each value of an env map against the deploy context (host, vars, {{.config}}, and sprig
-// helpers like {{ env "VAR" }}). Keys are left as-is. It returns the input unchanged when there is nothing to render.
+// renderEnvMap Go-templates each value of a task's env map against the deploy context (host, vars, {{.config}}, and
+// sprig helpers like {{ env "VAR" }} - which, going through e.render, also sees the resolved global envs). Keys are
+// left as-is. It returns the input unchanged when there is nothing to render.
 func (e *Executor) renderEnvMap(m map[string]string, host string) (map[string]string, error) {
 	if len(m) == 0 {
 		return m, nil
@@ -141,10 +145,46 @@ func (e *Executor) rolesFor(host string) []string {
 	return roles
 }
 
-func (e *Executor) render(raw, host string) (string, error) {
+// baseContext is the per-host render context WITHOUT GlobalEnvValues - what global env values themselves render
+// against (env lookup: process env, then env_files - no self-reference).
+func (e *Executor) baseContext(host string) varstmpl.Context {
 	c := e.base
 	c.Host = host
 	c.Roles = e.rolesFor(host)
+	return c
+}
+
+// globalEnv resolves the global `envs:` for host, each value rendered against the base context. Values may reference
+// run-time keys ({{.release_path}}, {{.phase}}, {{.tasks.*}}), so they are rendered fresh on every call, never cached.
+func (e *Executor) globalEnv(host string) (map[string]string, error) {
+	if len(e.env) == 0 {
+		return nil, nil
+	}
+	c := e.baseContext(host)
+	out := make(map[string]string, len(e.env))
+	for k, v := range e.env {
+		rv, err := varstmpl.RenderWith(v, c, !e.dryRun)
+		if err != nil {
+			return nil, fmt.Errorf("env %q: %w", k, err)
+		}
+		out[k] = rv
+	}
+	return out, nil
+}
+
+// render is the task-time render: the base context plus the resolved global envs, so {{ env "X" }} in cmds, scripts,
+// task envs, and dir sees process env > global envs > env_files.
+func (e *Executor) render(raw, host string) (string, error) {
+	c := e.baseContext(host)
+	ge, err := e.globalEnv(host)
+	if err != nil {
+		// Dry-run previews leniently: a global env that needs run-time state must not break the plan.
+		if !e.dryRun {
+			return "", err
+		}
+	} else {
+		c.GlobalEnvValues = ge
+	}
 	// Dry-run renders leniently: captured task state ({{.tasks.*}}) and other run-time-only values aren't known when
 	// previewing, so a missing key yields "<no value>" instead of failing the preview. Real runs stay strict.
 	return varstmpl.RenderWith(raw, c, !e.dryRun)

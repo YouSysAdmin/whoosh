@@ -6,10 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/executor"
 	"github.com/yousysadmin/whoosh/internal/masking"
 	"github.com/yousysadmin/whoosh/internal/paths"
 	"github.com/yousysadmin/whoosh/internal/runner"
+	"github.com/yousysadmin/whoosh/internal/varstmpl"
 )
 
 func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
@@ -31,7 +33,11 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 			// Run ad-hoc commands like task cmds: inside the release dir (the live `current`) and with the global env, so e.g.
 			// `bundle exec ...` resolves the same way deploy hooks do.
 			releaseDir := paths.For(cfg.App.DeployTo).CurrentPath
-			command := executor.WrapCommand(args[0], releaseDir, cfg.Envs)
+			envs, err := renderRunEnvs(cfg, releaseDir, gf.dryRun)
+			if err != nil {
+				return err
+			}
+			command := executor.WrapCommand(args[0], releaseDir, envs)
 			out := masking.NewWriter(cmd.OutOrStdout())
 			defer out.Flush()
 
@@ -57,6 +63,28 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 			return reportResults(results)
 		},
 	}
+}
+
+// renderRunEnvs Go-templates the global `envs:` values for an ad-hoc run, like the executor does for task cmds, so
+// e.g. `TOK: '{{ env "TOK" }}'` exports the resolved value rather than the literal template. One command goes to all
+// hosts, so the context is host-less (release_path falls back to the live `current`). Dry-run renders leniently.
+func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (map[string]string, error) {
+	if len(cfg.Envs) == 0 {
+		return nil, nil
+	}
+	ctx := loadTimeContext(cfg)
+	ctx.Config, _ = cfg.AsMap()
+	ctx.Imports = cfg.Imports
+	ctx.ReleasePath = releaseDir
+	out := make(map[string]string, len(cfg.Envs))
+	for k, v := range cfg.Envs {
+		rv, err := varstmpl.RenderWith(v, ctx, !dryRun)
+		if err != nil {
+			return nil, fmt.Errorf("env %q: %w", k, err)
+		}
+		out[k] = rv
+	}
+	return out, nil
 }
 
 // reportResults logs each per-host failure and returns an error if any host failed.

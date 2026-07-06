@@ -257,6 +257,47 @@ func TestRender_EnvFallsBackToEnvFileValues(t *testing.T) {
 	}
 }
 
+// env consults the resolved global envs between the process environment and env_files.
+func TestLookupEnv_GlobalEnvLayer(t *testing.T) {
+	const name = "WHOOSH_TEST_GLOBALENV_VAR"
+	c := varstmpl.Context{
+		GlobalEnvValues: map[string]string{name: "from-global"},
+		EnvFileValues:   map[string]string{name: "from-file"},
+	}
+
+	// Unset in the process env: the global env value wins over env_files.
+	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=from-global" {
+		t.Fatalf("global env should win over env_files, got %q", got)
+	}
+
+	// A set-but-empty global entry still wins over env_files (dotenv convention).
+	c.GlobalEnvValues = map[string]string{name: ""}
+	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=" {
+		t.Fatalf("set-but-empty global env should win over env_files, got %q", got)
+	}
+
+	// envSecret on a global value registers it for redaction.
+	const secret = "whoosh_test_global_secret_9876"
+	c.GlobalEnvValues = map[string]string{name: secret}
+	got, err := varstmpl.Render(`auth {{ envSecret "`+name+`" }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "auth "+secret {
+		t.Fatalf("envSecret should return the global value, got %q", got)
+	}
+	if red := masking.String(got); strings.Contains(red, secret) {
+		t.Errorf("envSecret global value not redacted: %q", red)
+	}
+
+	// A set process var wins over the global env.
+	c.GlobalEnvValues = map[string]string{name: "from-global"}
+	t.Setenv(name, "from-proc")
+	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=from-proc" {
+		t.Fatalf("process env should win over global env, got %q", got)
+	}
+}
+
 // envSecret resolves through the same env_files fallback and still registers the value for redaction.
 func TestEnvSecret_EnvFileValueRedacted(t *testing.T) {
 	const val = "filetok_not-a-known-pattern_112233"
