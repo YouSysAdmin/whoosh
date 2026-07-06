@@ -31,7 +31,7 @@ See [README.md](plugins/aws/README.md) for the Whoosh AWS Plugin
 ## Quick start
 
 ```sh
-whoosh init                      # scaffold Deployfile.yaml + deploy/{staging,production}.yaml
+whoosh init                      # scaffold Whooshfile.yaml + whoosh/{staging,production}.yaml
 
 # edit the files, point a stage at your hosts, then:
 whoosh production deploy:check   # verify connectivity + create the dir tree
