@@ -117,7 +117,8 @@ type DeployFile struct {
 	// HookFuncsBefore/After hold plugins-registered Go functions to run before/after a deploy phase, keyed by phase name.
 	// Unlike the task hooks (Hooks), these run the plugin's own code with the deploy's console writer - for emitting
 	// operator-side output (e.g. print-hosts-table).
-	// Runtime-only (yaml:"-"), and run only during the deploy lifecycle, so they never fire for config/hosts/run.
+	// Runtime-only (yaml:"-"), and run during the deploy lifecycle plus the deploy:failed hooks of a failing task
+	// command, so they never fire for config/hosts/run.
 	HookFuncsBefore map[string][]HookFunc `yaml:"-"`
 	HookFuncsAfter  map[string][]HookFunc `yaml:"-"`
 }
@@ -442,6 +443,11 @@ type Task struct {
 	// still surface as warnings).
 	SilentOutput    bool `yaml:"silent_output,omitempty"`
 	ContinueOnError bool `yaml:"continue_on_error,omitempty"` // Don't abort on a non-zero exit; log each failed host and continue
+	// NotifyFailure controls whether this task, failing as its own CLI invocation (`whoosh <stage> <task>`), fires the
+	// after deploy:failed hooks - so a pipeline run outside the deploy lifecycle (e.g. an ASG refresh) notifies like a
+	// failed deploy. Default true, set false to opt a task out. Within the deploy lifecycle the deploy itself fires
+	// deploy:failed and this flag is not consulted.
+	NotifyFailure *bool `yaml:"notify_failure,omitempty"`
 	// NonDeploy targets the inventory's *non-deployable* hosts (deploy:false) instead of the deployable ones - the inverse
 	// of the normal task targeting. Roles still narrow within that set.
 	// Intended for a task run as its own invocation after a deploy (e.g. a healthcheck on freshly refreshed ASG hosts): a

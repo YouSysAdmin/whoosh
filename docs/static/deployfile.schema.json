@@ -434,6 +434,10 @@
           "type": "boolean",
           "description": "Don't abort on a non-zero exit; log each failed host and continue"
         },
+        "notify_failure": {
+          "type": "boolean",
+          "description": "NotifyFailure controls whether this task, failing as its own CLI invocation (`whoosh \u003cstage\u003e \u003ctask\u003e`), fires the\nafter deploy:failed hooks - so a pipeline run outside the deploy lifecycle (e.g. an ASG refresh) notifies like a\nfailed deploy. Default true, set false to opt a task out. Within the deploy lifecycle the deploy itself fires\ndeploy:failed and this flag is not consulted."
+        },
         "non_deploy": {
           "type": "boolean",
           "description": "NonDeploy targets the inventory's *non-deployable* hosts (deploy:false) instead of the deployable ones - the inverse\nof the normal task targeting. Roles still narrow within that set.\nIntended for a task run as its own invocation after a deploy (e.g. a healthcheck on freshly refreshed ASG hosts): a\nnew run re-fetches the inventory, so those hosts are present.\nWithin the deploy lifecycle the inventory is fixed at startup, so a non_deploy hook would see the pre-deploy host\nlist."
