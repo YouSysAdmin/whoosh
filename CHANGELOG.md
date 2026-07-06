@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
- - bastion (jump host) support: `ssh.bastion` routes every SSH connection through one jump host, like
+ - Bastion (jump host) support: `ssh.bastion` routes every SSH connection through one jump host, like
    OpenSSH `ProxyJump` (single hop):
 
    ```yaml
@@ -22,15 +22,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    `strict_host_key`/`known_hosts_file`/`accept_new` settings. Agent forwarding never applies to the bastion
    itself. Local hosts bypass it, inventory-discovered hosts are tunneled like any other host.
 
- - a task run as its own CLI invocation (`whoosh <stage> <task>`) now fires the after `deploy:failed` hooks
+ - A task run as its own CLI invocation (`whoosh <stage> <task>`) now fires the after `deploy:failed` hooks
    when it fails, so a pipeline run outside the deploy lifecycle (e.g. an ASG refresh) notifies like a
    failed deploy - the slack plugin's failure message, `{{.error}}` / `$DEPLOY_ERROR`, etc. all work.
    Opt a task out with the new `notify_failure: false` field (default `true`). Hook errors are logged
    best-effort, the command still exits with the task's own error.
 
+ - Added `jq`, `yq`, `curl`, `wget`, `bash` packages to the Docker image 
+
 ## [1.4.0] - 2026-07-05
 ### Added
- - builtin in-memory SSH agent, fed by the new `ssh.identities` map - so CI and multi-key setups need no
+ - Builtin in-memory SSH agent, fed by the new `ssh.identities` map - so CI and multi-key setups need no
    `ssh-agent` on the operator machine.
    Each entry loads a key file, a directory of keys (`recursive` descends into subdirectories), or an inline PEM,
    with an optional `passphrase` for encrypted keys:
@@ -52,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
  - `identity_file_passphrase` decrypts an encrypted `identity_file`, at the `ssh:` level and per host.
    A host inherits the global pass phrase only together with the global `identity_file`.
 
- - config `vars:` values are themselves Go templates, rendered once at config load against the static context
+ - Config `vars:` values are themselves Go templates, rendered once at config load against the static context
    (app/stage/paths, sprig, `env`/`envSecret`/`sensitive`) - so a var can pull from the environment:
    ```yaml
    env_files: [ ./dev.env ]
@@ -62,7 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
    Limitations: a var cannot reference another var, `{{.config}}`, plugin imports, or run-time values
    (`release_path`/`host`/... render empty at load).
 
- - the `env`/`envSecret` template helpers now fall back to the `env_files` (dotenv) values when the process
+ - The `env`/`envSecret` template helpers now fall back to the `env_files` (dotenv) values when the process
    env var is unset (a set-but-empty process var still wins) - everywhere templates render: vars, plugin
    `params:`, `cmds`, scripts, `envs:`.
 
@@ -74,13 +76,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.3.0] - 2026-07-04
 ### Added
- - template helpers: `toYaml`, `fromYaml`, `fromYamlArray`, and `required "msg" .val` (fail the render when a
+ - Template helpers: `toYaml`, `fromYaml`, `fromYamlArray`, and `required "msg" .val` (fail the render when a
    value is nil/empty) - the gaps sprig doesn't cover. The full sprig set (`toJson`, `join`, `default`, ...) was
    already available in every template and is now documented in
    [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
 
 ### Changed
- - config `vars:` are no longer auto-exported as shell environment variables of task commands and scripts.
+ - Config `vars:` are no longer auto-exported as shell environment variables of task commands and scripts.
    This functionality was new and added with the aim of reducing the configuration volume,
    but it greatly increases the volume of commands transmitted over SSH connections
    and can cause silent conflicts between variables. 
@@ -99,11 +101,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.2.0] - 2026-07-04
 ### Added
- - plugins: bundled default-on `systemd` plugin - `systemd:start`/`stop`/`restart`/`enable`/`disable`/`daemon-reload`
+ - Plugins: bundled default-on `systemd` plugin - `systemd:start`/`stop`/`restart`/`enable`/`disable`/`daemon-reload`
    actions run `systemctl` on the task's hosts (system and `--user` units, optional `sudo -n`, `daemon_reload`,
    `--now`, `--no-block`), usable ad-hoc via `action:`/`with:` or auto-wired to a deploy phase via the plugin's
    `actions:` params (`phase`/`when`/`roles`).
- - plugin SDK: `HostCommandRunner` - the command counterpart to `HostFileWriter`. The executor hands it to every
+ - Plugin SDK: `HostCommandRunner` - the command counterpart to `HostFileWriter`. The executor hands it to every
    action via ctx (`whoosh.HostCommandRunnerFrom`), so a plugin action can run a command on the hosts its task
    targets (parallel, fail-fast, echoed per host).
  - Deployfile JSON Schema added to the docs
@@ -124,14 +126,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.1.0] - 2026-07-03
 
 ### Changed
- - deployfile.schema.json updated
+ - Deployfile.schema.json updated
 
 ### Fixed
- - logs: small fixes for JSON log format
- - docs: fix internal links and typos
+ - Logs: small fixes for JSON log format
+ - Docs: fix internal links and typos
 
 ### Added
- - plugins: Slack plugin imported into Whoosh
+ - Plugins: Slack plugin imported into Whoosh
 
 ## [1.0.0] - 2026-07-03
 
