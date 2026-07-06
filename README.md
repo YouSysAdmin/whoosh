@@ -683,6 +683,25 @@ Redaction is **disabled at `--log-level debug`**, so you can see raw output when
   legitimately unknown (e.g.
   ASG instances from one AMI that share a key and rotate IPs), without loosening verification for the rest of the
   deployment.
+- **Bastion (jump host)**: `ssh.bastion` routes every SSH connection through one jump host, like OpenSSH
+  `ProxyJump` (single hop) - for app hosts that live in a private network:
+
+  ```yaml
+  ssh:
+    user: deploy
+    bastion:
+      address: bastion.example.com
+      user: jump                          # default: the operator's user
+      identity_file: ~/.ssh/bastion_key   # default: builtin agent / ssh-agent
+  ```
+
+  The bastion connection is opened once, lazily on the first host dial, and shared - every host gets its own
+  tunneled channel over it. The bastion authenticates like any host (its own `identity_file`, else the builtin
+  agent, else your `ssh-agent` - it does not inherit `ssh.user`/`ssh.identity_file`) and its host key is
+  verified with the same `strict_host_key`/`known_hosts_file`/`accept_new` settings as the targets.
+  Agent forwarding applies to the app hosts only, never to the bastion itself (matching `ssh -J`).
+  Local hosts bypass it, inventory-discovered hosts (e.g. private EC2 instances) are tunneled like any other
+  host. The AWS plugin's `credentials_from_host` opens its own connection and is not tunneled.
 - **Liveness / hangs**: a new connection times out after 15s (TCP + handshake).
   On an established connection whoosh sends an SSH keepalive every 10s and drops the host after 3 missed replies
   (~30s) - so a host that dies mid-deploy (power loss, network partition) surfaces as an error and fails the run fast

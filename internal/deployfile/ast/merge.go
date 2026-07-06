@@ -121,6 +121,10 @@ func mergeSSH(base, ov SSH) SSH {
 	if ov.ForwardKey != "" {
 		base.ForwardKey = ov.ForwardKey
 	}
+	// Pointer-wins: a stage replaces the base bastion wholesale, it cannot unset one.
+	if ov.Bastion != nil {
+		base.Bastion = ov.Bastion
+	}
 	base.Identities = mergeMap(base.Identities, ov.Identities)
 	return base
 }

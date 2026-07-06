@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+ - bastion (jump host) support: `ssh.bastion` routes every SSH connection through one jump host, like
+   OpenSSH `ProxyJump` (single hop):
+
+   ```yaml
+   ssh:
+     bastion:
+       address: bastion.example.com
+       user: jump
+       identity_file: ~/.ssh/bastion_key
+   ```
+   The bastion connection is opened once, lazily on the first host dial, and shared - every host gets its
+   own tunneled channel over it. The bastion authenticates like any host (its own `identity_file`, else the
+   builtin agent, else the system ssh-agent) and its host key is verified with the same
+   `strict_host_key`/`known_hosts_file`/`accept_new` settings. Agent forwarding never applies to the bastion
+   itself. Local hosts bypass it, inventory-discovered hosts are tunneled like any other host.
 
 ## [1.4.0] - 2026-07-05
 ### Added

@@ -17,20 +17,32 @@ func selectHosts(cfg *ast.DeployFile, roles, limit []string) []ast.Host {
 // Host-key checking is strict unless ssh.strict_host_key is explicitly false.
 // When ssh.identity_file or ssh.identities is set, the builtin in-memory agent is built here - once per command, the
 // keyring is shared by every connection - and the system ssh-agent is not consulted.
+// When ssh.bastion is set, one shared jump-host connection (opened lazily by the first dial) tunnels every host
+// connection. The cluster closes it on teardown.
 func sshOptions(cfg *ast.DeployFile) (ssh.Options, error) {
 	strict := cfg.SSH.StrictHostKey == nil || *cfg.SSH.StrictHostKey
 	ag, err := builtinAgent(cfg)
 	if err != nil {
 		return ssh.Options{}, err
 	}
-	return ssh.Options{
+	opts := ssh.Options{
 		StrictHostKey:  strict,
 		KnownHostsFile: cfg.SSH.KnownHostsFile,
 		AcceptNew:      cfg.SSH.AcceptNew == nil || *cfg.SSH.AcceptNew,
 		ForwardAgent:   cfg.SSH.ForwardAgent != nil && *cfg.SSH.ForwardAgent,
 		ForwardKey:     cfg.SSH.ForwardKey,
 		Agent:          ag,
-	}, nil
+	}
+	if b := cfg.SSH.Bastion; b != nil {
+		opts.Bastion = ssh.NewBastion(ssh.Target{
+			Host:         b.Address,
+			Port:         b.Port,
+			User:         b.User,
+			IdentityFile: b.IdentityFile,
+			Passphrase:   b.IdentityFilePassphrase,
+		})
+	}
+	return opts, nil
 }
 
 // builtinAgent assembles the in-memory agent from ssh.identity_file and ssh.identities, or returns nil when neither

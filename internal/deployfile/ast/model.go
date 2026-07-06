@@ -311,6 +311,34 @@ type SSH struct {
 	// with these keys and the system ssh-agent (SSH_AUTH_SOCK) is not consulted. With forward_agent, this builtin agent
 	// is what gets forwarded to the hosts. The map key is a label used only in logs and error messages.
 	Identities map[string]SSHIdentity `yaml:"identities,omitempty"`
+	// Bastion routes every SSH connection through this jump host (like OpenSSH ProxyJump, single hop): whoosh connects
+	// to the bastion once and tunnels each host connection through it. The bastion authenticates like any host (its own
+	// identity_file, else the builtin agent, else the system ssh-agent) and its host key is checked with the same
+	// strict_host_key / known_hosts_file / accept_new settings. The operator's agent is never forwarded to the bastion
+	// itself. Local hosts are unaffected.
+	Bastion *Bastion `yaml:"bastion,omitempty"`
+}
+
+// Bastion is the jump host every SSH connection is tunneled through.
+type Bastion struct {
+	Address      string `yaml:"address,omitempty"`       // Bastion address (IP or DNS name), required
+	Port         int    `yaml:"port,omitempty"`          // SSH port (default: 22)
+	User         string `yaml:"user,omitempty"`          // SSH login user (default: the operator's user)
+	IdentityFile string `yaml:"identity_file,omitempty"` // Private key file for the bastion (default: builtin agent or the system ssh-agent)
+	// IdentityFilePassphrase decrypts an encrypted identity_file. Rendered as a Go template at load time, so it can
+	// come from the environment (e.g. "{{ envSecret \"BASTION_KEY_PASS\" }}"), and is redacted everywhere.
+	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty"`
+}
+
+// MarshalYAML redacts the bastion identity_file passphrase in the config dump and {{.config}}, even at debug log
+// level where output masking is disabled.
+func (b Bastion) MarshalYAML() (any, error) {
+	type masked Bastion
+	m := masked(b)
+	if m.IdentityFilePassphrase != "" {
+		m.IdentityFilePassphrase = "[MASKED]"
+	}
+	return m, nil
 }
 
 // SSHIdentity is one private-key source for the builtin in-memory SSH agent. Set exactly one of path or content.

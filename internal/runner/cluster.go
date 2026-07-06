@@ -172,7 +172,7 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 	return e.conn, e.err
 }
 
-// Close tears down all cached connections.
+// Close tears down all cached connections and the shared bastion connection, if any.
 func (c *Cluster) Close() {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
@@ -182,4 +182,7 @@ func (c *Cluster) Close() {
 		}
 	}
 	c.conns = make(map[string]*connEntry)
+	if c.opts.Bastion != nil {
+		_ = c.opts.Bastion.Close()
+	}
 }

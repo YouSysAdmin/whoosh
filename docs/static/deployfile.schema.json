@@ -29,6 +29,33 @@
       "type": "object",
       "description": "App describes the application being deployed and where it lives on the targets."
     },
+    "Bastion": {
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Bastion address (IP or DNS name), required"
+        },
+        "port": {
+          "type": "integer",
+          "description": "SSH port (default: 22)"
+        },
+        "user": {
+          "type": "string",
+          "description": "SSH login user (default: the operator's user)"
+        },
+        "identity_file": {
+          "type": "string",
+          "description": "Private key file for the bastion (default: builtin agent or the system ssh-agent)"
+        },
+        "identity_file_passphrase": {
+          "type": "string",
+          "description": "IdentityFilePassphrase decrypts an encrypted identity_file. Rendered as a Go template at load time, so it can\ncome from the environment (e.g. \"{{ envSecret \\\"BASTION_KEY_PASS\\\" }}\"), and is redacted everywhere."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Bastion is the jump host every SSH connection is tunneled through."
+    },
     "CustomPhase": {
       "properties": {
         "name": {
@@ -282,6 +309,10 @@
           },
           "type": "object",
           "description": "Identities feeds the builtin in-memory SSH agent. When identities or identity_file is set, whoosh authenticates\nwith these keys and the system ssh-agent (SSH_AUTH_SOCK) is not consulted. With forward_agent, this builtin agent\nis what gets forwarded to the hosts. The map key is a label used only in logs and error messages."
+        },
+        "bastion": {
+          "$ref": "#/$defs/Bastion",
+          "description": "Bastion routes every SSH connection through this jump host (like OpenSSH ProxyJump, single hop): whoosh connects\nto the bastion once and tunnels each host connection through it. The bastion authenticates like any host (its own\nidentity_file, else the builtin agent, else the system ssh-agent) and its host key is checked with the same\nstrict_host_key / known_hosts_file / accept_new settings. The operator's agent is never forwarded to the bastion\nitself. Local hosts are unaffected."
         }
       },
       "additionalProperties": false,

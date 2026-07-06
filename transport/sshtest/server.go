@@ -69,6 +69,13 @@ func Start(opts ...Option) (*Server, error) {
 	srv := &gssh.Server{
 		Handler:          handleSession,
 		PublicKeyHandler: authHandler(cfg.authorizedKeys),
+		// direct-tcpip lets the server act as a jump host in bastion tests. The callback must allow the
+		// forward explicitly - DirectTCPIPHandler rejects every request when it is nil.
+		LocalPortForwardingCallback: func(gssh.Context, string, uint32) bool { return true },
+		ChannelHandlers: map[string]gssh.ChannelHandler{
+			"session":      gssh.DefaultSessionHandler,
+			"direct-tcpip": gssh.DirectTCPIPHandler,
+		},
 	}
 	srv.AddHostKey(hostSigner)
 	go func() { _ = srv.Serve(ln) }()

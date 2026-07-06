@@ -55,6 +55,12 @@ ssh:
     all_keys:
       path: ~/.ssh                     # or a directory: every key file in it is loaded
       recursive: true                  # include subdirectories
+  bastion:                             # optional jump host (like OpenSSH ProxyJump)
+    address: bastion.example.com       # required
+    user: jump                         # default: the operator's user
+    port: 22                           # default: 22
+    identity_file: ~/.ssh/bastion_key  # default: builtin agent / ssh-agent
+    identity_file_passphrase: '{{ envSecret "BASTION_KEY_PASS" }}'
 ```
 
 - **Auth**: with no `identity_file` and no `identities`, whoosh uses your `ssh-agent` (`SSH_AUTH_SOCK`).
@@ -96,6 +102,42 @@ ssh:
 - **Liveness**: a new connection times out after ~15s.
   On an established connection whoosh sends a keepalive every 10s and drops a silent host after 3 misses (~30s) so a
   dead host fails fast instead of hanging.
+
+## Bastion (jump host)
+
+Hosts in a private network are often reachable only through a bastion. `ssh.bastion` routes every
+SSH connection through one jump host, like OpenSSH `ProxyJump` (single hop):
+
+```yaml
+ssh:
+  user: deploy
+  bastion:
+    address: bastion.example.com
+    user: jump
+    identity_file: ~/.ssh/bastion_key
+hosts:
+  - address: 10.0.1.10        # private, reached through the bastion
+    roles: [ app ]
+```
+
+- **One shared connection**: whoosh opens the bastion connection once, lazily on the first host dial, and
+  every host gets its own tunneled channel over it. The connection is closed with the rest at the end of the
+  run.
+- **Auth**: the bastion authenticates like any host - its own `identity_file` (with an optional templatable,
+  always-redacted `identity_file_passphrase`), else the builtin agent (`identities`), else your `ssh-agent`.
+  It does **not** inherit `ssh.user`/`ssh.identity_file` - those are the app hosts' credentials.
+- **Host keys**: the bastion's key is verified with the same `strict_host_key` / `known_hosts_file` /
+  `accept_new` settings as the targets.
+- **No agent forwarding to the bastion**: `forward_agent`/`forward_key` apply to the app hosts only,
+  matching OpenSSH `-J` semantics.
+- **Local hosts** bypass the bastion (they never dial SSH). Hosts discovered by an inventory plugin
+  (e.g. private EC2 instances from [`aws:ec2:inventory`](/plugins/aws/#awsec2inventory)) are tunneled like
+  any other host.
+- A stage can **replace** a bastion declared in the shared config but not unset it - declare `bastion` in the
+  stage files that need it.
+- If the bastion is unreachable, every host fails with a `bastion <host>:` prefixed error (under
+  `on_unreachable: skip` that means every host is skipped - the log makes the cause obvious).
+- The AWS plugin's `credentials_from_host` opens its own connection and is **not** tunneled.
 
 ## Local execution mode
 
