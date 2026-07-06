@@ -33,6 +33,14 @@ func (c *DeployFile) Validate() error {
 	if c.SSH.IdentityFilePassphrase != "" && c.SSH.IdentityFile == "" {
 		return errors.Config("ssh.identity_file_passphrase requires ssh.identity_file (identities entries have their own passphrase)")
 	}
+	if b := c.SSH.Bastion; b != nil {
+		if b.Address == "" {
+			return errors.Config("ssh.bastion.address is required")
+		}
+		if b.IdentityFilePassphrase != "" && b.IdentityFile == "" {
+			return errors.Config("ssh.bastion.identity_file_passphrase set but no identity_file to decrypt")
+		}
+	}
 	for i, h := range c.Hosts {
 		if h.Address == "" && !h.Local {
 			return errors.Config("hosts[%d].address is required (or set local: true)", i)

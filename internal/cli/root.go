@@ -305,6 +305,11 @@ func renderSSHSecrets(cfg *ast.DeployFile) error {
 	if err := renderSecret("ssh.identity_file_passphrase", &cfg.SSH.IdentityFilePassphrase); err != nil {
 		return err
 	}
+	if cfg.SSH.Bastion != nil {
+		if err := renderSecret("ssh.bastion.identity_file_passphrase", &cfg.SSH.Bastion.IdentityFilePassphrase); err != nil {
+			return err
+		}
+	}
 	for i := range cfg.Hosts {
 		if err := renderSecret(fmt.Sprintf("hosts[%d].identity_file_passphrase", i), &cfg.Hosts[i].IdentityFilePassphrase); err != nil {
 			return err

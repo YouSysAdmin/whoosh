@@ -76,6 +76,9 @@ type Options struct {
 	// system agent (SSH_AUTH_SOCK) is not consulted for authentication. With ForwardAgent it is also the agent forwarded
 	// to the hosts (ForwardKey still takes precedence).
 	Agent agent.Agent
+	// Bastion, when set, tunnels every connection through this jump host (one shared SSH connection, one
+	// direct-tcpip channel per target). Nil connects directly.
+	Bastion *Bastion
 }
 
 // Client is a live SSH connection to one host.
@@ -115,10 +118,19 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 		Timeout:         timeout,
 	}
 
-	d := net.Dialer{Timeout: timeout}
-	netConn, err := d.DialContext(ctx, "tcp", t.addr())
-	if err != nil {
-		return nil, connectError(err)
+	var netConn net.Conn
+	if opts.Bastion != nil {
+		// The error is already labeled with the bastion host, connectError would unwrap past the label.
+		netConn, err = opts.Bastion.dialThrough(ctx, t.addr(), opts)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		d := net.Dialer{Timeout: timeout}
+		netConn, err = d.DialContext(ctx, "tcp", t.addr())
+		if err != nil {
+			return nil, connectError(err)
+		}
 	}
 	conn, chans, reqs, err := ssh.NewClientConn(netConn, t.addr(), cfg)
 	if err != nil {
