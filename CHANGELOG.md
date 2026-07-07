@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+ - Verbose logging: 
+   - The `--verbose` flag now correctly shows the full compiled command actually sent to each host.
+   - Debug run `--log-level=debug` also shows full commands.
+     Secrets masking is disabled during debugging, so they are displayed without editing - keep this in mind if you are 
+     running debug in an environment where you do not control logging.
+     
+     ```log
+     [10.0.0.2] $ export APP_NAME="app"; export BRANCH="master";
+                  export COMMIT_HASH=""; export CURRENT_PATH="/srv/app/current";
+                  export DEPLOY_ERROR=""; export DEPLOY_PHASE="";
+                  export RELEASE_PATH="/srv/app/releases/20260707074649";
+                  ...
+                  cd '/srv/app/releases/20260707074649' && bundle config set --global rubygems.pkg.github.com corp:[FILTERED]
+     ```
+
+ - The `env`/`envSecret` template helpers now correctly resolve global `envs:` values in task-time templates
+   (`cmds`, scripts, task `envs:`, `dir:`, action `with:`).
+   Lookup order: process env > global `envs:` -> `env_files` (a set-but-empty entry wins over the next layer, the usual dotenv convention).
+   Global env values themselves still render against only the process env and `env_files`, so they cannot reference each other.
+   Load-time templates (`vars:`, plugin `params:`) keep the plain process -> `env_files` lookup.
+
+   ```yaml
+   envs:
+     RAILS_ENV: '{{ env "RAILS_ENV" | default "production" }}'
+   tasks:
+     migrate:
+       envs:
+         E: '{{ env "RAILS_ENV" }}' # resolves to "production" when the process var is unset
+   ```
+### Chore
+- Removed broken code.
+- Small refactoring for executor logging.
 
 ## [1.5.0] - 2026-07-06
 ### Added
