@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+ - New deploy-context keys:
+   - `{{.deployer}}` / `$DEPLOYER` - who runs whoosh: the `DEPLOYER` env var, else `git config user.name`,
+     else `$USER`, else `unknown`. Also used for the deploy lock info and `revisions.log`.
+   - `{{.previous_commit_hash}}` / `$PREVIOUS_COMMIT_HASH` - the SHA the live release was deployed from, read from
+     `<current>/REVISION` on the primary host at deploy start (empty on a fresh deploy and outside a deploy).
+   - `{{.changelog}}` / `$DEPLOY_CHANGELOG` - the commits between the previous and the new revision, captured from
+     the repo mirror at `deploy:updating`: one per line as `<sha>|<author>|<email>|<subject>`, newest first, no
+     merges, capped at 100. Empty before `deploy:updating`, on a fresh deploy, and when the revisions match.
+     Capture failures (e.g. a force-push removed the previous SHA) warn and never fail the deploy.
+ - Plugin SDK: `HostCommandCapturer` (`whoosh.HostCommandCapturerFrom`) - an action can capture command output from
+   the first host its task targets, the capture counterpart to `HostCommandRunner`.
+ - Slack plugin (`1.1.0`):
+   - I spied the idea of the Slack notification format in one of our project, it took a lot of changes,
+     but they are all useful in one way or another :)
+   - `color_start` / `color_success` / `color_fail` / `color_rollback` params - per-event attachment-color overrides.
+   - `rich_fields: true` - structured success/fail message with User, Stage, Branch, Revision, Duration, and
+     Release (path) fields.
+   - `changelog:` - post the core `{{.changelog}}` commit list on the success notification: linked commit subjects,
+     author names, optional Slack `@mentions` via an email-to-member-ID `authors:` map, batched at Slack's 20-attachments-per-message limit.
+     An unchanged redeploy posts an explicit "No changes since the previous release" note.
+     Best-effort - never fails the deploy.
+   - `deployer_github_lookup: true` - resolve a login-shaped deployer (e.g. `GITHUB_ACTOR`) to their GitHub display name
+     in the rich User field.
+
 ### Fixed
  - Verbose logging: 
    - The `--verbose` flag now correctly shows the full compiled command actually sent to each host.

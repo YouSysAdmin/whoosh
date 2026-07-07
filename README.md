@@ -340,6 +340,7 @@ tasks:
 - **Deploy context as env**: every task command, script, and ad-hoc `run` gets the deployment context exported as
   standard
   env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`, `$COMMIT_HASH`,
+  `$PREVIOUS_COMMIT_HASH`, `$DEPLOYER`,
   `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST` - plus your `vars`.
   So a `cmd` can use either `{{.release_path}}`/`{{.host}}` (Go template, expanded by whoosh) or
   `$RELEASE_PATH`/`$HOST` (shell env, expanded on the host). Both work in `cmds` and `scripts` alike.
@@ -421,6 +422,7 @@ tasks:
   over SSH and in local mode, no upload needed.
 - **Environment**: each script gets the task's `envs` and the deployment context exported as standard
   env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`, `$COMMIT_HASH`,
+  `$PREVIOUS_COMMIT_HASH`, `$DEPLOYER`,
   `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`.
   Config `vars` are template-only - surface one explicitly with `envs: { NAME: "{{ .var }}" }`.
 - **Templating**: inline scripts are always Go-templated, while a file script is templated when its path ends in
@@ -484,6 +486,9 @@ Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 | This release dir                            | `{{.release_path}}`      | `$RELEASE_PATH`         |
 | Release id (timestamp)                      | `{{.release_timestamp}}` | `$RELEASE_TIMESTAMP`    |
 | Deployed commit SHA                         | `{{.commit_hash}}`       | `$COMMIT_HASH`          |
+| Previously deployed SHA                     | `{{.previous_commit_hash}}` | `$PREVIOUS_COMMIT_HASH` |
+| Deploy changelog (commits since the previous revision) | `{{.changelog}}` | `$DEPLOY_CHANGELOG`     |
+| Deploy operator                             | `{{.deployer}}`          | `$DEPLOYER`             |
 | Target host the command runs on             | `{{.host}}`              | `$HOST`                 |
 | Roles of that host (its full set)           | `{{.roles}}` (list)      | `$ROLES` (comma-joined) |
 | Deploy phase a hook is running for          | `{{.phase}}`             | `$DEPLOY_PHASE`         |
@@ -513,8 +518,12 @@ Plus:
 
 Notes: template keys are lowercase, env names are UPPERCASE.
 During a deployment, `release_path`/`release_timestamp` point at the new release and `commit_hash` is the SHA being
-deployed (resolved from the git mirror after `deploy:updating`).
-For a standalone task run they fall back to `current_path`, an empty timestamp, and an empty commit hash.
+deployed (resolved from the git mirror after `deploy:updating`). `previous_commit_hash` is the SHA the live release
+was deployed from (read from `<current>/REVISION` on the primary host at deploy start) - empty on the first deploy.
+`changelog` lists the commits between the two revisions (captured at `deploy:updating`): one per line as
+`<sha>|<author>|<email>|<subject>`, newest first, no merges, capped at 100.
+`deployer` identifies who runs whoosh: `DEPLOYER` env var, else `git config user.name`, else `$USER`, else `unknown`.
+For a standalone task run they fall back to `current_path`, an empty timestamp, and empty commit hashes.
 `phase` is set only while a task runs as a hook (the phase it's attached to, e.g. `deploy:publishing` or
 `deploy:failed`) and is empty otherwise. `error` is set only in a `deploy:failed` hook.
 So one templated script can branch on the phase - see [`examples/06-slack-notify`](examples/06-slack-notify/).

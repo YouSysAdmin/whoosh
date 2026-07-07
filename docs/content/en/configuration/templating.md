@@ -24,7 +24,10 @@ Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 | This release dir                             | `{{.release_path}}`      | `$RELEASE_PATH`         |
 | Release id (timestamp)                       | `{{.release_timestamp}}` | `$RELEASE_TIMESTAMP`    |
 | Deployed commit SHA                          | `{{.commit_hash}}`       | `$COMMIT_HASH`          |
+| Previously deployed SHA                      | `{{.previous_commit_hash}}` | `$PREVIOUS_COMMIT_HASH` |
+| Deploy changelog (commits since the previous revision) | `{{.changelog}}`  | `$DEPLOY_CHANGELOG`     |
 | Releases kept per host (`app.keep_releases`) | `{{.keep_releases}}`     | `$KEEP_RELEASES`        |
+| Deploy operator                              | `{{.deployer}}`          | `$DEPLOYER`             |
 | Target host the command runs on              | `{{.host}}`              | `$HOST`                 |
 | Roles of that host (its full set)            | `{{.roles}}` (list)      | `$ROLES` (comma-joined) |
 | Deploy phase a hook is running for           | `{{.phase}}`             | `$DEPLOY_PHASE`         |
@@ -74,9 +77,14 @@ Plus the secret-marking helpers `envSecret`/`sensitive` - see
 {{< callout type="note" >}}
 Template keys are lowercase, env names UPPERCASE.
 During a deploy, `release_path`/`release_timestamp` point at the new release and `commit_hash` is the SHA being
-deployed (resolved after `deploy:updating`).
-For a standalone task run they fall back to `current_path`, an empty timestamp, and an empty commit hash.
-`phase`/`error` are set only while a task runs as a hook.
+deployed (resolved after `deploy:updating`). `previous_commit_hash` is the SHA the live release was deployed from,
+read from `<current>/REVISION` on the primary host at deploy start - empty on the first deploy and outside a deploy.
+`changelog` lists the commits between the two revisions, captured at `deploy:updating` from the repo mirror: one per
+line as `<sha>|<author>|<email>|<subject>`, newest first, no merges, capped at 100 - empty before `deploy:updating`,
+on a fresh deploy, and when the revisions match.
+For a standalone task run they fall back to `current_path`, an empty timestamp, and empty commit hashes.
+`deployer` identifies who runs whoosh: the `DEPLOYER` env var, else `git config user.name`, else `$USER`, else
+`unknown`. `phase`/`error` are set only while a task runs as a hook.
 {{< /callout >}}
 
 {{< callout type="warning" title="Quote templated YAML values" >}}
