@@ -11,6 +11,7 @@ deploy/staging.yml                      # one all-in-one host, `develop` branch
 deploy/production.yml                   # per-role hosts (web / worker / db)
 deploy/scripts/healthcheck.sh           # local healthcheck script
 deploy/scripts/conditional_migrate.sh   # migrate only when db/ changed
+deploy/scripts/newrelic_deploy_notify.sh # New Relic Change Tracking marker
 ```
 
 ## Run
@@ -39,6 +40,10 @@ whoosh production deploy --dry-run    # preview the full plan
 - **Hooks** - `bundle`/`assets`/`migrate` run after `deploy:updated` (the release is built and shared config linked
   in, but not yet live), `restart-*`/`healthcheck` run after `deploy:published` (the release is live).
   These `-ed` phases are stable hook anchors - prefer them over internal step names like `deploy:symlink`.
+- **Deploy notifications** - `airbrake-deploy-notify` runs the rake task the airbrake gem ships, on one db host.
+  `newrelic-deploy-notify` posts a Change Tracking marker via NerdGraph from the operator/CI machine (`local: true`,
+  one marker per deploy). It needs a User API key in `$NEW_RELIC_API_KEY` - the agent license key does not work for
+  markers - and skips with a warning when the key is absent, so the example stays runnable.
 - **Stage overrides** - `staging.yml` overrides `branch`, `deploy_to`, and `RAILS_ENV`, and replaces the host list.
 - **Per-server SSH** - `db1` connects as `dbadmin` while the rest use the `ssh.user` default.
 - **Unreachable-host policy** - `on_unreachable: skip` finishes the deploy on the reachable hosts if one drops out

@@ -46,6 +46,11 @@ linked_dirs:
 # $KEY. Use them for values you interpolate into commands or scripts.
 vars:
   RAILS_ENV: production
+  # Deploy-notification credentials, read from the operator's / CI environment.
+  # `envSecret` also registers the value for redaction in all output.
+  new_relic_api_key: '{{ envSecret "NEW_RELIC_API_KEY" }}'
+  # The APM service name exactly as registered in New Relic.
+  new_relic_app_name: shopapp
 
 # envs is exported to every task command/script as $KEY. Unlike vars it is
 # shell-EXPANDED (so $HOME / $PATH work), and each value is itself templated, so
@@ -107,6 +112,36 @@ tasks:
       - path: healthcheck.sh   # resolved from deploy/scripts/
         interpreter: /usr/bin/env bash
 
+  # The airbrake gem ships its own rake task, so notifying is one command run
+  # on a single host. The deploy context fills in the revision and repo.
+  airbrake-deploy-notify:
+    desc: Notify Airbrake about deploy
+    roles: [db]
+    silent_output: false
+    envs:
+      USERNAME: '{{ env "USER" }}'
+      ENVIRONMENT: "{{ .RAILS_ENV }}"
+      REVISION: "{{ .commit_hash }}"
+      REPOSITORY: "{{ .repo }}"
+    cmds:
+      - bundle exec rake airbrake:deploy
+
+  # New Relic has no equivalent rake task anymore (the legacy one is gone), so
+  # a script posts a Change Tracking marker via NerdGraph. It runs on the
+  # operator / CI machine (`local: true`) - one marker per deploy, not per
+  # host - and needs a User API key (NRAK-...), not the agent license key.
+  # See deploy/scripts/newrelic_deploy_notify.sh for all options.
+  newrelic-deploy-notify:
+    desc: Record the deployment in New Relic
+    hidden: true
+    local: true
+    envs:
+      NEW_RELIC_API_KEY: "{{ sensitive .new_relic_api_key }}"
+      NEW_RELIC_APP_NAME: "{{ .new_relic_app_name }}"
+    scripts:
+      - path: newrelic_deploy_notify.sh
+        interpreter: /usr/bin/env bash
+
 # Wire tasks into the lifecycle. Phases (in order): deploy:starting,
 # deploy:check, deploy:init, deploy:started, deploy:updating, deploy:symlink,
 # deploy:updated, deploy:publishing, deploy:published, deploy:finishing,
@@ -117,5 +152,6 @@ hooks:
     # Release built and shared config (database.yml, master.key) linked in, but
     # not yet live:
     deploy:updated: [bundle, assets, migrate]
-    # `current` now points at the new release - restart, then verify:
-    deploy:published: [restart-web, restart-worker, healthcheck]
+    # `current` now points at the new release - restart, verify, then notify:
+    deploy:published: [restart-web, restart-worker, healthcheck,
+                       airbrake-deploy-notify, newrelic-deploy-notify]
