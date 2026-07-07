@@ -1,9 +1,8 @@
-// Package logger builds slog handlers: a single default handler (InitLogger - the common case) or a logger that fans
-// out across several sinks (New, via slog.NewMultiHandler). It also ships ColorHandler, a small colorized text handler.
+// Package logger builds slog handlers: a logger that fans out across one or more sinks (New, via
+// slog.NewMultiHandler). It also ships ColorHandler, a small colorized text handler.
 //
 // Levels: debug/info/warn/error. Format: text (with optional ANSI color) or json. Output: stdout/stderr or a file path.
-// InitLogger installs its handler as slog's default, so the rest of the codebase just calls slog.Info / slog.Error /
-// etc.
+// The CLI installs the result as slog's default, so the rest of the codebase just calls slog.Info / slog.Error / etc.
 package logger
 
 import (
@@ -48,8 +47,7 @@ type Sink struct {
 // A single sink yields a plain handler (no wrapper).
 // Each sink keeps its own format and level, so you can e.g. show colored INFO on the console while writing DEBUG JSON
 // to a file.
-// New does NOT install the result as the default, call slog.SetDefault yourself, or use InitLogger for the single-sink
-// default.
+// New does NOT install the result as the default, call slog.SetDefault yourself.
 func New(sinks ...Sink) (*slog.Logger, error) {
 	if len(sinks) == 0 {
 		return nil, fmt.Errorf("logger: at least one sink is required")
@@ -66,22 +64,6 @@ func New(sinks ...Sink) (*slog.Logger, error) {
 		return slog.New(handlers[0]), nil
 	}
 	return slog.New(slog.NewMultiHandler(handlers...)), nil
-}
-
-// InitLogger builds a single-sink logger and installs it as slog's default - equivalent to New(Sink{...}) followed by
-// slog.SetDefault. This is the common case, reach for New when you want to fan out to more than one sink.
-//
-//	levelStr:   "DEBUG", "INFO" (default), "WARN", "ERROR"
-//	outputDest: "stdout"/"stderr" or a file path
-//	format:     "text" (default) or "json"
-//	color:      ANSI color for text format (terminal only)
-func InitLogger(levelStr, outputDest, format string, color bool) (*slog.Logger, error) {
-	l, err := New(Sink{Level: levelStr, Output: outputDest, Format: format, Color: color})
-	if err != nil {
-		return nil, err
-	}
-	slog.SetDefault(l)
-	return l, nil
 }
 
 // buildHandler turns one Sink into an slog.Handler.

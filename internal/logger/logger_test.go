@@ -2,7 +2,6 @@ package logger
 
 import (
 	"bytes"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,18 +92,6 @@ func TestSinkWriterSharesDestination(t *testing.T) {
 	// A non-*os.File writer can never be a terminal, so Color is ignored.
 	if strings.Contains(got, "\033[") {
 		t.Errorf("Writer sink should not be colorized: %q", got)
-	}
-}
-
-// InitLogger builds a single sink and installs it as the slog default.
-func TestInitLoggerSetsDefault(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "default.log")
-	if _, err := InitLogger("info", path, "json", false); err != nil {
-		t.Fatalf("InitLogger: %v", err)
-	}
-	slog.Info("via-default", "k", "v")
-	if got := readFile(t, path); !strings.Contains(got, "via-default") {
-		t.Errorf("default logger did not write to the sink: %q", got)
 	}
 }
 
