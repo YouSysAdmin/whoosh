@@ -55,6 +55,10 @@ Notifications fire only during the deploy lifecycle (never for `config`, `run`, 
 | `notify_fail` | `true` | Post when a deploy fails (this is also what enables the `deploy:failed` hook). |
 | `notify_rollback` | `false` | Post after `whoosh <stage> deploy:rollback`. |
 | `message_start` / `message_success` / `message_fail` / `message_rollback` | built-in | Per-event message template overrides (see below). |
+| `color_start` / `color_success` / `color_fail` / `color_rollback` | built-in | Per-event attachment-bar color overrides: `good`, `warning`, `danger`, or `#rrggbb`. |
+| `rich_fields` | `false` | Structured success/fail message: a fields table with User, Stage, Branch, Revision, Duration, and Release (the release path, the duration moves from the text into the table). |
+| `changelog` | disabled | Post the commits between the previously deployed revision and the new one on the success notification (see below). |
+| `deployer_github_lookup` | `false` | Resolve the deployer to their GitHub display name when it looks like a login (e.g. `GITHUB_ACTOR` in CI). One unauthenticated API call per process, any failure falls back to the login. Used in the `rich_fields` User field. |
 | `timeout` | `"10s"` | Bound on each webhook POST (Go duration). |
 
 ### Message templates
@@ -78,6 +82,43 @@ reference `{{.commit_hash}}` - it is resolved later, at `deploy:updating`.
 > ```yaml
 > message_fail: '{{ "{{ .app_name }} broke on {{ .stage }}: {{ .error }}" }}'
 > ```
+
+### Changelog
+
+With `changelog.enabled: true` the success notification also posts what changed: the commits between the previously
+deployed revision and the new one (whoosh core's `{{.changelog}}` deploy-context value, captured from the repo mirror
+at `deploy:updating`), one attachment per commit - author, subject linked to the commit, and an optional `@mention`
+when the author's email is mapped to a Slack member ID:
+
+```yaml
+plugins:
+  - name: slack
+    params:
+      webhook_url: '{{ env "SLACK_WEBHOOK_URL" }}'
+      rich_fields: true
+      changelog:
+        enabled: true
+        max_commits: 20                # default 20, capped at 100
+        # commit_url: ""               # optional: a prefix the SHA is appended to, or a "{hash}" template;
+                                       # empty derives https://<host>/<org>/<repo>/commit/ from app.repo
+        authors:                       # commit author email -> Slack member ID (mentioned on the commit)
+          alice@example.com: U0123ABCD
+          bob@example.com: U0456EFGH
+```
+
+Notes:
+
+- The commits come from the core `{{.changelog}}` value, so the plugin runs no git itself - and the changelog is
+  empty on the first deploy, when both revisions match, outside a deploy, and on a whoosh core without the
+  `changelog` context key.
+- Redeploying the revision that is already live posts the summary with an explicit "No changes since the previous
+  release" note; the other empty cases post the plain summary.
+- `max_commits` caps how many of the captured commits are displayed (core captures up to 100).
+- Slack limits a message to 20 attachments: the summary plus the first 19 commits go in one message, the rest follow
+  as continuation messages.
+- Mentions render in each commit's text line - Slack does not render mrkdwn inside attachment titles.
+- Everything is best-effort: whatever goes wrong, the plain summary is posted and the deploy never fails because of
+  the changelog.
 
 ## The `slack:send` action
 

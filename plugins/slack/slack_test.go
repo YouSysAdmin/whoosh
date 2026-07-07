@@ -177,6 +177,25 @@ func TestStartup_Toggles(t *testing.T) {
 	}
 }
 
+// A color_* override replaces the default per-event color in the contributed task's with:.
+func TestStartup_ColorOverride(t *testing.T) {
+	srv := newWebhookServer(t)
+	reg, _ := loadSlack(t, map[string]any{
+		"webhook_url":   srv.URL,
+		"color_success": "#00ff00",
+	})
+	cfg := &whoosh.DeployFile{}
+	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+		t.Fatalf("RunStartup: %v", err)
+	}
+	if got := cfg.Tasks[taskNotifySuccess].With["color"]; got != "#00ff00" {
+		t.Errorf("success color = %v, want the override", got)
+	}
+	if got := cfg.Tasks[taskNotifyFail].With["color"]; got != colorFail {
+		t.Errorf("fail color = %v, want the default %q", got, colorFail)
+	}
+}
+
 // A message_* override replaces the default template in the contributed task's with:.
 func TestStartup_MessageOverride(t *testing.T) {
 	srv := newWebhookServer(t)
@@ -193,6 +212,92 @@ func TestStartup_MessageOverride(t *testing.T) {
 	}
 	if got := cfg.Tasks[taskNotifySuccess].With["message"]; got != defaultMsgSuccess {
 		t.Errorf("success message = %v, want the default", got)
+	}
+}
+
+// rich_fields injects the deploy-context templates into the success/fail tasks' with: maps only.
+func TestStartup_RichFieldsInjectsContext(t *testing.T) {
+	srv := newWebhookServer(t)
+	reg, _ := loadSlack(t, map[string]any{"webhook_url": srv.URL, "rich_fields": true})
+	cfg := &whoosh.DeployFile{}
+	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+		t.Fatalf("RunStartup: %v", err)
+	}
+	for _, name := range []string{taskNotifySuccess, taskNotifyFail} {
+		w := cfg.Tasks[name].With
+		if w["rich_fields"] != true {
+			t.Errorf("%s with.rich_fields = %v, want true", name, w["rich_fields"])
+		}
+		for _, k := range []string{"stage", "branch", "release_path", "commit_hash", "deployer"} {
+			if s, _ := w[k].(string); s == "" {
+				t.Errorf("%s with.%s not injected", name, k)
+			}
+		}
+	}
+	if _, ok := cfg.Tasks[taskNotifyStart].With["rich_fields"]; ok {
+		t.Error("start task got rich_fields, want outcome events only")
+	}
+}
+
+// With rich_fields the outcome message carries a fields table (duration included there, not as a text suffix), empty
+// values are dropped, and the revision is truncated to 7 chars.
+func TestSend_RichFields(t *testing.T) {
+	srv := newWebhookServer(t)
+	base := time.Now()
+	clock := base
+	n := &notifier{cfg: params{WebhookURL: srv.URL, RichFields: true}, client: srv.Client(), now: func() time.Time { return clock }}
+	subCfg := &whoosh.DeployFile{}
+	if err := n.install(context.Background(), subCfg); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](context.Background(), io.Discard); err != nil {
+		t.Fatalf("timer hook: %v", err)
+	}
+	clock = base.Add(42 * time.Second)
+
+	with := map[string]any{
+		"message": "done", "event": eventFinished, "rich_fields": true,
+		"stage": "production", "branch": "main", "release_path": "/srv/app/releases/20260707180339",
+		"commit_hash": "0123456789abcdef", "deployer": "alice",
+	}
+	if err := n.send(context.Background(), with, io.Discard); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	att := srv.received()[0].Attachments[0]
+	if att.Text != "done" {
+		t.Errorf("text = %q, want no duration suffix in rich mode", att.Text)
+	}
+	want := []attachField{
+		{"User", "alice", true},
+		{"Stage", "production", true},
+		{"Branch", "main", true},
+		{"Revision", "0123456", true},
+		{"Duration", "42s", true},
+		{"Release", "/srv/app/releases/20260707180339", true},
+	}
+	if len(att.Fields) != len(want) {
+		t.Fatalf("fields = %+v, want %d entries", att.Fields, len(want))
+	}
+	for i, f := range want {
+		if att.Fields[i] != f {
+			t.Errorf("field[%d] = %+v, want %+v", i, att.Fields[i], f)
+		}
+	}
+
+	// A failure before deploy:updating has no commit hash - the Revision field is omitted.
+	failWith := map[string]any{
+		"message": "boom", "event": eventFailed, "rich_fields": true,
+		"stage": "production", "branch": "main", "release_path": "/srv/app/releases/20260707180339",
+		"commit_hash": "", "deployer": "alice",
+	}
+	if err := n.send(context.Background(), failWith, io.Discard); err != nil {
+		t.Fatalf("send fail: %v", err)
+	}
+	got := srv.received()
+	for _, f := range got[len(got)-1].Attachments[0].Fields {
+		if f.Title == "Revision" {
+			t.Errorf("Revision field present with an empty commit hash: %+v", f)
+		}
 	}
 }
 

@@ -42,6 +42,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yousysadmin/whoosh"
@@ -49,7 +50,7 @@ import (
 
 const (
 	pluginName    = "slack"
-	pluginVersion = "1.0.0"
+	pluginVersion = "1.1.0"
 	// actionSend is the plugin's single action; its "slack" namespace prefix must match pluginName so the executor's
 	// stage-skip logic (SkippedPlugins) applies to it.
 	actionSend = "slack:send"
@@ -107,11 +108,30 @@ type params struct {
 	Username  string `yaml:"username"`
 	IconEmoji string `yaml:"icon_emoji"`
 
+	// RichFields switches the success/fail notifications to a structured attachment with User/Stage/Branch/Revision/
+	// Duration/Release fields (the duration moves from the text into the fields table). Opt-in.
+	RichFields bool `yaml:"rich_fields"`
+
+	// Changelog posts the commits between the previously deployed revision and the new one on the success
+	// notification (linked, with optional author mentions). Opt-in via changelog.enabled.
+	Changelog changelogParams `yaml:"changelog"`
+
+	// DeployerGithubLookup resolves the deployer to their GitHub display name when it looks like a login (e.g.
+	// GITHUB_ACTOR in CI): GET api.github.com/users/<login>, unauthenticated, cached for the process, any failure
+	// falls back to the login. Used only where the deployer is displayed (the rich User field). Opt-in.
+	DeployerGithubLookup bool `yaml:"deployer_github_lookup"`
+
 	// Event toggles (default true); rollback notification is opt-in.
 	NotifyStart    *bool `yaml:"notify_start"`
 	NotifySuccess  *bool `yaml:"notify_success"`
 	NotifyFail     *bool `yaml:"notify_fail"`
 	NotifyRollback bool  `yaml:"notify_rollback"`
+
+	// Per-event attachment-color overrides: "good", "warning", "danger", or "#rrggbb". Passed to Slack as-is.
+	ColorStart    string `yaml:"color_start"`
+	ColorSuccess  string `yaml:"color_success"`
+	ColorFail     string `yaml:"color_fail"`
+	ColorRollback string `yaml:"color_rollback"`
 
 	// Message templates overriding the per-event defaults. Rendered at action run time with the full deploy context,
 	// but ALSO rendered once at load like every params: value - escape runtime keys ('{{ "{{ .error }}" }}') so they
@@ -132,6 +152,11 @@ type notifier struct {
 	client    *http.Client
 	now       func() time.Time // injectable in tests
 	startedAt time.Time        // recorded by the before-deploy:starting func-hook; zero outside a deploy
+
+	// GitHub display-name lookup state (deployer_github_lookup): one API call per process, cached.
+	githubAPI string // default https://api.github.com, overridden in tests
+	ghOnce    sync.Once
+	ghName    string
 }
 
 // Configure decodes and validates the params, then registers the slack:send action and the startup hook that wires
@@ -177,7 +202,22 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	// non-standard webhook URL is redacted as well.
 	whoosh.AddSecret(pr.WebhookURL)
 
-	n := &notifier{cfg: pr, client: &http.Client{Timeout: timeout}, now: time.Now}
+	if pr.Changelog.MaxCommits < 0 {
+		return fmt.Errorf("slack: changelog.max_commits must not be negative")
+	}
+	if len(pr.Changelog.Authors) > 0 {
+		// Commit author emails are matched case-insensitively - normalize the keys once here.
+		authors := make(map[string]string, len(pr.Changelog.Authors))
+		for email, id := range pr.Changelog.Authors {
+			if strings.TrimSpace(id) == "" {
+				return fmt.Errorf("slack: changelog.authors[%q] has an empty Slack member ID", email)
+			}
+			authors[strings.ToLower(email)] = id
+		}
+		pr.Changelog.Authors = authors
+	}
+
+	n := &notifier{cfg: pr, client: &http.Client{Timeout: timeout}, now: time.Now, githubAPI: defaultGithubAPI}
 	if err := reg.AddAction(actionSend, n.send); err != nil {
 		return err
 	}
@@ -236,19 +276,53 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 
 	if boolOr(n.cfg.NotifyStart, true) {
 		add(taskNotifyStart, "Notify Slack: deploy started",
-			eventStarted, def(n.cfg.MessageStart, defaultMsgStart), colorStart, whoosh.PhaseStarting, true)
+			eventStarted, def(n.cfg.MessageStart, defaultMsgStart), def(n.cfg.ColorStart, colorStart), whoosh.PhaseStarting, true)
 	}
 	if boolOr(n.cfg.NotifySuccess, true) {
 		add(taskNotifySuccess, "Notify Slack: deploy succeeded",
-			eventFinished, def(n.cfg.MessageSuccess, defaultMsgSuccess), colorSuccess, whoosh.PhaseFinished, false)
+			eventFinished, def(n.cfg.MessageSuccess, defaultMsgSuccess), def(n.cfg.ColorSuccess, colorSuccess), whoosh.PhaseFinished, false)
 	}
 	if boolOr(n.cfg.NotifyFail, true) {
 		add(taskNotifyFail, "Notify Slack: deploy failed",
-			eventFailed, def(n.cfg.MessageFail, defaultMsgFail), colorFail, whoosh.PhaseFailed, false)
+			eventFailed, def(n.cfg.MessageFail, defaultMsgFail), def(n.cfg.ColorFail, colorFail), whoosh.PhaseFailed, false)
 	}
 	if n.cfg.NotifyRollback {
 		add(taskNotifyRollback, "Notify Slack: rollback",
-			eventRollback, def(n.cfg.MessageRollback, defaultMsgRollback), colorRollback, whoosh.PhaseRollback, false)
+			eventRollback, def(n.cfg.MessageRollback, defaultMsgRollback), def(n.cfg.ColorRollback, colorRollback), whoosh.PhaseRollback, false)
+	}
+
+	// The action only sees its with: map, so the rich fields pull their deploy-context values through runtime
+	// templates injected here (after the load-time params render, like the default messages).
+	if n.cfg.RichFields {
+		for _, name := range []string{taskNotifySuccess, taskNotifyFail} {
+			t, ok := cfg.Tasks[name]
+			if !ok {
+				continue
+			}
+			t.With["rich_fields"] = true
+			t.With["stage"] = "{{.stage}}"
+			t.With["branch"] = "{{.branch}}"
+			t.With["release_path"] = "{{.release_path}}"
+			t.With["commit_hash"] = "{{.commit_hash}}"
+			// The index form renders empty instead of erroring under missingkey=error when this plugin runs against an
+			// older whoosh core without the deployer context key - a strict-render failure in this hidden
+			// after-deploy:finished task would cascade into a false deploy:failed.
+			t.With["deployer"] = `{{ index . "deployer" }}`
+		}
+	}
+
+	// The commits come from whoosh core's {{.changelog}} value (captured at deploy:updating); same injection
+	// technique. The changelog config itself (authors, commit_url) stays notifier-side, out of dry-run plans.
+	// The two revision keys let the action tell an unchanged redeploy (explicit no-changes note) apart from a
+	// first deploy (silent).
+	if n.cfg.Changelog.Enabled {
+		if t, ok := cfg.Tasks[taskNotifySuccess]; ok {
+			t.With["repo"] = "{{.repo}}" // for deriving the commit-link base
+			t.With["commit_hash"] = "{{.commit_hash}}"
+			// index form: renders empty on an older whoosh core without the key (see deployer above).
+			t.With["changelog"] = `{{ index . "changelog" }}`
+			t.With["previous_commit_hash"] = `{{ index . "previous_commit_hash" }}`
+		}
 	}
 	return nil
 }
