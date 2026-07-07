@@ -37,6 +37,7 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 	hosts := e.targetsForTask(task)
 	ctx = plugins.WithHostFileWriter(ctx, &hostFileWriter{e: e, task: task, hosts: hosts})
 	ctx = plugins.WithHostCommandRunner(ctx, &hostCommandRunner{e: e, task: task, hosts: hosts})
+	ctx = plugins.WithHostCommandCapturer(ctx, &hostCommandCapturer{e: e, task: task, hosts: hosts})
 	return fn(ctx, with, e.out)
 }
 
@@ -62,6 +63,23 @@ func (r *hostCommandRunner) RunCommand(ctx context.Context, cmd string) error {
 		return firstError(results)
 	}
 	return nil
+}
+
+// hostCommandCapturer captures command output from the first host an action task targets (plugins.HostCommandCapturer).
+type hostCommandCapturer struct {
+	e     *Executor
+	task  *ast.Task
+	hosts []ast.Host
+}
+
+// CaptureCommand runs cmd on the first target host and returns its trimmed stdout, echoing the command like a task cmd.
+func (c *hostCommandCapturer) CaptureCommand(ctx context.Context, cmd string) (string, error) {
+	if len(c.hosts) == 0 {
+		return "", fmt.Errorf("no hosts match the action task; nothing to capture")
+	}
+	target := c.e.taskTargets(c.task, c.hosts[:1])[0]
+	c.e.echoExec(c.hosts[0].Address, cmd)
+	return c.e.cluster.Capture(ctx, target, cmd)
 }
 
 // hostFileWriter renders a file onto an action task's hosts (plugins.HostFileWriter).

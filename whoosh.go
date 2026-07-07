@@ -53,6 +53,8 @@ type (
 	HostFileWriter = plugins.HostFileWriter
 	// HostCommandRunner runs a shell command on an action task's hosts.
 	HostCommandRunner = plugins.HostCommandRunner
+	// HostCommandCapturer runs a shell command on the first host an action task targets and returns its trimmed stdout.
+	HostCommandCapturer = plugins.HostCommandCapturer
 
 	// PluginSpec is the plugin's Deployfile entry (params + per-action config).
 	PluginSpec = ast.PluginSpec
@@ -159,6 +161,18 @@ func WithHostCommandRunner(ctx context.Context, r HostCommandRunner) context.Con
 // invoked outside the executor).
 func HostCommandRunnerFrom(ctx context.Context) HostCommandRunner {
 	return plugins.HostCommandRunnerFrom(ctx)
+}
+
+// WithHostCommandCapturer returns ctx carrying c (the executor sets this before an action runs).
+// Plugin authors rarely call this, use HostCommandCapturerFrom.
+func WithHostCommandCapturer(ctx context.Context, c HostCommandCapturer) context.Context {
+	return plugins.WithHostCommandCapturer(ctx, c)
+}
+
+// HostCommandCapturerFrom returns the HostCommandCapturer carried by an action's ctx, or nil if none (e.g. an action
+// invoked outside the executor).
+func HostCommandCapturerFrom(ctx context.Context) HostCommandCapturer {
+	return plugins.HostCommandCapturerFrom(ctx)
 }
 
 // AddSecret registers a literal value so whoosh redacts it from all output (echoed commands, command output, logs,

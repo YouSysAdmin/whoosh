@@ -71,6 +71,29 @@ func HostCommandRunnerFrom(ctx context.Context) HostCommandRunner {
 	return r
 }
 
+// HostCommandCapturer runs a shell command on ONE of the hosts an action task targets (the first) and returns its
+// trimmed stdout - the capture counterpart to HostCommandRunner, for actions that need a value off a host (e.g. a git
+// log from the repo mirror) rather than a fanned-out side effect.
+// The executor supplies it via the action's context, retrieve it with HostCommandCapturerFrom.
+type HostCommandCapturer interface {
+	CaptureCommand(ctx context.Context, cmd string) (string, error)
+}
+
+type hostCapturerKey struct{}
+
+// WithHostCommandCapturer returns ctx carrying c.
+// The executor calls this before invoking an action so the action can capture command output from a task host.
+func WithHostCommandCapturer(ctx context.Context, c HostCommandCapturer) context.Context {
+	return context.WithValue(ctx, hostCapturerKey{}, c)
+}
+
+// HostCommandCapturerFrom returns the HostCommandCapturer carried by ctx, or nil if none (e.g. an action invoked
+// outside the executor, as in a unit test).
+func HostCommandCapturerFrom(ctx context.Context) HostCommandCapturer {
+	c, _ := ctx.Value(hostCapturerKey{}).(HostCommandCapturer)
+	return c
+}
+
 // StartupFunc runs once at load and may mutate the resolved config - for example an inventory plugin appending to
 // cfg.Hosts.
 type StartupFunc func(ctx context.Context, cfg *ast.DeployFile) error
