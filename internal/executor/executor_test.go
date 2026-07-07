@@ -1298,6 +1298,63 @@ func TestRunTask_Unknown(t *testing.T) {
 	}
 }
 
+// RunOn echoes the literal built-in command once, unprefixed, under --verbose (the phase narrative names the step, so
+// the echo is a single bare "$" line, not a per-host one).
+func TestRunOn_VerboseEchoesBareCommand(t *testing.T) {
+	srv, err := sshtest.Start()
+	if err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	ex := executor.New(newTestConfig(srv, deployTree(t)),
+		executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, Verbose: true})
+	defer ex.Close()
+	if err := ex.RunOn(context.Background(), ex.Hosts(), "echo built-in"); err != nil {
+		t.Fatalf("RunOn: %v\n%s", err, buf.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "$ echo built-in\n") {
+		t.Fatalf("missing bare command echo, got:\n%s", out)
+	}
+	if strings.Contains(out, "] $ echo built-in") {
+		t.Fatalf("built-in echo must not be host-prefixed:\n%s", out)
+	}
+}
+
+// A local task's dry-run plan uses the "[dry-run][local]" prefix, and RunOn's verbose dry-run plan lists the literal
+// command per host.
+func TestDryRun_LocalAndRunOnFormats(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		Stage: "test",
+		Hosts: []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{"b": {Local: true, Cmds: []string{"echo hi"}}},
+	}
+	// Non-verbose: the local task's plan line is the clean rendered command with the [local] prefix.
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
+	if err := ex.RunTask(context.Background(), "b"); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+	ex.Close()
+	if out := buf.String(); !strings.Contains(out, "[dry-run][local] echo hi") {
+		t.Errorf("local plan line missing its [local] prefix:\n%s", out)
+	}
+
+	// Verbose: RunOn's plan lists the literal built-in command per host.
+	buf.Reset()
+	ex = executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
+	defer ex.Close()
+	if err := ex.RunOn(context.Background(), ex.Hosts(), "mkdir -p /srv/app"); err != nil {
+		t.Fatalf("RunOn: %v", err)
+	}
+	if out := buf.String(); !strings.Contains(out, "[dry-run] h1: mkdir -p /srv/app") {
+		t.Errorf("RunOn plan line missing its host prefix:\n%s", out)
+	}
+}
+
 // Task commands are echoed (host-prefixed) before they run, so the console and the --log-file transcript show what was
 // sent to the server, not just output.
 func TestRunTask_EchoesRemoteCommand(t *testing.T) {
