@@ -38,7 +38,7 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 		}
 		e.announceStep(st)
 		if e.dryRun {
-			line, err := e.dryRunLine(st, target.Host, cmd)
+			line, err := e.stepLine(st, target.Host, cmd)
 			if err != nil {
 				return err
 			}

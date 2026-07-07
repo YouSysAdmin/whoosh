@@ -205,15 +205,13 @@ func (e *Executor) runOn(ctx context.Context, hosts []ast.Host, command string, 
 	if e.dryRun {
 		if e.verbose {
 			for _, h := range hosts {
-				if !e.logDryRun(h.Address, command) {
-					fmt.Fprintf(e.out, "[dry-run] %s: %s\n", h.Address, command)
-				}
+				e.echoDryRun(h.Address, command)
 			}
 		}
 		return nil
 	}
-	if e.verbose && !e.logExec("", command) {
-		fmt.Fprintf(e.out, "$ %s\n", command)
+	if e.verbose {
+		e.echoExec("", command)
 	}
 	return e.cluster.Run(ctx, Targets(hosts), func(string) string { return command }, e.concurrency, failFast)
 }

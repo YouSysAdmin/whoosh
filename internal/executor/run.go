@@ -20,15 +20,6 @@ type step struct {
 	display  func(host string) (string, error)
 }
 
-// shown returns the command to echo for this step: the clean display form when available, else the full built command
-// (scripts, only echoed under --verbose).
-func (s step) shown(host string) (string, error) {
-	if s.display != nil {
-		return s.display(host)
-	}
-	return s.build(host)
-}
-
 // taskSteps assembles a task's cmds (first) and scripts (second) into an ordered list of steps.
 // File scripts are read from the operator's machine once here.
 func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
@@ -135,33 +126,28 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 			rendered[h.Address] = cmd
 		}
 
+		e.announceStep(st)
 		if e.dryRun {
-			e.announceStep(st)
 			for _, h := range hosts {
-				line, err := e.dryRunLine(st, h.Address, rendered[h.Address])
+				line, err := e.stepLine(st, h.Address, rendered[h.Address])
 				if err != nil {
 					return err
 				}
-				if !e.logDryRun(h.Address, line) {
-					fmt.Fprintf(e.out, "[dry-run] %s: %s\n", h.Address, line)
-				}
+				e.echoDryRun(h.Address, line)
 			}
 			continue
 		}
-		e.announceStep(st)
 		// Echo the command we send to each host so the console and the --log-file transcript show what ran, not just its
 		// output. cmd steps are echoed always (clean display form); verbose upgrades the echo to the full built command
-		// (env exports, cd) and also echoes scripts, whose full rendered body is large. e.out redacts, so secrets -
+		// (env exports, cd) and also echoes scripts, whose full rendered body is large. The echo redacts, so secrets -
 		// including values marked via envSecret / sensitive - are masked here too.
 		if !st.isScript || e.verbose {
 			for _, h := range hosts {
-				shown, err := e.echoLine(st, h.Address, rendered[h.Address])
+				shown, err := e.stepLine(st, h.Address, rendered[h.Address])
 				if err != nil {
 					return err
 				}
-				if !e.logExec(h.Address, shown) {
-					fmt.Fprintf(e.out, "%s $ %s\n", runner.HostLabel(h.Address, e.color), shown)
-				}
+				e.echoExec(h.Address, shown)
 			}
 		}
 
@@ -193,26 +179,21 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 		if err != nil {
 			return err
 		}
+		e.announceStep(st)
 		if e.dryRun {
-			e.announceStep(st)
-			line, err := e.dryRunLine(st, "local", cmd)
+			line, err := e.stepLine(st, "local", cmd)
 			if err != nil {
 				return err
 			}
-			if !e.logDryRun("local", line) {
-				fmt.Fprintf(e.out, "[dry-run][local] %s\n", line)
-			}
+			e.echoDryRunLocal(line)
 			continue
 		}
-		e.announceStep(st)
 		if !st.isScript || e.verbose {
-			shown, err := e.echoLine(st, "local", cmd)
+			shown, err := e.stepLine(st, "local", cmd)
 			if err != nil {
 				return err
 			}
-			if !e.logExec("local", shown) {
-				fmt.Fprintf(e.out, "%s $ %s\n", runner.HostLabel("local", e.color), shown)
-			}
+			e.echoExec("local", shown)
 		}
 		// Tag local task output with a "[local]" host prefix like the cluster does for remote/local:true hosts - colored
 		// in raw mode, a structured record (host "local") in log mode - so every command's output is attributed to a host.
@@ -243,25 +224,16 @@ func (e *Executor) announceStep(st step) {
 	}
 }
 
-// echoLine picks what a live run echoes for one step on one host, mirroring dryRunLine: under --verbose the full built
-// command actually sent to the host (env exports, cd), else the clean display form. Scripts reach here only under
-// --verbose (callers skip them otherwise).
-func (e *Executor) echoLine(st step, host, built string) (string, error) {
-	if e.verbose {
-		return built, nil
-	}
-	return st.shown(host)
-}
-
-// dryRunLine picks what the dry-run plan shows for one step on one host, mirroring the live run's echo policy: the
-// clean rendered command for cmds (no env-export/cd preamble) and just the script's name for scripts. --verbose
-// upgrades both to the full built command actually sent to the host.
-func (e *Executor) dryRunLine(st step, host, built string) (string, error) {
+// stepLine picks what to show for one step on one host, shared by the live echo and the dry-run plan: under --verbose
+// the full built command actually sent to the host (env exports, cd), otherwise "script <name>" for scripts and the
+// clean display form for cmds (no env-export or cd preamble). The live echo never takes the script branch - callers
+// echo scripts only under --verbose - which keeps live and dry-run output on a single policy.
+func (e *Executor) stepLine(st step, host, built string) (string, error) {
 	if e.verbose {
 		return built, nil
 	}
 	if st.isScript {
 		return "script " + st.label, nil
 	}
-	return st.shown(host)
+	return st.display(host)
 }

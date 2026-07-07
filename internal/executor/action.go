@@ -21,10 +21,7 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 		return fmt.Errorf("action %q: %w", task.Action, err)
 	}
 	if e.dryRun {
-		plan := fmt.Sprintf("action %s with %v", task.Action, with)
-		if !e.logDryRun("", plan) {
-			fmt.Fprintf(e.out, "[dry-run] %s\n", plan)
-		}
+		e.echoDryRun("", fmt.Sprintf("action %s with %v", task.Action, with))
 		return nil
 	}
 	if e.reg == nil {
@@ -56,12 +53,9 @@ func (r *hostCommandRunner) RunCommand(ctx context.Context, cmd string) error {
 		slog.Warn("no hosts match the action task; nothing to run", "cmd", cmd)
 		return nil
 	}
-	// Echo the command per host so the console and the --log-file transcript show what was sent - a structured record in
-	// log mode, else the redacted host-prefixed line.
+	// Echo the command per host so the console and the --log-file transcript show what was sent.
 	for _, h := range r.hosts {
-		if !r.e.logExec(h.Address, cmd) {
-			fmt.Fprintf(r.e.out, "%s $ %s\n", runner.HostLabel(h.Address, r.e.color), cmd)
-		}
+		r.e.echoExec(h.Address, cmd)
 	}
 	results := r.e.cluster.Run(ctx, Targets(r.hosts), func(string) string { return cmd }, r.e.concurrency, true)
 	if runner.Failed(results) {
