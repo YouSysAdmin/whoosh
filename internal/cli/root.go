@@ -21,6 +21,7 @@ import (
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/masking"
+	"github.com/yousysadmin/whoosh/internal/operator"
 	"github.com/yousysadmin/whoosh/internal/paths"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 	"github.com/yousysadmin/whoosh/internal/varstmpl"
@@ -254,6 +255,7 @@ func loadTimeContext(cfg *ast.DeployFile) varstmpl.Context {
 		Repo:          cfg.App.Repo,
 		Branch:        cfg.App.Branch,
 		Stage:         cfg.Stage,
+		Deployer:      operator.Name(),
 		DeployTo:      layout.DeployTo,
 		ReleasesPath:  layout.ReleasesPath,
 		SharedPath:    layout.SharedPath,

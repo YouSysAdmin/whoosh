@@ -9,7 +9,8 @@ deploy phase, so the same task handles **start, success, and failure**.
 > **Zero-script alternative:** the [slack plugin](../../plugins/slack/README.md) (own module; add it with
 > `whoosh build --with github.com/yousysadmin/whoosh/plugins/slack`) wires the start/success/failure (and opt-in
 > rollback) notifications for you - `plugins: [{name: slack, params: {webhook_url: '{{ env "SLACK_WEBHOOK_URL"
-> }}'}}]` - plus a `slack:send` action for custom messages. This example stays useful with the stock binary, as a
+> }}'}}]` - plus a `slack:send` action for custom messages, a structured success/fail message (`rich_fields`), and a
+> commit changelog with author mentions (`changelog`). This example stays useful with the stock binary, as a
 > template for scripting your own notifier (a different chat service, custom payloads), and for the `{{.phase}}`
 > branching pattern.
 

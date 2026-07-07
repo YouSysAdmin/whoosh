@@ -226,6 +226,115 @@ func TestDeploy_CommitHashInContext(t *testing.T) {
 	}
 }
 
+// TestDeploy_PreviousCommitHashInContext verifies the previously deployed SHA is read off the host at deploy start:
+// empty on the first deploy, the first deploy's SHA on the second - as both env var and template key, and visible
+// already to deploy:starting hooks.
+func TestDeploy_PreviousCommitHashInContext(t *testing.T) {
+	f := newFixture(t, 5)
+	f.cfg.Tasks = map[string]*ast.Task{
+		"show-prev": {
+			Roles: []string{"app"},
+			Dir:   f.deployTo, // deploy:starting runs before the release dir exists
+			Cmds:  []string{`echo "prev=[$PREVIOUS_COMMIT_HASH] tmpl=[{{.previous_commit_hash}}]"`},
+		},
+	}
+	f.cfg.Hooks = ast.Hooks{After: map[string][]string{ast.PhaseStarting: {"show-prev"}}}
+
+	deployOnce := func() string {
+		var buf bytes.Buffer
+		ex := executor.New(f.cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
+		d, err := deploy.New(f.cfg, ex)
+		if err != nil {
+			t.Fatalf("deploy.New: %v", err)
+		}
+		if err := d.Deploy(context.Background()); err != nil {
+			ex.Close()
+			t.Fatalf("deploy: %v\n%s", err, buf.String())
+		}
+		ex.Close()
+		return buf.String()
+	}
+
+	if out := deployOnce(); !strings.Contains(out, "prev=[] tmpl=[]") {
+		t.Fatalf("first deploy should see an empty previous_commit_hash, got:\n%s", out)
+	}
+
+	rev, err := os.ReadFile(filepath.Join(f.deployTo, "current", "REVISION"))
+	if err != nil {
+		t.Fatalf("REVISION: %v", err)
+	}
+	sha := strings.TrimSpace(string(rev))
+
+	time.Sleep(1100 * time.Millisecond) // release ids are second-granular
+	want := "prev=[" + sha + "] tmpl=[" + sha + "]"
+	if out := deployOnce(); !strings.Contains(out, want) {
+		t.Fatalf("second deploy: want %q in\n%s", want, out)
+	}
+}
+
+// addCommit commits a file change to a test source repo (same identity as initSourceRepo).
+func addCommit(t *testing.T, repoDir, file, content, msg string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(repoDir, file), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-m", msg}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repoDir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}
+
+// TestDeploy_ChangelogInContext verifies the commit range between the previous and the new revision is captured at
+// deploy:updating and exposed as {{.changelog}} / $DEPLOY_CHANGELOG: empty on the first deploy, the new commits on
+// the second, empty again when nothing changed.
+func TestDeploy_ChangelogInContext(t *testing.T) {
+	f := newFixture(t, 5)
+	f.cfg.Tasks = map[string]*ast.Task{
+		"show-log": {
+			Roles: []string{"app"},
+			Cmds:  []string{`echo "env=[$DEPLOY_CHANGELOG] tmpl=[{{.changelog}}]"`},
+		},
+	}
+	f.cfg.Hooks = ast.Hooks{After: map[string][]string{ast.PhasePublished: {"show-log"}}}
+
+	deployOnce := func() string {
+		var buf bytes.Buffer
+		ex := executor.New(f.cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
+		d, err := deploy.New(f.cfg, ex)
+		if err != nil {
+			t.Fatalf("deploy.New: %v", err)
+		}
+		if err := d.Deploy(context.Background()); err != nil {
+			ex.Close()
+			t.Fatalf("deploy: %v\n%s", err, buf.String())
+		}
+		ex.Close()
+		return buf.String()
+	}
+
+	if out := deployOnce(); !strings.Contains(out, "env=[] tmpl=[]") {
+		t.Fatalf("first deploy should see an empty changelog, got:\n%s", out)
+	}
+
+	addCommit(t, f.cfg.App.Repo, "app.txt", "v2", "feat: second change")
+	time.Sleep(1100 * time.Millisecond) // release ids are second-granular
+	out := deployOnce()
+	if !strings.Contains(out, "|test|test@example.com|feat: second change") {
+		t.Fatalf("second deploy should carry the new commit in the changelog, got:\n%s", out)
+	}
+
+	time.Sleep(1100 * time.Millisecond)
+	if out := deployOnce(); !strings.Contains(out, "env=[] tmpl=[]") {
+		t.Fatalf("unchanged redeploy should see an empty changelog, got:\n%s", out)
+	}
+}
+
 // TestDeploy_FailureHookNotifies verifies a deploy:failed hook runs when the deploy errors, with the phase and failure
 // message exposed to the task.
 func TestDeploy_FailureHookNotifies(t *testing.T) {

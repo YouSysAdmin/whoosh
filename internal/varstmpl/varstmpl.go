@@ -46,8 +46,17 @@ type Context struct {
 	ReleasePath      string
 	ReleaseTimestamp string
 	CommitHash       string
-	KeepReleases     int
-	Host             string
+	// PreviousCommitHash is the SHA the live release was deployed from (read from <current>/REVISION on the primary
+	// host at deploy start), empty on a fresh deploy and outside a deploy.
+	PreviousCommitHash string
+	// Changelog lists the commits between PreviousCommitHash and CommitHash, one per line as
+	// <sha>|<author>|<email>|<subject> (newest first, no merges, capped). Captured at deploy:updating - empty before
+	// that, on a fresh deploy, when the revisions match, and outside a deploy.
+	Changelog    string
+	KeepReleases int
+	// Deployer is the identity of the person (or CI job) running whoosh, exposed as {{.deployer}} and $DEPLOYER.
+	Deployer string
+	Host     string
 	// Roles are the roles of the host the command is running on (the matched server's full role set), exposed as
 	// {{.roles}} and (comma-joined) $ROLES.
 	Roles []string
@@ -89,7 +98,7 @@ func (c Context) lookupEnv(name string) string {
 
 // Data flattens the context into the map exposed to templates.
 func (c Context) Data() map[string]any {
-	m := make(map[string]any, len(c.Vars)+19+len(c.Imports))
+	m := make(map[string]any, len(c.Vars)+len(c.Imports))
 	for k, v := range c.Vars {
 		m[k] = v
 	}
@@ -106,7 +115,10 @@ func (c Context) Data() map[string]any {
 	m["release_path"] = c.ReleasePath
 	m["release_timestamp"] = c.ReleaseTimestamp
 	m["commit_hash"] = c.CommitHash
+	m["previous_commit_hash"] = c.PreviousCommitHash
+	m["changelog"] = c.Changelog
 	m["keep_releases"] = c.KeepReleases
+	m["deployer"] = c.Deployer
 	m["host"] = c.Host
 	m["roles"] = c.Roles
 	m["phase"] = c.Phase

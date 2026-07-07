@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"path"
+	"regexp"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/paths"
@@ -85,6 +86,32 @@ func writeRevisionCmd(repoPath, release, branch, revTime string) string {
 		TimeFile:     path.Join(release, "REVISION_TIME"),
 		Time:         revTime,
 	})
+}
+
+// currentRevisionCmd reads <current>/REVISION - the SHA the live release was deployed from - tolerating absence
+// (fresh deploy, or a release predating the REVISION file).
+func currentRevisionCmd(l paths.Layout) string {
+	return shtmpl.MustRender(tmpl, "current_revision.sh.tmpl", struct{ RevisionFile string }{
+		RevisionFile: path.Join(l.CurrentPath, "REVISION"),
+	})
+}
+
+// commitSHARe matches an abbreviated-to-full git SHA, guarding against a corrupt or unexpected REVISION file.
+var commitSHARe = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
+
+func isCommitSHA(s string) bool { return commitSHARe.MatchString(s) }
+
+// changelogMaxCommits caps the captured changelog - consumers truncate further for display.
+const changelogMaxCommits = 100
+
+// changelogCmd lists the commits between the previously deployed revision and the new one from the repo mirror, one
+// per line as <sha>|<author>|<email>|<subject> (the {{.changelog}} / $DEPLOY_CHANGELOG contract). Both SHAs must be
+// pre-validated with isCommitSHA.
+func changelogCmd(repoPath, prev, cur string) string {
+	return shtmpl.MustRender(tmpl, "changelog.sh.tmpl", struct {
+		Repo, Range string
+		Max         int
+	}{Repo: repoPath, Range: prev + ".." + cur, Max: changelogMaxCommits})
 }
 
 // logRevisionCmd appends a line to <deploy_to>/revisions.log, reading the SHA from the release's REVISION file written

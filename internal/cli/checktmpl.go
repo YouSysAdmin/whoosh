@@ -134,6 +134,8 @@ func validateContext(cfg *ast.DeployFile) varstmpl.Context {
 	ctx.ReleasePath = ctx.CurrentPath
 	ctx.ReleaseTimestamp = "19700101000000"
 	ctx.CommitHash = "0000000000000000000000000000000000000000"
+	ctx.PreviousCommitHash = "0000000000000000000000000000000000000000"
+	ctx.Changelog = "0000000|nobody|nobody@example.com|placeholder"
 	ctx.Host = "validate-host"
 	if hosts := ast.FilterDeployable(cfg.Hosts); len(hosts) > 0 {
 		ctx.Host = hosts[0].Address

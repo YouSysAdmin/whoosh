@@ -113,6 +113,37 @@ func TestEnsureStructureCmd_RewriteChecksSource(t *testing.T) {
 	}
 }
 
+func TestCurrentRevisionCmd(t *testing.T) {
+	l := paths.For("/srv/app")
+	if got, want := currentRevisionCmd(l), `cat '/srv/app/current/REVISION' 2>/dev/null || true`; got != want {
+		t.Errorf("currentRevisionCmd = %q, want %q", got, want)
+	}
+}
+
+func TestChangelogCmd(t *testing.T) {
+	got := changelogCmd("/srv/app/repo", "aaaaaaaa", "bbbbbbbb")
+	want := `git -C '/srv/app/repo' log --no-merges --max-count=100 --pretty=format:'%H|%an|%ae|%s' 'aaaaaaaa..bbbbbbbb'`
+	if got != want {
+		t.Errorf("changelogCmd:\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestIsCommitSHA(t *testing.T) {
+	for sha, want := range map[string]bool{
+		"0f4c1a7": true,
+		"0f4c1a7d9e2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d": true,
+		"":                false,
+		"HEAD":            false,
+		"0f4c1a":          false, // too short
+		"0F4C1A7":         false, // git prints lowercase
+		"deadbeef\nextra": false,
+	} {
+		if got := isCommitSHA(sha); got != want {
+			t.Errorf("isCommitSHA(%q) = %v, want %v", sha, got, want)
+		}
+	}
+}
+
 func TestUnlockCmd(t *testing.T) {
 	l := paths.For("/srv/app")
 	if got, want := unlockCmd(l), `rm -f '/srv/app/.deploy.lock'`; got != want {

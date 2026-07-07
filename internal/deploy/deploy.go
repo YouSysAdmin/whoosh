@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/yousysadmin/whoosh/internal/deploy/hooks"
@@ -14,6 +13,7 @@ import (
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/executor"
+	"github.com/yousysadmin/whoosh/internal/operator"
 	"github.com/yousysadmin/whoosh/internal/paths"
 )
 
@@ -60,6 +60,7 @@ type Deployer struct {
 	primary  string            // lock-holder host (implicitly required)
 	skipped  []string          // hosts dropped this run under `skip`
 	replace  map[string]string // phase -> task name overriding its built-in command
+	prevSHA  string            // previously deployed revision, read off the primary host at deploy start
 }
 
 // New builds a Deployer over a configured executor.
@@ -143,6 +144,20 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	release := d.layout.Release(ts)
 	d.ex.SetReleaseContext(release, ts)
 
+	// Best-effort: read the SHA the live release was deployed from off the primary host, so hooks and tasks (starting
+	// with the deploy:starting ones) can use {{.previous_commit_hash}} / $PREVIOUS_COMMIT_HASH. Empty on a fresh deploy.
+	// An unreachable host only warns here - the lock step right after produces the real failure. Skipped in dry-run.
+	d.prevSHA = ""
+	if !d.ex.DryRun() {
+		prev, err := d.ex.Capture(ctx, hosts[0], currentRevisionCmd(d.layout))
+		if err != nil {
+			slog.Warn("previous revision unavailable", "error", err)
+		} else if isCommitSHA(prev) {
+			d.prevSHA = prev
+			d.ex.SetPreviousCommitHash(prev)
+		}
+	}
+
 	slog.Info("deploying", "app", d.cfg.App.Name,
 		"stage", d.cfg.Stage, "repo", d.cfg.App.Repo,
 		"branch", d.cfg.App.Branch, "dir", d.cfg.App.DeployTo,
@@ -161,7 +176,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 
 	steps := []step{
 		{ast.PhaseStarting, func() error {
-			if err := d.ex.RunOn(ctx, primary, lockCmd(d.layout, operator()+" @ "+ts)); err != nil {
+			if err := d.ex.RunOn(ctx, primary, lockCmd(d.layout, operator.Name()+" @ "+ts)); err != nil {
 				return fmt.Errorf("%w (clear a stale lock with: whoosh %s deploy:unlock)", err, d.cfg.Stage)
 			}
 			locked = true
@@ -186,6 +201,19 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 					return fmt.Errorf("resolve commit hash: %w", err)
 				}
 				d.ex.SetCommitHash(sha)
+				// With both revisions known and the mirror fresh, capture what changed and publish it as
+				// {{.changelog}} / $DEPLOY_CHANGELOG. Best-effort: e.g. a force-push can drop the previous SHA from
+				// the mirror - warn and deploy on with an empty changelog.
+				if d.prevSHA != "" && d.prevSHA == sha {
+					slog.Info("no new commits since the previous release", "revision", sha)
+				} else if d.prevSHA != "" && isCommitSHA(sha) {
+					log, err := d.ex.Capture(ctx, d.ex.Hosts()[0], changelogCmd(d.layout.RepoPath, d.prevSHA, sha))
+					if err != nil {
+						slog.Warn("changelog unavailable", "error", err)
+					} else {
+						d.ex.SetChangelog(log)
+					}
+				}
 			}
 			if err := d.runStep(ctx, d.git.CreateRelease(d.layout.RepoPath, release)); err != nil {
 				return err
@@ -201,7 +229,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 		}},
 		{ast.PhasePublished, noopStep},
 		{ast.PhaseFinishing, func() error {
-			if err := d.runStep(ctx, logRevisionCmd(d.layout, release, d.git.Branch, ts, operator())); err != nil {
+			if err := d.runStep(ctx, logRevisionCmd(d.layout, release, d.git.Branch, ts, operator.Name())); err != nil {
 				return err
 			}
 			return d.runStep(ctx, cleanupCmd(d.layout.ReleasesPath, d.cfg.App.KeepReleases))
@@ -399,11 +427,3 @@ func (d *Deployer) Unlock(ctx context.Context) error {
 }
 
 func (d *Deployer) phase(name string) { slog.Info("phase", "phase", name) }
-
-// operator returns the local username initiating the deploy, for lock info.
-func operator() string {
-	if u := os.Getenv("USER"); u != "" {
-		return u
-	}
-	return "unknown"
-}

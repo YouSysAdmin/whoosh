@@ -13,6 +13,7 @@ import (
 	"github.com/yousysadmin/whoosh/internal/deployfile"
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/masking"
+	"github.com/yousysadmin/whoosh/internal/operator"
 	"github.com/yousysadmin/whoosh/internal/paths"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 	"github.com/yousysadmin/whoosh/internal/runner"
@@ -91,6 +92,7 @@ func New(cfg *ast.DeployFile, opts Options) *Executor {
 		Branch:       cfg.App.Branch,
 		KeepReleases: cfg.App.KeepReleases,
 		Stage:        cfg.Stage,
+		Deployer:     operator.Name(),
 		DeployTo:     layout.DeployTo,
 		ReleasesPath: layout.ReleasesPath,
 		SharedPath:   layout.SharedPath,
@@ -227,6 +229,16 @@ func (e *Executor) SetReleaseContext(releasePath, timestamp string) {
 // $COMMIT_HASH.
 // The deploy lifecycle calls this once the mirror is updated, so it is unknown (empty) for standalone task runs.
 func (e *Executor) SetCommitHash(hash string) { e.base.CommitHash = hash }
+
+// SetPreviousCommitHash records the SHA the live release was deployed from, exposed as {{.previous_commit_hash}} /
+// $PREVIOUS_COMMIT_HASH. The deploy lifecycle sets it at deploy start, so it is empty for standalone task runs and on
+// a fresh deploy.
+func (e *Executor) SetPreviousCommitHash(hash string) { e.base.PreviousCommitHash = hash }
+
+// SetChangelog records the commits between the previous and the new revision (one per line,
+// <sha>|<author>|<email>|<subject>), exposed as {{.changelog}} / $DEPLOY_CHANGELOG. The deploy lifecycle sets it at
+// deploy:updating, so it is empty before that and for standalone task runs.
+func (e *Executor) SetChangelog(log string) { e.base.Changelog = log }
 
 // Capture runs command on a single host and returns its trimmed stdout, reusing the pooled connection.
 // The deploy lifecycle uses it to read a value off a host (e.g. the deployed commit SHA) into the template context.

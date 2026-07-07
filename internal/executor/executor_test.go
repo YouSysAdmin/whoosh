@@ -3,6 +3,7 @@ package executor_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/executor"
 	"github.com/yousysadmin/whoosh/internal/masking"
+	"github.com/yousysadmin/whoosh/internal/operator"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 	"github.com/yousysadmin/whoosh/transport/ssh"
 	"github.com/yousysadmin/whoosh/transport/sshtest"
@@ -178,6 +180,46 @@ func TestRunTask_ActionParamsAreTemplated(t *testing.T) {
 	}
 }
 
+// TestRunTask_ActionCapturesHostCommand verifies an action can capture command output from the first host its task
+// targets via the HostCommandCapturer carried by the action's context.
+func TestRunTask_ActionCapturesHostCommand(t *testing.T) {
+	srv, err := sshtest.Start()
+	if err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	defer srv.Close()
+
+	reg, err := plugins.Load(nil)
+	if err != nil {
+		t.Fatalf("plugins.Load: %v", err)
+	}
+	var captured string
+	if err := reg.AddAction("test:capture", func(ctx context.Context, _ map[string]any, _ io.Writer) error {
+		cap := plugins.HostCommandCapturerFrom(ctx)
+		if cap == nil {
+			return fmt.Errorf("no HostCommandCapturer in ctx")
+		}
+		out, err := cap.CaptureCommand(ctx, "echo hi from host")
+		captured = out
+		return err
+	}); err != nil {
+		t.Fatalf("AddAction: %v", err)
+	}
+
+	cfg := newTestConfig(srv, deployTree(t))
+	cfg.Tasks["cap"] = &ast.Task{Action: "test:capture"}
+
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, Registry: reg})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "cap"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, buf.String())
+	}
+	if captured != "hi from host" {
+		t.Fatalf("captured = %q, want %q", captured, "hi from host")
+	}
+}
+
 func TestRunTask_SkipsInactivePluginAction(t *testing.T) {
 	reg, err := plugins.Load(nil)
 	if err != nil {
@@ -296,6 +338,32 @@ func TestRunTask_ResolvesDeployEnvInCmd(t *testing.T) {
 	want := "Released myapp to " + filepath.Join(deployTo, "current") + " on " + srv.Host
 	if !strings.Contains(buf.String(), want) {
 		t.Fatalf("deploy env not resolved in cmd: want %q in\n%s", want, buf.String())
+	}
+}
+
+func TestRunTask_ExposesDeployer(t *testing.T) {
+	srv, err := sshtest.Start()
+	if err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	defer srv.Close()
+
+	cfg := newTestConfig(srv, deployTree(t))
+	cfg.Tasks["who"] = &ast.Task{
+		Roles: []string{"app"},
+		Cmds:  []string{`echo "tmpl={{.deployer}} env=$DEPLOYER"`},
+	}
+
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "who"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, buf.String())
+	}
+	// operator.Name() is resolved once per process, so compare against it rather than pinning an env-dependent value.
+	want := "tmpl=" + operator.Name() + " env=" + operator.Name()
+	if !strings.Contains(buf.String(), want) {
+		t.Fatalf("deployer not exposed: want %q in\n%s", want, buf.String())
 	}
 }
 

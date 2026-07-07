@@ -41,14 +41,17 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	env["RELEASE_PATH"] = e.base.ReleasePath
 	env["RELEASE_TIMESTAMP"] = e.base.ReleaseTimestamp
 	env["COMMIT_HASH"] = e.base.CommitHash
+	env["PREVIOUS_COMMIT_HASH"] = e.base.PreviousCommitHash
 	env["APP_NAME"] = e.base.AppName
 	env["BRANCH"] = e.base.Branch
 	env["REPO"] = e.base.Repo
 	env["STAGE"] = e.base.Stage
+	env["DEPLOYER"] = e.base.Deployer
 	env["HOST"] = host
 	env["ROLES"] = strings.Join(e.rolesFor(host), ",")
 	env["DEPLOY_PHASE"] = e.base.Phase
 	env["DEPLOY_ERROR"] = e.base.DeployError
+	env["DEPLOY_CHANGELOG"] = e.base.Changelog
 	env["KEEP_RELEASES"] = strconv.Itoa(e.base.KeepReleases)
 	// Plugin-injected values (e.g. SSM params) as $<NS>_<KEY>, e.g. ssm/secret -> $SSM_SECRET.
 	// These mirror the {{ .<ns>.<key> }} template values.

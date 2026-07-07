@@ -20,10 +20,14 @@
 #   VERSION                deployment version (default: short revision)
 #   DESCRIPTION            deployment description (default: app/revision/user line)
 #   DEPLOY_USER            who deployed (default: $USER)
-#   CHANGELOG              changelog text (optional); when unset and
+#   CHANGELOG              changelog text (optional); when unset it is derived
+#                          from the deploy context's $DEPLOY_CHANGELOG
+#                          (sha|author|email|subject lines), else - when
 #                          $PREVIOUS_REVISION is set and we are inside a git
-#                          repo, it is computed like the capistrano helper:
+#                          repo - computed like the capistrano helper:
 #                          git log PREVIOUS_REVISION..REVISION
+#   PREVIOUS_REVISION      previous deployed revision (default: the deploy
+#                          context's $PREVIOUS_COMMIT_HASH)
 #   STRICT                 "true" to exit non-zero on errors (default: false)
 #
 # The revision comes from the deploy context ($COMMIT_HASH) or CI ($GITHUB_SHA).
@@ -53,6 +57,7 @@ APP="${NEW_RELIC_APP_NAME:-${APP_NAME:-}}"
 API_KEY="${NEW_RELIC_API_KEY:-}"
 API_HOST="${NEW_RELIC_API_HOST:-api.newrelic.com}"
 REVISION="${COMMIT_HASH:-${GITHUB_SHA:-}}"
+PREVIOUS_REVISION="${PREVIOUS_REVISION:-${PREVIOUS_COMMIT_HASH:-}}"
 VERSION="${VERSION:-}"
 DEPLOY_USER="${DEPLOY_USER:-${USER:-}}"
 DESCRIPTION="${DESCRIPTION:-"${APP} has been deployed ${REVISION} by ${DEPLOY_USER}"}"
@@ -63,6 +68,11 @@ CHANGELOG="${CHANGELOG:-}"
 [ -n "$API_KEY" ] || warn_or_die "no credentials: set NEW_RELIC_API_KEY (user key NRAK-...)"
 command -v jq >/dev/null || warn_or_die "jq is required but not installed"
 VERSION="${VERSION:-${REVISION:0:8}}"
+
+# Prefer the deploy context's changelog (captured by whoosh at deploy:updating).
+if [ -z "$CHANGELOG" ] && [ -n "${DEPLOY_CHANGELOG:-}" ]; then
+	CHANGELOG="$(printf '%s\n' "$DEPLOY_CHANGELOG" | awk -F'|' '{print "  * " $2 ": " $4}')"
+fi
 
 # Same changelog lookup as the capistrano helper (helpers/send_deployment.rb).
 if [ -z "$CHANGELOG" ] && [ -n "${PREVIOUS_REVISION:-}" ] &&
