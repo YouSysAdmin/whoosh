@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      Capture failures (e.g. a force-push removed the previous SHA) warn and never fail the deploy.
  - Plugin SDK: `HostCommandCapturer` (`whoosh.HostCommandCapturerFrom`) - an action can capture command output from
    the first host its task targets, the capture counterpart to `HostCommandRunner`.
+ - `sensitiveEnv` template helper - an alias of `envSecret`, named for symmetry with `sensitive`.
  - Slack plugin (`1.1.0`):
    - I spied the idea of the Slack notification format in one of our project, it took a lot of changes,
      but they are all useful in one way or another :)

@@ -257,18 +257,21 @@ func secretFuncs() template.FuncMap {
 // os.Getenv alias - chained after sprigFuncs, last registration wins - and the tiny per-render map keeps the shared
 // sprigFuncs cache intact.
 //
-//	{{ env "APP_VERSION" }}       // process env, else global envs (task time), else env_files
-//	{{ envSecret "REG_TOKEN" }}   // like env, but the value is always redacted
+//	{{ env "APP_VERSION" }}          // process env, else global envs (task time), else env_files
+//	{{ envSecret "REG_TOKEN" }}      // like env, but the value is always redacted
+//	{{ sensitiveEnv "REG_TOKEN" }}   // alias of envSecret, named for symmetry with sensitive
 //
-// (Template function names can't contain '-', so it's envSecret, not env-sens.)
+// (Template function names can't contain '-', so it's envSecret/sensitiveEnv, not env-sens.)
 func envFuncs(c Context) template.FuncMap {
+	secret := func(name string) string {
+		v := c.lookupEnv(name)
+		masking.AddSecret(v)
+		return v
+	}
 	return template.FuncMap{
-		"env": c.lookupEnv,
-		"envSecret": func(name string) string {
-			v := c.lookupEnv(name)
-			masking.AddSecret(v)
-			return v
-		},
+		"env":          c.lookupEnv,
+		"envSecret":    secret,
+		"sensitiveEnv": secret,
 	}
 }
 

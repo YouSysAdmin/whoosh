@@ -226,6 +226,36 @@ func TestEnvSecret_RegistersForRedaction(t *testing.T) {
 	}
 }
 
+// sensitiveEnv is an alias of envSecret: same value, same redaction registration, same env_files fallback.
+func TestSensitiveEnv_AliasOfEnvSecret(t *testing.T) {
+	const val = "tok_live_alias-not-a-known-pattern_112233"
+	t.Setenv("WHOOSH_TEST_SENSITIVE_ENV", val)
+
+	got, err := varstmpl.Render(`auth {{ sensitiveEnv "WHOOSH_TEST_SENSITIVE_ENV" }}`, varstmpl.Context{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "auth "+val {
+		t.Fatalf("sensitiveEnv should return the value, got %q", got)
+	}
+	if red := masking.String(got); strings.Contains(red, val) {
+		t.Errorf("sensitiveEnv value not redacted: %q", red)
+	}
+
+	// The env_files fallback applies like envSecret's.
+	c := varstmpl.Context{EnvFileValues: map[string]string{"WHOOSH_TEST_SENSITIVE_ENV_FILE": "from-file-secret"}}
+	got, err = varstmpl.Render(`{{ sensitiveEnv "WHOOSH_TEST_SENSITIVE_ENV_FILE" }}`, c)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got != "from-file-secret" {
+		t.Fatalf("sensitiveEnv env_files fallback = %q, want from-file-secret", got)
+	}
+	if red := masking.String(got); strings.Contains(red, "from-file-secret") {
+		t.Errorf("env_files-sourced value not redacted: %q", red)
+	}
+}
+
 // env resolves from the process environment first, falling back to the context's env_files values.
 func TestRender_EnvFallsBackToEnvFileValues(t *testing.T) {
 	const name = "WHOOSH_TEST_ENVFILE_VAR"

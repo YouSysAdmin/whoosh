@@ -366,9 +366,9 @@ sprig's `env` helper - handy for secrets you don't want in the Deployfile, e.g. 
 (`envs` differs from `vars`: `vars` are template values, while `envs` is the shell environment for commands.
 Note a value injected this way is visible in `--dry-run` output and the remote process list.)
 
-For a **secret** that must not appear in logs, use `envSecret` instead of `env` (or wrap any value with `sensitive`):
-it returns the value for use in the command but registers it so whoosh masks it everywhere - the echoed command,
-output, dry-run plans, logs:
+For a **secret** that must not appear in logs, use `envSecret` (alias: `sensitiveEnv`) instead of `env` (or wrap any
+value with `sensitive`): it returns the value for use in the command but registers it so whoosh masks it everywhere -
+the echoed command, output, dry-run plans, logs:
 
   ```yaml
   cmds:

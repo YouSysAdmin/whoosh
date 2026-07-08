@@ -71,10 +71,11 @@ recognize would still print.
 To force masking, mark it sensitive - the value is used in the command but shown as `[FILTERED]` everywhere (echo,
 output, dry-run, logs):
 
-| Helper                   | Use                                           |
-|--------------------------|-----------------------------------------------|
-| `{{ envSecret "NAME" }}` | Like `env`, but the value is always redacted. |
-| `{{ sensitive .value }}` | Mark any var/expression sensitive.            |
+| Helper                      | Use                                           |
+|-----------------------------|-----------------------------------------------|
+| `{{ envSecret "NAME" }}`    | Like `env`, but the value is always redacted. |
+| `{{ sensitiveEnv "NAME" }}` | Alias of `envSecret` (identical behavior).    |
+| `{{ sensitive .value }}`    | Mark any var/expression sensitive.            |
 
 ```yaml
 cmds:
