@@ -217,6 +217,11 @@ hosts:
 This pairs with dynamic inventory: a plugin can discover a whole fleet and flag which hosts to deploy to (see the
 `aws:ec2:inventory` `deploy_tag` below).
 
+A host may also be marked **`primary: true`** - the preferred host for single-host work. A `once:` task and the
+deploy lock (plus the previous-revision read) pick the first primary-marked host among their candidates, falling
+back to the first candidate when none is marked. Useful when the host order is not under your control (e.g. a
+plugin-discovered inventory) and the lock holder should stay deterministic.
+
 Two task flags change which hosts a task targets, relative to the default (deploy-enabled hosts):
 
 - **`non_deploy: true`** - target *only* the `deploy:false` hosts (the inverse of normal targeting).
@@ -273,7 +278,8 @@ hosts:
 ### Task fields
 
 `desc`, `cmds`, `scripts`, `deps`, `dir`, `envs`, `silent`, plus deploy extras: `roles` (target hosts), `local` (run
-on your machine), `once` (one host per role), `non_deploy` / `all_hosts` (target deploy:false / every host - above),
+on your machine), `once` (one host per role - the `primary: true` host if one is marked, else the first matched),
+`non_deploy` / `all_hosts` (target deploy:false / every host - above),
 `strict_host_key` (override `ssh.strict_host_key` for this task), `continue_on_error`, `hidden`, `only`/`except`
 (per-stage activation - below), `replace`, `output` (capture state - below).
 A task's `cmds` run first, then its `scripts`.

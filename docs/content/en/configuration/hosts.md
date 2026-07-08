@@ -25,6 +25,7 @@ hosts:
 | `user` / `port` / `identity_file` | Per-host SSH overrides.                                                                              |
 | `identity_file_passphrase`        | Decrypts this host's encrypted `identity_file` (templatable, redacted everywhere).                   |
 | `local`                           | Run on the operator's machine via the local shell - see [local mode](#local-execution-mode).         |
+| `primary`                         | Preferred host for single-host work: `once:` tasks and the deploy lock pick the first marked host among their candidates, else the first candidate. |
 | `deploy`                          | `false` keeps the host in inventory without deploying - see [below](#inventory-vs-deploy-targets).   |
 | `required`                        | `true` makes its unreachability always fatal - see [unreachable](#unreachable-hosts-on_unreachable). |
 
