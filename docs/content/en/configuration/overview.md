@@ -119,6 +119,7 @@ that references them.
 | Field            | Type           | Description                                                                                                    |
 |------------------|----------------|----------------------------------------------------------------------------------------------------------------|
 | `version`        | string         | Schema version marker (use `"1"`).                                                                             |
+| `description`    | string         | Short human-readable summary. In a stage file it labels the stage - `whoosh stages` shows it next to the name. |
 | `include`        | string or list | Other config files to merge underneath this one - see [include](#sharing-config-between-stages).               |
 | `app`            | map            | The application and where it lives, including `keep_releases` - see [app](#app).                               |
 | `linked_files`   | list           | Files symlinked from `shared/` into every release - see [Linked files & dirs](/configuration/linked-files/).   |

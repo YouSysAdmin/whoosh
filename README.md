@@ -39,7 +39,8 @@ whoosh production deploy         # build + publish a release
 whoosh production deploy:rollback
 ```
 
-The command shape is **`whoosh <stage> <action>`**.
+The command shape is **`whoosh <stage> <action>`**. Run `whoosh stages` to list the available stages - each shown
+with the stage file's root `description:` (when set).
 
 ## Configuration
 

@@ -13,7 +13,7 @@ whoosh <stage> <action> [flags]
 
 The **stage** is the name of a `deploy/<stage>.yml` file (it's just data, so any file you add becomes a usable stage).
 The **action** is a built-in command, or the name of a task from your Deployfile.
-The stage-less commands are `whoosh init`, `whoosh version`, `whoosh plugins`, and `whoosh build`.
+The stage-less commands are `whoosh init`, `whoosh stages`, `whoosh version`, `whoosh plugins`, and `whoosh build`.
 
 ## Commands
 
@@ -22,6 +22,7 @@ The stage-less commands are `whoosh init`, `whoosh version`, `whoosh plugins`, a
 | `whoosh init`                                | Scaffold `Whooshfile.yml`, `whoosh/<stage>.yml` files, and `whoosh/scripts/` (the `Deployfile.yml` + `deploy/` spelling is also accepted). |
 | `whoosh version`                             | Print the version (and the compiled-in plugin versions).                                                                                   |
 | `whoosh plugins`                             | List the plugins compiled into this binary.                                                                                                |
+| `whoosh stages`                              | List the available stages, each with the stage file's root `description:` (when set).                                                     |
 | `whoosh build`                               | Compose a custom binary with extra plugin modules - see [Installation -> With custom plugins](/installation/custom-plugins/).              |
 | `whoosh <stage> deploy`                      | Build and publish a new release.                                                                                                           |
 | `whoosh <stage> deploy:rollback [--cleanup]` | Repoint `current` at the previous release (`--cleanup` removes the rolled-back release).                                                   |
