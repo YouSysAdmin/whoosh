@@ -21,7 +21,6 @@ func NewCommand() *cobra.Command {
 	f.StringVar(&opts.whooshVersion, "whoosh-version", "latest", "whoosh module version to build against")
 	f.StringVar(&opts.appVersion, "app-version", "", "version string embedded in the binary (defaults to --whoosh-version)")
 	f.StringVar(&opts.tags, "tags", "", `extra go build tags`)
-	f.BoolVar(&opts.noStandard, "no-standard", false, "omit whoosh bundled (standard) plugins")
 	f.StringVar(&opts.goBin, "go", "go", "path to the go toolchain")
 	f.BoolVar(&opts.keep, "keep", false, "keep the temporary build directory")
 	f.BoolVar(&opts.verbose, "verbose", false, "print the go commands as they run")

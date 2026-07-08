@@ -58,9 +58,9 @@ whoosh build \
 ./whoosh plugins        # lists the compiled-in plugins
 ```
 
-To ship a plugin **inside the whoosh binary by default** instead (a "standard" plugin), move the package under
-`plugins/standard/<name>` in the whoosh repo (root module - drop the `go.mod`), register with
-`whoosh.RegisterDefault`, and blank-import it from `plugins/standard/standard.go`.
+To ship a plugin **inside the whoosh binary by default** instead (a "core" plugin), move the package under
+`plugins/core/<name>` in the whoosh repo (root module - drop the `go.mod`), register with
+`whoosh.RegisterDefault`, and blank-import it from `plugins/core/core.go`.
 
 ## The full config surface (as-is)
 

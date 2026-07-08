@@ -7,8 +7,8 @@ a custom message.
 
 ## Install
 
-The plugin is its own module (`github.com/yousysadmin/whoosh/plugins/slack`) and is **not** in the default binary -
-build a binary that includes it with the `whoosh build` subcommand:
+The plugin is its own module (`github.com/yousysadmin/whoosh/plugins/slack`). It ships in the default `whoosh`
+binary but not in `whoosh-core` - build a core-based binary that includes it with the `whoosh build` subcommand:
 
 ```sh
 whoosh build --with github.com/yousysadmin/whoosh/plugins/slack -o ./whoosh

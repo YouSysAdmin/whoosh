@@ -6,7 +6,7 @@ weight: 30
 
 Notifications to a Slack via [Slack incoming webhook](https://api.slack.com/messaging/webhooks)
 
-## Build with Slack plugin
+The plugin ships in the default `whoosh` binary. If you use `whoosh-core`, add it to a custom build:
 
 ```sh
 whoosh build --with github.com/yousysadmin/whoosh/plugins/slack -o ./whoosh

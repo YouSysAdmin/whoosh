@@ -4,11 +4,12 @@ description: "The AWS plugin - EC2 inventory, ASG refresh/rollback, AMI create/c
 weight: 10
 ---
 
-The `aws` plugin is a separate module, compiled into the binary with `whoosh build`.
+The `aws` plugin is a separate module. It ships in the default `whoosh` binary - if you use
+`whoosh-core`, add it with a custom build.
 General plugin configuration - declaring plugins, action tasks, `enabled`/`only`/`except`, templated params, custom
 phases - is covered in the [Plugins overview](/plugins/overview/), this page is the `aws`-specific reference.
 
-## Build with AWS plugin
+## Build a custom binary with the AWS plugin
 ```sh
 whoosh build --with github.com/yousysadmin/whoosh/plugins/aws
 ```

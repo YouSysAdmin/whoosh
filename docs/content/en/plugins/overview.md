@@ -19,9 +19,10 @@ plugins:
         params: { tags: { App: [ myapp ] } }
 ```
 
-Bundled plugins (like the default-on `print-hosts-table` and [`systemd`](/plugins/systemd/)) are in every binary, the separate plugin modules
-([`aws`](/plugins/aws/), [`slack`](/plugins/slack/), [`rbenv`](/plugins/rbenv-p/)) are compiled in with
-`whoosh build --with ...` - see [Installation -> With custom plugins](/installation/custom-plugins/).
+Core plugins (like the default-on `print-hosts-table` and [`systemd`](/plugins/systemd/)) are in every binary.
+The separate plugin modules ([`aws`](/plugins/aws/), [`slack`](/plugins/slack/), [`rbenv`](/plugins/rbenv-p/)) ship
+in the default `whoosh` binary but not in `whoosh-core` - add them to a core-based custom build with
+`whoosh build --with ...` (see [Installation -> With custom plugins](/installation/custom-plugins/)).
 To write your own, see [Developing](/plugins/developing/).
 
 This page covers the config every plugin shares, each plugin's own params and actions are on its page.

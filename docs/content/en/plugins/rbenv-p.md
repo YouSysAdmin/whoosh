@@ -8,7 +8,7 @@ Installs and wires up [rbenv](https://github.com/rbenv/rbenv) (+ [ruby-build](ht
 on the deploy hosts, ensures the Ruby versions your app needs are built, and makes
 rbenv available to every subsequent whoosh task — all before the new release goes live.
 
-## Build with Rbenv plugin
+The plugin ships in the default `whoosh` binary. If you use `whoosh-core`, add it to a custom build:
 ```sh
 whoosh build --with github.com/yousysadmin/whoosh/plugins/rbenv
 ```

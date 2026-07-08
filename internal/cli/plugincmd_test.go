@@ -7,7 +7,7 @@ import (
 
 	// Register the default-on print-hosts-table plugin so its deploy:hosts command is discoverable here, exercising the
 	// plugins-command wiring end to end.
-	_ "github.com/yousysadmin/whoosh/plugins/standard/print_hosts_table"
+	_ "github.com/yousysadmin/whoosh/plugins/core/print_hosts_table"
 )
 
 func TestHostsNoLongerReserved(t *testing.T) {

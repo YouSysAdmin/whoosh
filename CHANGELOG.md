@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+ - Release binaries:
+   - whoosh - contains all plugins
+   - whoosh-core - only core plugins (print-host and systemd at the moment) and recommended for build your own binary
+
 ### Added
  - New deploy-context keys:
    - `{{.deployer}}` / `$DEPLOYER` - who runs whoosh: the `DEPLOYER` env var, else `git config user.name`,
@@ -30,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      Best-effort - never fails the deploy.
    - `deployer_github_lookup: true` - resolve a login-shaped deployer (e.g. `GITHUB_ACTOR`) to their GitHub display name
      in the rich User field.
+   - Releases RPM/DEB/APK packages and Brew formula
 
 ### Fixed
  - Verbose logging: 

@@ -6,17 +6,18 @@ icon: rocket
 ---
 
 Plugins are compiled **into** the binary.
-To add a plugin - whoosh's own **AWS plugin**, or your private/third-party ones - build a custom binary with the
-**`whoosh build`** command: it bundles whoosh's standard plugins plus each module you name.
-Requires the **Go toolchain** on `PATH`.
+The default `whoosh` binary already ships all in-tree plugins (aws, slack, rbenv + the core set).
+To bundle your **private or third-party** plugins - or compose a leaner set on top of the core - build
+a custom binary with the **`whoosh build`** command: it starts from the core (whoosh's core plugins)
+plus each module you name. Requires the **Go toolchain** on `PATH`.
 
-The AWS plugin is kept out of the default binary (it pulls the ~57 MB AWS SDK), so it's added the same way as any
-external plugin: `--with github.com/yousysadmin/whoosh/plugins/aws`.
+The in-tree plugin modules are added the same way as any external plugin, e.g.
+`--with github.com/yousysadmin/whoosh/plugins/aws`.
 
 ## Build
 
 ```sh
-# `whoosh build` ships in the whoosh binary (go install github.com/yousysadmin/whoosh/cmd/whoosh@latest)
+# `whoosh build` ships in every whoosh binary (go install github.com/yousysadmin/whoosh/cmd/whoosh-core@latest)
 whoosh build \
   --with github.com/yousysadmin/whoosh/plugins/aws \
   --with github.com/acme/private-plugins@v1.2.0 \
@@ -32,7 +33,7 @@ whoosh build \
 | `--with module[@version]`  | A plugin module to include (repeatable).                                                                                                   |
 | `--replace old=./path`     | Build a module from a local checkout (repeatable). Also how you build against a local whoosh: `--replace github.com/yousysadmin/whoosh=.`. |
 | `-o, --output`             | Output binary path (default `whoosh`).                                                                                                     |
-| `--no-standard` / `--tags` | Drop the bundled plugins / pass extra go build tags.                                                                                       |
+| `--tags`                   | Extra go build tags for the compile.                                                                                                       |
 | `--whoosh-version`         | The whoosh version to build against (default `latest`).                                                                                    |
 
 Building against local checkouts of both whoosh and your plugin:

@@ -1,9 +1,9 @@
 # Whoosh AWS Plugin
 
-An AWS plugin ships as a **separate module** (`github.com/yousysadmin/whoosh/plugins/aws`) - it's not in the default
-binary (it would pull the ~57 MB AWS SDK).
-Add it with a custom build (`whoosh build --with github.com/yousysadmin/whoosh/plugins/aws`), then list it under
-`plugins:`. Listing it activates the plugin and all its features.
+An AWS plugin ships as a **separate module** (`github.com/yousysadmin/whoosh/plugins/aws`). It is in the default
+`whoosh` binary but not in `whoosh-core` (it pulls the ~57 MB AWS SDK).
+Add it to a core-based custom build with `whoosh build --with github.com/yousysadmin/whoosh/plugins/aws`, then list
+it under `plugins:`. Listing it activates the plugin and all its features.
 They share one connection (region + credentials) set in the global `params`, and per-feature config goes under
 `actions:`. Each action is named `<feature>:<action>` (e.g. `aws:ec2:asg:refresh`).
 Use `only:`/`except:` to limit the plugin to specific stages - when it's inactive for a stage, its action tasks are

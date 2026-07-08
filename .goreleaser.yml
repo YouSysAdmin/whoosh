@@ -5,8 +5,8 @@ project_name: whoosh
 before:
   hooks:
     - go mod download
-    # The AWS-enabled binary is built from the cmd/whoosh-aws module.
-    - go mod download -C cmd/whoosh-aws
+    # The default (all plugins) binary is built from the cmd/whoosh module.
+    - go mod download -C cmd/whoosh
 
 release:
   prerelease: "false"
@@ -15,8 +15,12 @@ env:
   - CGO_ENABLED=0
 
 builds:
+  # Default binary with all bundled plugins.
+  # Built from the cmd/whoosh module (its go.mod replaces the core + all plugins to the local checkout),
+  # The ldflag target resolves to the core module via that replace.
   - id: linux
-    main: ./cmd/whoosh
+    dir: cmd/whoosh
+    main: .
     binary: whoosh
     goos:
       - linux
@@ -30,7 +34,8 @@ builds:
 
   # macOS, Apple Silicon (arm64).
   - id: darwin
-    main: ./cmd/whoosh
+    dir: cmd/whoosh
+    main: .
     binary: whoosh
     goos:
       - darwin
@@ -41,12 +46,9 @@ builds:
     ldflags:
       - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
 
-  # AWS-enabled binary - same entrypoint as cmd/whoosh, plus the aws plugin.
-  # Built from the cmd/whoosh-aws module (its go.mod replaces the core + aws plugin to the local checkout), so the AWS
-  # SDK stays out of the root module. The ldflag target resolves to the core module via that replace.
-  - id: aws-linux
-    dir: cmd/whoosh-aws
-    main: .
+  # Core binary - only the core plugins, built from the root module.
+  - id: core-linux
+    main: ./cmd/whoosh-core
     binary: whoosh
     goos:
       - linux
@@ -58,9 +60,8 @@ builds:
     ldflags:
       - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
 
-  - id: aws-darwin
-    dir: cmd/whoosh-aws
-    main: .
+  - id: core-darwin
+    main: ./cmd/whoosh-core
     binary: whoosh
     goos:
       - darwin
@@ -72,7 +73,7 @@ builds:
       - -s -w -X github.com/yousysadmin/whoosh/internal/version.Version={{ .Version }}
 
 archives:
-  # whoosh_* archives - the default binary (no AWS plugins).
+  # whoosh_* archives - the default binary (all plugins).
   - id: default
     ids:
       - linux
@@ -88,18 +89,49 @@ archives:
       - goos: windows
         formats: ['zip']
 
-  # whoosh-aws_* archives - the AWS-enabled binary (binary inside is still named `whoosh`).
-  - id: aws
+  # whoosh-core_* archives (binary inside is still named `whoosh`).
+  - id: core
     ids:
-      - aws-linux
-      - aws-darwin
+      - core-linux
+      - core-darwin
     name_template: >-
-      whoosh-aws_v{{ .Version }}_
+      whoosh-core_v{{ .Version }}_
       {{- .Os }}_
       {{- if eq .Arch "amd64" }}amd64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+# Linux packages for the default (all plugins) binary.
+nfpms:
+  - ids: [linux]
+    file_name_template: 'whoosh_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    maintainer: YouSysAdmin
+    homepage: https://github.com/YouSysAdmin/whoosh
+    description: A single-binary deployment tool
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    section: utils
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/doc/whoosh/copyright
+        file_info:
+          mode: 0644
+
+# Homebrew formula for the default (all plugins) binary, published to the YouSysAdmin/homebrew-apps tap.
+brews:
+  - ids: [default]
+    repository:
+      owner: YouSysAdmin
+      name: homebrew-apps
+    directory: Formula
+    homepage: https://github.com/YouSysAdmin/whoosh
+    description: A single-binary deployment tool
+    license: MIT
 
 checksum:
   name_template: "checksums.sha256"
@@ -115,7 +147,7 @@ changelog:
       - "^test:"
 
 dockers:
-  # linux/amd64
+  # Default (all plugins) image, linux/amd64
   - ids: [linux]
     image_templates:
       - ghcr.io/yousysadmin/whoosh:{{ .Version }}-amd64
@@ -126,7 +158,7 @@ dockers:
       - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
       - --label=org.opencontainers.image.version={{ .Version }}
 
-  # linux/arm64
+  # Default (all plugins) image, linux/arm64
   - ids: [linux]
     image_templates:
       - ghcr.io/yousysadmin/whoosh:{{ .Version }}-arm64
@@ -137,27 +169,27 @@ dockers:
       - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
       - --label=org.opencontainers.image.version={{ .Version }}
 
-  # AWS-enabled image, linux/amd64 - built from the aws-linux build (whoosh + aws plugin).
-  - ids: [aws-linux]
+  # Core image, linux/amd64 - only the core plugins.
+  - ids: [core-linux]
     image_templates:
-      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-core-amd64
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
       - --platform=linux/amd64
       - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
-      - --label=org.opencontainers.image.version={{ .Version }}-aws
+      - --label=org.opencontainers.image.version={{ .Version }}-core
 
-  # AWS-enabled image, linux/arm64
-  - ids: [aws-linux]
+  # Core image, linux/arm64
+  - ids: [core-linux]
     image_templates:
-      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-arm64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-core-arm64
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
       - --platform=linux/arm64
       - --label=org.opencontainers.image.source=https://github.com/YouSysAdmin/whoosh
-      - --label=org.opencontainers.image.version={{ .Version }}-aws
+      - --label=org.opencontainers.image.version={{ .Version }}-core
 
 docker_manifests:
   - name_template: ghcr.io/yousysadmin/whoosh:{{ .Version }}
@@ -169,12 +201,12 @@ docker_manifests:
       - ghcr.io/yousysadmin/whoosh:{{ .Version }}-amd64
       - ghcr.io/yousysadmin/whoosh:{{ .Version }}-arm64
 
-  # AWS-enabled multi-arch manifest - tagged {{ .Version }}-aws (and latest-aws).
-  - name_template: ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws
+  # Core multi-arch manifest - tagged {{ .Version }}-core (and latest-core).
+  - name_template: ghcr.io/yousysadmin/whoosh:{{ .Version }}-core
     image_templates:
-      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-amd64
-      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-arm64
-  - name_template: ghcr.io/yousysadmin/whoosh:latest-aws
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-core-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-core-arm64
+  - name_template: ghcr.io/yousysadmin/whoosh:latest-core
     image_templates:
-      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-amd64
-      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-aws-arm64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-core-amd64
+      - ghcr.io/yousysadmin/whoosh:{{ .Version }}-core-arm64

@@ -9,17 +9,19 @@ Every [release](https://github.com/YouSysAdmin/whoosh/releases) publishes a preb
 `checksums.sha256` file - no toolchain needed.
 Your target hosts still need `git`, `tar`, a POSIX shell, and SSH (see [Requirements](/installation/#requirements)).
 
-Each release (`v{VERSION}`) ships these archives.
+Each release (`v{VERSION}`) ships two flavors per platform:
 
-| Platform                             | AWS-free archive                        | AWS-enabled archive                         |
-|--------------------------------------|-----------------------------------------|---------------------------------------------|
-| Linux x86-64 - `linux_amd64`         | `whoosh_v{VERSION}_linux_amd64.tar.gz`  | `whoosh-aws_v{VERSION}_linux_amd64.tar.gz`  |
-| Linux ARM64 - `linux_arm64`          | `whoosh_v{VERSION}_linux_arm64.tar.gz`  | `whoosh-aws_v{VERSION}_linux_arm64.tar.gz`  |
-| macOS Apple Silicon - `darwin_arm64` | `whoosh_v{VERSION}_darwin_arm64.tar.gz` | `whoosh-aws_v{VERSION}_darwin_arm64.tar.gz` |
+- **`whoosh`** - the default binary with all in-tree plugins (aws, slack, rbenv + the core set)
+- **`whoosh-core`** - a light binary with only the core plugins
 
+| Platform                             | Default archive (all plugins)           | Core archive (core plugins only)             |
+|--------------------------------------|-----------------------------------------|----------------------------------------------|
+| Linux x86-64 - `linux_amd64`         | `whoosh_v{VERSION}_linux_amd64.tar.gz`  | `whoosh-core_v{VERSION}_linux_amd64.tar.gz`  |
+| Linux ARM64 - `linux_arm64`          | `whoosh_v{VERSION}_linux_arm64.tar.gz`  | `whoosh-core_v{VERSION}_linux_arm64.tar.gz`  |
+| macOS Apple Silicon - `darwin_arm64` | `whoosh_v{VERSION}_darwin_arm64.tar.gz` | `whoosh-core_v{VERSION}_darwin_arm64.tar.gz` |
+
+The binary inside both archives is named `whoosh` - confirm what a binary contains with `whoosh plugins`.
 Intel macOS (`darwin_amd64`) isn't prebuilt - [build from source](../from-source/) there.
-For any **other** plugin (or your own), compile a binary with `whoosh build` -
-see [Need the AWS plugin?](#need-the-aws-plugin) below.
 
 ## Download and install
 
@@ -41,21 +43,43 @@ tar -xzf whoosh.tar.gz whoosh
 install -m 0755 whoosh /usr/local/bin/whoosh   # or anywhere on $PATH
 ```
 
-## Need the AWS plugin?
+For the core flavor, swap the `whoosh_` prefix for `whoosh-core_` in the archive name.
 
-The AWS plugin (`aws:*` - EC2 inventory, ASG/AMI, SSM/Secrets) is prebuilt: download the **`whoosh-aws_*`** archive for
-your platform (same steps as above, swapping the `whoosh_` prefix for `whoosh-aws_`) and you get a `whoosh` binary with
-`aws:*` baked in - confirm with `whoosh plugins` (it lists `aws`).
+## Homebrew
 
-For **any other** plugin (third-party or your own), or to combine several, compile a binary with `whoosh build`:
+The default (all plugins) binary is published to the `YouSysAdmin/homebrew-apps` tap for macOS
+(Apple Silicon) and Linux:
 
 ```sh
-# `whoosh build` ships in every whoosh binary (go install github.com/yousysadmin/whoosh/cmd/whoosh@latest)
-whoosh build --with github.com/yousysadmin/whoosh/plugins/aws -o ./whoosh
+brew install yousysadmin/apps/whoosh
+```
+
+## Linux packages
+
+Each release also attaches `deb`, `rpm`, and `apk` packages of the default (all plugins) binary,
+named `whoosh_v{VERSION}_linux_<arch>.<format>`:
+
+```sh
+dpkg -i whoosh_v${VERSION}_linux_amd64.deb        # Debian/Ubuntu
+rpm -i whoosh_v${VERSION}_linux_amd64.rpm         # RHEL/Fedora
+apk add --allow-untrusted whoosh_v${VERSION}_linux_amd64.apk   # Alpine
+```
+
+## Need a smaller binary or a custom plugin set?
+
+The `whoosh-core_*` archives skip the separate plugin modules (the AWS SDK alone is ~57 MB of source),
+leaving only the core plugins - a good fit for simple deploys.
+
+For a third-party or private plugin, or to combine a custom set on top of the core, compile a binary
+with `whoosh build`:
+
+```sh
+# `whoosh build` ships in every whoosh binary
+whoosh build --with github.com/acme/private-plugins@v1.2.0 -o ./whoosh
 ```
 
 See [With custom plugins](../custom-plugins/) for details.
-On an AWS-free binary, a `Deployfile` that references the `aws` plugin fails fast with `unknown plugin "aws" (not
+A `Deployfile` that references a plugin not built into the binary fails fast with `unknown plugin "aws" (not
 built into this binary)`.
 
 ## Container image
@@ -63,7 +87,8 @@ built into this binary)`.
 Multi-arch images (amd64 + arm64) are published to GitHub Container Registry:
 
 ```sh
-docker pull ghcr.io/yousysadmin/whoosh:latest        # or a specific tag, e.g. :1.0.0
+docker pull ghcr.io/yousysadmin/whoosh:latest        # all plugins - or a specific tag, e.g. :1.0.0
+docker pull ghcr.io/yousysadmin/whoosh:latest-core   # core plugins only, e.g. :1.0.0-core
 
 # mount your project (the Deployfile lives in /work) and your SSH agent:
 docker run --rm -it \
@@ -73,9 +98,9 @@ docker run --rm -it \
 ```
 
 The image is Alpine-based and includes `git`, `tar`, an SSH client, and CA certificates, so it works for both remote
-deploys and [local mode](/configuration/hosts/#local-execution-mode). It packages the AWS-free binary.
-For the `aws:*` features in a container, build an image `FROM` your own custom-built binary (see [With custom
-plugins](../custom-plugins/)).
+deploys and [local mode](/configuration/hosts/#local-execution-mode). `:latest` packages the default (all plugins)
+binary, `:latest-core` the core one. For a custom plugin set in a container, build an image `FROM` your own
+custom-built binary (see [With custom plugins](../custom-plugins/)).
 
 ## Verify
 

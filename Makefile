@@ -11,39 +11,30 @@ BIN  := $(DIST_DIR)/$(BIN_NAME)
 # Separate go modules in this repo: `go test ./...` stops at go.mod boundaries, so each needs its own run.
 PLUGIN_MODULES := plugins/aws plugins/rbenv plugins/slack
 
-.PHONY: all build build-aws build-minimal run test test-v vet fmt lint schema clean help
+.PHONY: all build build-core run test test-v vet fmt lint schema clean help
 
 ## all: Show help (default)
 all: help
 
-## build: Build the whoosh binary - no AWS plugins (pass TAGS="noplugins" to drop the bundled plugins)
+## build: Build the default whoosh binary with all plugins (from the cmd/whoosh module)
 build:
-	go build $(GOFLAGS) $(GO_TAGS) -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/whoosh
+	go build -C cmd/whoosh $(GOFLAGS) $(GO_TAGS) -ldflags '$(LDFLAGS)' -o $(CURDIR)/$(BIN) .
 
-## build-aws: Build a binary WITH the AWS plugins, via `whoosh build` against the local checkout
-## (releases also ship whoosh-aws_* archives, built by goreleaser from the cmd/whoosh-aws module)
-build-aws:
-	go run ./cmd/whoosh build \
-	  --replace github.com/yousysadmin/whoosh=$(CURDIR) \
-	  --with github.com/yousysadmin/whoosh/plugins/aws \
-	  --replace github.com/yousysadmin/whoosh/plugins/aws=$(CURDIR)/plugins/aws \
-	  -o $(CURDIR)/$(BIN)
-
-## build-minimal: Build without any plugins (smaller still)
-build-minimal:
-	go build $(GOFLAGS) -tags noplugins -ldflags '$(LDFLAGS)' -o $(BIN)-minimal ./cmd/whoosh
+## build-core: Build the core binary - only the core plugins
+build-core:
+	go build $(GOFLAGS) $(GO_TAGS) -ldflags '$(LDFLAGS)' -o $(BIN)-core ./cmd/whoosh-core
 
 
 ## run: Run in CLI mode (pass ARGS="..." for extra flags)
 run: build
 	$(BIN) $(ARGS)
 
-## test: Run all tests (root + plugin modules; also proves cmd/whoosh-aws compiles)
+## test: Run all tests (root + plugin modules; also proves cmd/whoosh compiles)
 test:
 	go test ./...
 	@for m in $(PLUGIN_MODULES); do echo "== $$m"; (cd $$m && go test ./...) || exit 1; done
-	@echo "== cmd/whoosh-aws (build only)"
-	@cd cmd/whoosh-aws && go build -o /dev/null .
+	@echo "== cmd/whoosh (build only)"
+	@cd cmd/whoosh && go build -o /dev/null .
 
 ## test-v: Run all tests with verbose output (root + plugin modules)
 test-v:

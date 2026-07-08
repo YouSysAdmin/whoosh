@@ -416,7 +416,7 @@ see above.)
 ## Building a binary with your plugin
 
 Plugins compile in.
-The `whoosh build` command composes a custom binary from the standard plugins plus your `--with` modules (it needs the
+The `whoosh build` command composes a custom binary from the core plugins plus your `--with` modules (it needs the
 Go toolchain on `PATH`):
 
 ```sh
@@ -436,7 +436,6 @@ whoosh build \
 | `--whoosh-version`              | The whoosh version to build against (default `latest`).                                                                                    |
 | `--app-version`                 | Version string embedded in the binary (default: `--whoosh-version`).                                                                       |
 | `--tags`                        | Extra go build tags for the compile.                                                                                                       |
-| `--no-standard`                 | Omit the bundled (standard) plugins, including only `--with` modules.                                                                      |
 | `--go` / `--keep` / `--verbose` | Go toolchain path / keep the temp build dir / print the go commands.                                                                       |
 
 Building against a local checkout of both whoosh and your plugin:

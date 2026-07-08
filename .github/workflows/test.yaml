@@ -24,12 +24,13 @@ jobs:
       fail-fast: false
       matrix:
         # Each entry is a separate go module (go test ./... stops at go.mod boundaries).
-        # cmd/whoosh-aws is build-only: it is the goreleaser composition module and has no tests.
+        # cmd/whoosh is build-only: it is the goreleaser composition module and has no tests.
         include:
           - { module: ".", test: true }
           - { module: "plugins/aws", test: true }
           - { module: "plugins/rbenv", test: true }
-          - { module: "cmd/whoosh-aws", test: false }
+          - { module: "plugins/slack", test: true }
+          - { module: "cmd/whoosh", test: false }
     defaults:
       run:
         working-directory: ${{ matrix.module }}

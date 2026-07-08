@@ -11,18 +11,27 @@ scripts).
 
 ## Install / build
 
+Two flavors ship from releases:
+
+- **`whoosh`** - the default binary with all in-tree plugins (aws, slack, rbenv + the core set)
+- **`whoosh-core`** - a light binary with only the core plugins, good for simple deploys and
+  as the base for custom builds (`whoosh build --with ...`)
+
 ```sh
-go build -o whoosh ./cmd/whoosh                 # the whoosh binary (no AWS plugins)
-go build -tags noplugins -o whoosh ./cmd/whoosh # drop the bundled plugins
+brew install yousysadmin/apps/whoosh                          # the default binary via Homebrew (macOS/Linux)
+make build                                                    # the default whoosh binary (all plugins)
+go install github.com/yousysadmin/whoosh/cmd/whoosh-core@latest # the core binary via go install
+go build -o whoosh-core ./cmd/whoosh-core                     # the core binary from a checkout
 ```
 
-The AWS plugin links the AWS SDK v2 (~57 MB) and lives in its **own module**
-(`github.com/yousysadmin/whoosh/plugins/aws`) - add it with a custom build (see below).
-A `Deployfile` that references a plugin not built into the binary fails fast with
+Releases also attach `deb`/`rpm`/`apk` packages of the default binary.
+
+The AWS plugin links the AWS SDK v2 (~57 MB), which is the main size difference between the
+flavors. A `Deployfile` that references a plugin not built into the binary fails fast with
 `unknown plugin "aws" (not built into this binary)`.
 
-`make build` builds the binary, `make build-aws` builds one **with** the AWS plugin (via `whoosh build`), and `make
-build-minimal` builds with no bundled plugins.
+`make build` builds the default binary (from the `cmd/whoosh` module), `make build-core` builds
+the core one.
 
 Run `whoosh plugins` (or `whoosh version`) to see which plugins a binary contains.
 
@@ -454,14 +463,14 @@ Each one validates its params on load (`Configure`) and registers what it contri
 - a **startup hook** - runs at load and can append to `hosts:` (dynamic inventory), or
 - one or more **actions** - invoked by name from a task or hook.
 
-**Bundled** (in every binary, on by default - disable with `enabled: false`):
+**Core** (in both `whoosh` and `whoosh-core`, on by default - disable with `enabled: false`):
 
 | Plugin              | What it does                                                                                                                              | Docs                                                   |
 |---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| `print-hosts-table` | Prints the resolved hosts table at deploy start and via `whoosh <stage> deploy:hosts`                                                     | [README](plugins/standard/print_hosts_table/README.md) |
-| `systemd`           | `systemd:start/stop/restart/enable/disable/daemon-reload` actions run `systemctl` on the task's hosts, ad-hoc or hooked to a deploy phase | [README](plugins/standard/systemd/README.md)           |
+| `print-hosts-table` | Prints the resolved hosts table at deploy start and via `whoosh <stage> deploy:hosts`                                                     | [README](plugins/core/print_hosts_table/README.md) |
+| `systemd`           | `systemd:start/stop/restart/enable/disable/daemon-reload` actions run `systemctl` on the task's hosts, ad-hoc or hooked to a deploy phase | [README](plugins/core/systemd/README.md)           |
 
-**Separate modules** (compiled in with `whoosh build --with <module>`):
+**Separate modules** (in the default `whoosh` binary; add to a core-based custom build with `whoosh build --with <module>`):
 
 | Plugin  | What it does                                                                                         | Docs                              |
 |---------|------------------------------------------------------------------------------------------------------|-----------------------------------|
@@ -756,11 +765,11 @@ work.
 
 ## Custom-builds & writing plugins
 
-whoosh ships with its own ("standard") plugins, and you can build a binary that adds your own - private or third-party
+whoosh ships with its own ("core") plugins, and you can build a binary that adds your own - private or third-party
 plugins. The built-in `whoosh build` command composes a custom binary. It needs the Go toolchain on `PATH`.
 
 ```sh
-# `whoosh build` ships in the whoosh binary (go install github.com/yousysadmin/whoosh/cmd/whoosh@latest)
+# `whoosh build` ships in every flavor (e.g. go install github.com/yousysadmin/whoosh/cmd/whoosh-core@latest)
 
 whoosh build \
   --with github.com/yousysadmin/whoosh/plugins/aws \
@@ -768,17 +777,19 @@ whoosh build \
   -o ./whoosh
 ```
 
-The bundled AWS plugin is added the same way - `--with github.com/yousysadmin/whoosh/plugins/aws`.
+A custom build starts from the core (the core plugins are always built in) and
+adds the modules you list - the in-tree plugins (`plugins/aws`, `plugins/slack`, `plugins/rbenv`)
+are added the same way as third-party ones.
 
 > **Note:** fetching an *in-repo* plugin module (`plugins/aws`, `plugins/rbenv`, `plugins/slack`) at a specific `@version` requires a
 > subdirectory tag (e.g. `plugins/aws/v1.1.0`) to exist in the whoosh repo. Until such tags are published, bundle them
-> from a local checkout with `--replace` (exactly what `make build-aws` does). Third-party plugin repos are unaffected -
+> from a local checkout with `--replace`. Third-party plugin repos are unaffected -
 > their normal module tags work with `--with module@version`.
 
 - `--with module[@version]` - a plugin module to include (repeatable).
 - `--replace old=./local/path` - build a module from a local checkout (repeatable).
   This is also how you build against a local whoosh: `--replace github.com/yousysadmin/whoosh=.`.
-- `--no-standard` - omit the bundled plugins. `--tags` - extra go build tags.
+- `--tags` - extra go build tags.
 - `--whoosh-version` - the whoosh version to build against (default `latest`).
 
 Private modules use your normal Go auth (`GOPRIVATE` + `~/.netrc` or SSH `insteadOf`).

@@ -62,19 +62,16 @@ func TestReplaceHelpers(t *testing.T) {
 }
 
 func TestGenerateMain(t *testing.T) {
-	src := generateMain([]modVer{{path: "github.com/acme/x"}}, false)
+	src := generateMain([]modVer{{path: "github.com/acme/x"}})
 	for _, want := range []string{
 		`"github.com/yousysadmin/whoosh/entrypoint"`,
-		`_ "github.com/yousysadmin/whoosh/plugins/standard"`,
+		`_ "github.com/yousysadmin/whoosh/plugins/core"`,
 		`_ "github.com/acme/x"`,
 		`func main() { entrypoint.Main() }`,
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("generateMain missing %q in:\n%s", want, src)
 		}
-	}
-	if got := generateMain(nil, true); strings.Contains(got, "plugins/standard") {
-		t.Errorf("generateMain(noStandard) should omit plugins/standard:\n%s", got)
 	}
 }
 
