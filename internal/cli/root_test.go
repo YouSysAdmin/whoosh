@@ -22,6 +22,7 @@ func TestDetectStage(t *testing.T) {
 		{"bool root flag does not eat stage", []string{"--log-color", "prod", "deploy"}, "prod", true},
 		{"reserved init", []string{"init"}, "", false},
 		{"reserved version", []string{"version"}, "", false},
+		{"reserved stages", []string{"stages"}, "", false},
 		{"only flags", []string{"--help"}, "", false},
 		{"empty", nil, "", false},
 		// Cobra completion driver: detect the stage from the args being completed, so `whoosh <stage> <TAB>` registers the

@@ -55,6 +55,9 @@ func (s *StringList) UnmarshalYAML(value *yaml.Node) error {
 // and combined with Merge. After Load it represents the fully resolved config for one stage.
 type DeployFile struct {
 	Version string `yaml:"version,omitempty"` // Marker of Whooshfile, Deployfile schema version
+	// Description is a short human-readable summary of the file. In a stage file it labels the stage - `whoosh stages`
+	// shows it next to the stage name.
+	Description string `yaml:"description,omitempty"`
 	// Include lists other config files to merge underneath this one (require_relative style: paths resolve against this
 	// file's directory). Includes are layered in listed order with this file winning, then nested recursively.
 	// Resolved at load time; never present on the merged result.

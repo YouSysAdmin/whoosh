@@ -498,6 +498,10 @@
       "type": "string",
       "description": "Marker of Whooshfile, Deployfile schema version"
     },
+    "description": {
+      "type": "string",
+      "description": "Description is a short human-readable summary of the file. In a stage file it labels the stage - `whoosh stages`\nshows it next to the stage name."
+    },
     "include": {
       "oneOf": [
         {

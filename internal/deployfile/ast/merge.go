@@ -10,6 +10,9 @@ func Merge(base, override *DeployFile) *DeployFile {
 	if override.Version != "" {
 		out.Version = override.Version
 	}
+	if override.Description != "" {
+		out.Description = override.Description
+	}
 	if override.ScriptsDir != "" {
 		out.ScriptsDir = override.ScriptsDir
 	}

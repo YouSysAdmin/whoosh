@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 )
 
 // DefaultDeployfiles is the list of shared config-file names searched for, in order.
@@ -59,6 +61,59 @@ func Discover(dir, override string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no Deployfile found in %s (looked for %v)", dir, DefaultDeployfiles)
+}
+
+// StageInfo describes one available stage: its name, the stage file's path relative to the Deployfile's directory,
+// and the file's root `description:` (empty when the file has none or does not parse).
+type StageInfo struct {
+	Name        string
+	Path        string
+	Description string
+}
+
+// ListStages returns the stages available next to the Deployfile: every plain <stagedir>/<name>.<ext> file, with the
+// same StageDirs/stageExts precedence stagePath uses for a duplicate name. Subdirectories (shared fragments, scripts)
+// are ignored, missing stage dirs are skipped, and the result is sorted by name.
+// The description comes from the raw stage file alone (includes are not resolved); a file that fails to parse is
+// still listed, with an empty description, so one broken stage never hides the rest.
+func ListStages(deployfileDir string) ([]StageInfo, error) {
+	extRank := func(name string) int {
+		for i, ext := range stageExts {
+			if filepath.Ext(name) == ext {
+				return i
+			}
+		}
+		return -1
+	}
+	seen := map[string]bool{}
+	var stages []StageInfo
+	for _, sd := range StageDirs {
+		entries, err := os.ReadDir(filepath.Join(deployfileDir, sd))
+		if err != nil {
+			continue
+		}
+		// Within one dir, walk the extensions in stagePath's order so <stage>.yml wins over <stage>.yaml.
+		for _, rank := range []int{0, 1} {
+			for _, e := range entries {
+				if e.IsDir() || extRank(e.Name()) != rank {
+					continue
+				}
+				name := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+				if seen[name] {
+					continue
+				}
+				seen[name] = true
+				rel := filepath.Join(sd, e.Name())
+				info := StageInfo{Name: name, Path: rel}
+				if cfg, err := readConfig(filepath.Join(deployfileDir, rel)); err == nil {
+					info.Description = cfg.Description
+				}
+				stages = append(stages, info)
+			}
+		}
+	}
+	sort.Slice(stages, func(i, j int) bool { return stages[i].Name < stages[j].Name })
+	return stages, nil
 }
 
 // stagePath resolves <stagedir>/<stage>.<ext> relative to the directory containing the shared config file, trying each

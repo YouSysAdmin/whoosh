@@ -105,6 +105,7 @@ func newRootCmd(args []string) *cobra.Command {
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newPluginsCmd())
+	root.AddCommand(newStagesCmd())
 	root.AddCommand(builder.NewCommand())
 
 	// The stage is data, not a fixed command, so register it dynamically from the arguments and hang the action
@@ -122,6 +123,7 @@ var reservedFirstArgs = map[string]bool{
 	"completion": true,
 	"version":    true,
 	"plugins":    true,
+	"stages":     true,
 	"build":      true,
 }
 
