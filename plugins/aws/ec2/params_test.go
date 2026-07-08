@@ -3,8 +3,28 @@ package ec2
 import (
 	"testing"
 
+	"github.com/yousysadmin/whoosh"
 	"github.com/yousysadmin/whoosh/plugins/aws/internal/params"
 )
+
+// The inventory params decode through the same path Register uses, including the resolve_config_hosts flag.
+func TestDecodeInventoryParams(t *testing.T) {
+	var ip ec2InventoryParams
+	err := whoosh.DecodeParams(map[string]any{
+		"tags":                 map[string]any{"Environment": "uat"},
+		"roles":                []any{"app"},
+		"resolve_config_hosts": true,
+	}, &ip)
+	if err != nil {
+		t.Fatalf("DecodeParams: %v", err)
+	}
+	if !ip.ResolveConfigHosts {
+		t.Error("resolve_config_hosts should decode to true")
+	}
+	if len(ip.Tags["Environment"]) != 1 || ip.Tags["Environment"][0] != "uat" {
+		t.Errorf("tags = %v", ip.Tags)
+	}
+}
 
 func TestDecodeFeatureParams_DefaultsThenWith(t *testing.T) {
 	// Feature-level defaults (the plugins `aws:ec2:ami` actions: entry) decode under the task `with:`: the task overrides

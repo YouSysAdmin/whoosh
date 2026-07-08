@@ -3,6 +3,8 @@ package ec2
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -31,6 +33,10 @@ type ec2InventoryParams struct {
 	// RequiredTag, when set, marks a discovered instance required:true (its unreachability always aborts, even under
 	// on_unreachable: skip) when it carries this tag. When unset, discovered hosts are not required.
 	RequiredTag *tagMatch `yaml:"required_tag"`
+	// ResolveConfigHosts, when set, resolves the already-listed hosts' FQDN addresses to IPs (on the operator's
+	// machine) before the duplicate check, so a machine declared in the Deployfile by name and discovered by EC2 by IP
+	// is not listed twice - the declared entry (with its roles and flags) wins. A failed lookup only logs a warning.
+	ResolveConfigHosts bool `yaml:"resolve_config_hosts"`
 }
 
 // tagMatch is a single EC2 tag name/value used to derive a per-host flag.
@@ -67,6 +73,9 @@ func (s *stringList) UnmarshalYAML(node *yaml.Node) error {
 type ec2Inventory struct {
 	api    ec2API
 	params ec2InventoryParams
+	// lookupHost resolves a hostname for the resolve_config_hosts dedup. nil means net.DefaultResolver - a field so
+	// tests can inject a fake resolver.
+	lookupHost func(ctx context.Context, host string) ([]string, error)
 }
 
 // appendHosts queries EC2 and appends matching instances to cfg.Hosts.
@@ -93,6 +102,28 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 	seen := make(map[string]bool, len(cfg.Hosts))
 	for _, h := range cfg.Hosts {
 		seen[h.Address] = true
+	}
+	// With resolve_config_hosts, a host declared by FQDN also blocks its resolved IPs, so the same machine
+	// discovered by EC2 by IP is not listed twice. Resolution failures only warn - a stale DNS name must not fail
+	// startup, it just leaves the potential duplicate visible.
+	if i.params.ResolveConfigHosts {
+		lookup := i.lookupHost
+		if lookup == nil {
+			lookup = net.DefaultResolver.LookupHost
+		}
+		for _, h := range cfg.Hosts {
+			if h.Address == "" || net.ParseIP(h.Address) != nil {
+				continue
+			}
+			ips, err := lookup(ctx, h.Address)
+			if err != nil {
+				slog.Warn("resolve host for inventory dedup failed", "host", h.Address, "error", err)
+				continue
+			}
+			for _, ip := range ips {
+				seen[ip] = true
+			}
+		}
 	}
 
 	// DescribeInstances is paginated (the SDK does not auto-paginate), so loop on NextToken -

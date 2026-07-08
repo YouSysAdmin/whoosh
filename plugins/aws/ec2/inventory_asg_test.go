@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -327,6 +328,79 @@ func TestEC2Inventory_StaticHostTakesPriority(t *testing.T) {
 			t.Errorf("discovered host source = %q, want %q", h.Source, FeatureInventory)
 		}
 	}
+}
+
+func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
+	// With resolve_config_hosts, a machine declared by FQDN in the config and discovered by EC2 by IP is deduped:
+	// the resolved IPs of every non-IP config address block the discovered entry.
+	newFake := func() *fakeEC2 {
+		return &fakeEC2{out: &awsec2.DescribeInstancesOutput{
+			Reservations: []ec2types.Reservation{{Instances: []ec2types.Instance{
+				instance("10.0.0.4", nil), // same machine as worker.example.com below
+				instance("10.0.0.5", nil), // genuinely new
+			}}},
+		}}
+	}
+	lookup := func(_ context.Context, host string) ([]string, error) {
+		if host == "worker.example.com" {
+			return []string{"10.0.0.4"}, nil
+		}
+		return nil, fmt.Errorf("no such host %q", host)
+	}
+
+	t.Run("resolved duplicate is skipped", func(t *testing.T) {
+		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{ResolveConfigHosts: true}, lookupHost: lookup}
+		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "worker.example.com", Roles: []string{"db"}}}}
+		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+			t.Fatalf("appendHosts: %v", err)
+		}
+		if len(cfg.Hosts) != 2 {
+			t.Fatalf("want 2 hosts (fqdn + 10.0.0.5), got %d: %+v", len(cfg.Hosts), cfg.Hosts)
+		}
+		for _, h := range cfg.Hosts {
+			if h.Address == "10.0.0.4" {
+				t.Errorf("resolved duplicate 10.0.0.4 should be skipped, hosts: %+v", cfg.Hosts)
+			}
+		}
+	})
+
+	t.Run("off by default", func(t *testing.T) {
+		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{}, lookupHost: lookup}
+		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "worker.example.com", Roles: []string{"db"}}}}
+		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+			t.Fatalf("appendHosts: %v", err)
+		}
+		if len(cfg.Hosts) != 3 {
+			t.Fatalf("without the param both instances append, want 3 hosts, got %d: %+v", len(cfg.Hosts), cfg.Hosts)
+		}
+	})
+
+	t.Run("lookup failure warns and keeps going", func(t *testing.T) {
+		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{ResolveConfigHosts: true}, lookupHost: lookup}
+		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "gone.example.com", Roles: []string{"db"}}}}
+		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+			t.Fatalf("appendHosts should not fail on a lookup error: %v", err)
+		}
+		if len(cfg.Hosts) != 3 {
+			t.Fatalf("unresolvable config host dedupes nothing, want 3 hosts, got %d: %+v", len(cfg.Hosts), cfg.Hosts)
+		}
+	})
+
+	t.Run("ip literals are not resolved", func(t *testing.T) {
+		called := false
+		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{ResolveConfigHosts: true},
+			lookupHost: func(ctx context.Context, host string) ([]string, error) {
+				called = true
+				return lookup(ctx, host)
+			}}
+		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "10.0.0.4", Roles: []string{"db"}}}}
+		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+			t.Fatalf("appendHosts: %v", err)
+		}
+		if called {
+			t.Error("an IP-literal address must not be resolved")
+		}
+	})
 }
 
 func TestEC2Inventory_Paginates(t *testing.T) {
