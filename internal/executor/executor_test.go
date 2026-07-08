@@ -130,6 +130,34 @@ func TestRunTask_DirIsTemplated(t *testing.T) {
 	}
 }
 
+// A `once` task runs on the primary-marked host among its matched candidates, not positionally on the first one.
+func TestRunTask_OncePicksPrimaryHost(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "myapp", DeployTo: t.TempDir(), Branch: "main"},
+		Stage: "test",
+		Hosts: []ast.Host{
+			{Address: "first.local", Local: true, Roles: []string{"app"}},
+			{Address: "second.local", Local: true, Roles: []string{"app"}, Primary: true},
+		},
+		Tasks: map[string]*ast.Task{
+			"one-shot": {Roles: []string{"app"}, Once: true, Dir: "{{.deploy_to}}", Cmds: []string{"echo ran-once"}},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{Out: &buf})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "one-shot"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, buf.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "second.local") {
+		t.Errorf("once task should run on the primary host, output:\n%s", out)
+	}
+	if strings.Contains(out, "first.local") {
+		t.Errorf("once task must not run on the non-primary host, output:\n%s", out)
+	}
+}
+
 func TestRunTask_ActionParamsAreTemplated(t *testing.T) {
 	reg, err := plugins.Load(nil) // empty registry
 	if err != nil {

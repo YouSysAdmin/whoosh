@@ -49,7 +49,7 @@ func (e *Executor) targetsForTask(task *ast.Task) []ast.Host {
 	hosts = ast.FilterByAddresses(hosts, e.limit)
 	hosts = e.filterExcluded(hosts)
 	if task.Once && len(hosts) > 1 {
-		hosts = hosts[:1]
+		hosts = ast.PickPrimary(hosts)
 	}
 	return hosts
 }

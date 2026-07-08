@@ -91,13 +91,13 @@ func TestCommands_DeployHosts(t *testing.T) {
 
 func TestHostsTable(t *testing.T) {
 	out := hostsTable([]whoosh.Host{
-		{Address: "10.0.0.1", Roles: []string{"app", "web"}},                       // no source -> "config"
-		{Address: "10.0.0.2", Roles: []string{"db"}, Deploy: new(false)},           // no source -> "config"
-		{Address: "10.0.0.3", Roles: []string{"app"}, Source: "aws:ec2:inventory"}, // discovered
+		{Address: "10.0.0.1", Roles: []string{"app", "web"}},                                      // no source -> "config"
+		{Address: "10.0.0.2", Roles: []string{"db"}, Deploy: new(false)},                          // no source -> "config"
+		{Address: "10.0.0.3", Roles: []string{"app"}, Primary: true, Source: "aws:ec2:inventory"}, // discovered, primary
 		{Address: "localhost", Local: true},
 	})
 
-	for _, want := range []string{"HOST", "ROLES", "DEPLOY", "TRANSPORT", "SOURCE", "10.0.0.1", "app,web", "localhost", "local", "aws:ec2:inventory"} {
+	for _, want := range []string{"HOST", "ROLES", "DEPLOY", "PRIMARY", "TRANSPORT", "SOURCE", "10.0.0.1", "app,web", "localhost", "local", "aws:ec2:inventory"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("table missing %q in:\n%s", want, out)
 		}
@@ -122,5 +122,9 @@ func TestHostsTable(t *testing.T) {
 	}
 	if l := lineFor("10.0.0.3"); !strings.Contains(l, "aws:ec2:inventory") {
 		t.Errorf("discovered-host row = %q, want 'aws:ec2:inventory' source", l)
+	}
+	// The primary-marked host shows "yes" in the PRIMARY column, an unmarked one stays empty there.
+	if l := lineFor("10.0.0.3"); !strings.Contains(l, "yes") {
+		t.Errorf("primary row = %q, want 'yes'", l)
 	}
 }

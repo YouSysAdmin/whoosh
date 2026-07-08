@@ -44,6 +44,20 @@ func FilterNonDeployable(hosts []Host) []Host {
 	return out
 }
 
+// PickPrimary reduces hosts to the single host preferred for one-host work (`once:` tasks, the deploy lock): the
+// first host marked primary, or the first host when none is marked. An empty input returns nil.
+func PickPrimary(hosts []Host) []Host {
+	if len(hosts) == 0 {
+		return nil
+	}
+	for _, h := range hosts {
+		if h.Primary {
+			return []Host{h}
+		}
+	}
+	return hosts[:1]
+}
+
 // FilterByAddresses returns the hosts whose address is in addrs. An empty addrs slice matches every host.
 func FilterByAddresses(hosts []Host, addrs []string) []Host {
 	if len(addrs) == 0 {

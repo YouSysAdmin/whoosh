@@ -134,8 +134,10 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 	}
-	// The lock holder is implicitly required: losing it would strand the lock, so it must never be dropped by `skip`.
-	d.primary = hosts[0].Address
+	// The lock holder is the primary host (the first one marked primary, else the first host). It is implicitly
+	// required: losing it would strand the lock, so it must never be dropped by `skip`.
+	primary := ast.PickPrimary(hosts)
+	d.primary = primary[0].Address
 	d.skipped = nil
 
 	now := time.Now().UTC()
@@ -149,7 +151,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	// An unreachable host only warns here - the lock step right after produces the real failure. Skipped in dry-run.
 	d.prevSHA = ""
 	if !d.ex.DryRun() {
-		prev, err := d.ex.Capture(ctx, hosts[0], currentRevisionCmd(d.layout))
+		prev, err := d.ex.Capture(ctx, primary[0], currentRevisionCmd(d.layout))
 		if err != nil {
 			slog.Warn("previous revision unavailable", "error", err)
 		} else if isCommitSHA(prev) {
@@ -166,7 +168,6 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 
 	// Lock on the primary host only, so a failed multi-host acquisition can't strand a lock we'd then mistake for someone
 	// else's. The deferred unlock runs only if we actually acquired the lock.
-	primary := hosts[:1]
 	var locked bool
 	defer func() {
 		if locked {
@@ -417,7 +418,7 @@ func (d *Deployer) Unlock(ctx context.Context) error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 	}
-	if err := d.ex.RunOn(ctx, hosts[:1], unlockCmd(d.layout)); err != nil {
+	if err := d.ex.RunOn(ctx, ast.PickPrimary(hosts), unlockCmd(d.layout)); err != nil {
 		return err
 	}
 	if !d.ex.DryRun() {

@@ -84,14 +84,18 @@ func printHostsTable(w io.Writer, hosts []whoosh.Host) error {
 	return err
 }
 
-// hostsTable renders every host as a bordered text table - address, roles, deploy flag, transport, and source -
-// including deploy:false hosts. It backs the `deploy:hosts` command and the deploy-time auto-print.
+// hostsTable renders every host as a bordered text table - address, roles, deploy flag, primary marker, transport,
+// and source - including deploy:false hosts. It backs the `deploy:hosts` command and the deploy-time auto-print.
 func hostsTable(hosts []whoosh.Host) string {
 	rows := make([][]string, 0, len(hosts))
 	for _, h := range hosts {
 		deploy := "no"
 		if h.DeployEnabled() {
 			deploy = "yes"
+		}
+		primary := ""
+		if h.Primary {
+			primary = "yes"
 		}
 		transport := "ssh"
 		if h.Local {
@@ -107,7 +111,7 @@ func hostsTable(hosts []whoosh.Host) string {
 		if source == "" {
 			source = whoosh.HostSourceConfig
 		}
-		rows = append(rows, []string{h.Address, roles, deploy, transport, source})
+		rows = append(rows, []string{h.Address, roles, deploy, primary, transport, source})
 	}
 
 	// Just print ASCII table
@@ -115,7 +119,7 @@ func hostsTable(hosts []whoosh.Host) string {
 	var b strings.Builder
 	table := tablewriter.NewWriter(&b)
 	defer table.Close()
-	table.Header([]string{"HOST", "ROLES", "DEPLOY", "TRANSPORT", "SOURCE"})
+	table.Header([]string{"HOST", "ROLES", "DEPLOY", "PRIMARY", "TRANSPORT", "SOURCE"})
 	err := table.Bulk(rows)
 	if err != nil {
 		slog.Error("generate table of hosts", "error", err.Error())

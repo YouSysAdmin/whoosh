@@ -458,6 +458,33 @@ func TestDeploy_SkipUnreachableHost(t *testing.T) {
 	}
 }
 
+// The deploy lock lands on the primary-marked host, not positionally on hosts[0]: with an unreachable decoy first in
+// the list and skip enabled, the deploy still completes because the live primary host holds the lock. (Without the
+// primary flag the dead hosts[0] would be the lock holder - implicitly required - and the deploy would abort.)
+func TestDeploy_LockOnPrimaryHost(t *testing.T) {
+	f := newFixture(t, 5)
+	f.cfg.Hosts[0].Primary = true
+	dead := ast.Host{
+		Address: "localhost", Port: closedPort(t), User: "deploy",
+		IdentityFile: f.cfg.Hosts[0].IdentityFile, Roles: []string{"app"},
+	}
+	f.cfg.Hosts = append([]ast.Host{dead}, f.cfg.Hosts...)
+	f.cfg.OnUnreachable = ast.OnUnreachableSkip
+
+	err := f.runDeploy(t)
+	var skipped *errors.SkippedHostsError
+	if !errors.As(err, &skipped) {
+		t.Fatalf("want SkippedHostsError for the dead decoy, got %v", err)
+	}
+	if len(skipped.Hosts) != 1 || skipped.Hosts[0] != "localhost" {
+		t.Errorf("skipped hosts = %v, want [localhost]", skipped.Hosts)
+	}
+	// The deploy completed: the lock was held by the primary host, not the dead decoy.
+	if _, err := os.Readlink(filepath.Join(f.deployTo, "current")); err != nil {
+		t.Fatalf("current symlink missing - deploy did not complete on the primary host: %v", err)
+	}
+}
+
 func TestDeploy_RequiredUnreachableAborts(t *testing.T) {
 	f := newFixture(t, 5)
 	f.withDeadHost(t, true) // marked required
