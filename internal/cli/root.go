@@ -283,6 +283,25 @@ func renderVars(cfg *ast.DeployFile) error {
 	return nil
 }
 
+// renderAppBranch renders app.branch as a Go template at load time, so the branch can come from the environment
+// (e.g. `branch: '{{ env "BRANCH" | default "qa" }}'`) or a var. Vars are already rendered when this runs, strict
+// rendering surfaces anything undefined. A template that renders to an empty string falls back to the default
+// branch, the same rule ApplyDefaults uses for an empty branch value.
+func renderAppBranch(cfg *ast.DeployFile) error {
+	if !strings.Contains(cfg.App.Branch, "{{") {
+		return nil
+	}
+	rendered, err := varstmpl.RenderWith(cfg.App.Branch, loadTimeContext(cfg), true)
+	if err != nil {
+		return fmt.Errorf("app.branch: %w", err)
+	}
+	if rendered == "" {
+		rendered = ast.DefaultBranch
+	}
+	cfg.App.Branch = rendered
+	return nil
+}
+
 // renderSSHSecrets renders the SSH auth secrets as Go templates at load time, so a passphrase can come from the
 // environment (e.g. `passphrase: '{{ envSecret "KEY_PASS" }}'`): each identity's path, content, and passphrase, the
 // global ssh.identity_file_passphrase, and each host's identity_file_passphrase. The context is the static load-time
@@ -414,6 +433,11 @@ func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.Deploy
 	}
 	// Resolve templated vars first, so plugin params (below) and everything downstream see final values.
 	if err := renderVars(cfg); err != nil {
+		return nil, "", err
+	}
+	// Resolve a templated app.branch next (it may reference vars), so the deploy and the {{.branch}} context key see
+	// the final branch name.
+	if err := renderAppBranch(cfg); err != nil {
 		return nil, "", err
 	}
 	// Resolve ssh secret templates next (they may reference vars), so a broken identity or passphrase template fails

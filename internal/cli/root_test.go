@@ -97,6 +97,44 @@ func TestRenderVars_VarInVarIsError(t *testing.T) {
 	}
 }
 
+func TestRenderAppBranch(t *testing.T) {
+	t.Setenv("WHOOSH_TEST_BRANCH", "feature-x")
+	cases := []struct {
+		name   string
+		branch string
+		vars   map[string]any
+		want   string
+	}{
+		{"from env", `{{ env "WHOOSH_TEST_BRANCH" }}`, nil, "feature-x"},
+		{"default when env unset", `{{ env "WHOOSH_TEST_UNSET_BRANCH" | default "qa" }}`, nil, "qa"},
+		{"empty render falls back to default branch", `{{ env "WHOOSH_TEST_UNSET_BRANCH" }}`, nil, ast.DefaultBranch},
+		{"from var", "{{ .release_branch }}", map[string]any{"release_branch": "rel-42"}, "rel-42"},
+		{"plain value untouched", "main", nil, "main"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &ast.DeployFile{App: ast.App{Branch: tc.branch, DeployTo: "/srv/app"}, Vars: tc.vars}
+			if err := renderAppBranch(cfg); err != nil {
+				t.Fatalf("renderAppBranch: %v", err)
+			}
+			if cfg.App.Branch != tc.want {
+				t.Errorf("branch = %q, want %q", cfg.App.Branch, tc.want)
+			}
+		})
+	}
+}
+
+func TestRenderAppBranch_UndefinedVarIsError(t *testing.T) {
+	cfg := &ast.DeployFile{App: ast.App{Branch: "{{ .no_such_var }}", DeployTo: "/srv/app"}}
+	err := renderAppBranch(cfg)
+	if err == nil {
+		t.Fatal("undefined var in app.branch should strict-fail")
+	}
+	if !strings.Contains(err.Error(), "app.branch") {
+		t.Errorf("error should name app.branch, got: %v", err)
+	}
+}
+
 func TestRenderPluginParams(t *testing.T) {
 	cfg := &ast.DeployFile{
 		App:   ast.App{Name: "myapp", DeployTo: "/srv/app"},
