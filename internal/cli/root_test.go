@@ -30,6 +30,7 @@ func TestDetectStage(t *testing.T) {
 		{"complete stage", []string{"__complete", "uat", ""}, "uat", true},
 		{"complete nodesc stage", []string{"__completeNoDesc", "prod", "dep"}, "prod", true},
 		{"complete first arg (no stage yet)", []string{"__complete", ""}, "", false},
+		{"complete a partial first arg (not a stage)", []string{"__complete", "ca"}, "", false},
 		{"complete a reserved command", []string{"__complete", "version"}, "", false},
 	}
 	for _, tc := range cases {

@@ -84,6 +84,8 @@ func newRootCmd(args []string) *cobra.Command {
 		SilenceUsage: true,
 		// Errors are surfaced via slog in Execute, not printed by cobra.
 		SilenceErrors: true,
+		// Complete stage names (the dynamic first argument) alongside the subcommands cobra offers on its own.
+		ValidArgsFunction: completeStages,
 		// Install the slog logger before any command runs.
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			if err := setupLogging(cmd, lf.level, lf.format, lf.output, lf.color, lf.file, lf.fileFormat); err != nil {
@@ -153,6 +155,7 @@ var valuedRootFlags = map[string]bool{
 // "whoosh staging deploy --verbose"), root flags placed before the stage are tolerated in either "--flag value" or
 // "--flag=value" form.
 func detectStage(args []string) (string, bool) {
+	completing := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "" {
@@ -161,6 +164,7 @@ func detectStage(args []string) (string, bool) {
 		// Skip cobra's completion driver token so the stage is detected from the real command line being completed (`whoosh
 		// __complete <stage> ...`), letting `whoosh <stage> <TAB>` register the stage and offer its tasks.
 		if completionDrivers[a] {
+			completing = true
 			continue
 		}
 		if strings.HasPrefix(a, "-") {
@@ -171,6 +175,11 @@ func detectStage(args []string) (string, bool) {
 			continue
 		}
 		if reservedFirstArgs[a] {
+			return "", false
+		}
+		// During completion the final token is the word being completed (`whoosh ca<TAB>`): a partial stage name, not a
+		// chosen stage - leave it to the root completion (subcommands + completeStages) instead of registering it.
+		if completing && i == len(args)-1 {
 			return "", false
 		}
 		return a, true
