@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.6.0] - 2026-07-08
 ### Changed
  - Release binaries:
    - whoosh - contains all plugins
@@ -68,7 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
          E: '{{ env "RAILS_ENV" }}' # resolves to "production" when the process var is unset
    ```
 ### Chore
-- Removed broken code.
+- Removed diad code.
 - Small refactoring for executor logging.
 
 ## [1.5.0] - 2026-07-06
@@ -207,7 +209,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
 [1.5.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
 [1.4.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
 [1.3.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.3.0
