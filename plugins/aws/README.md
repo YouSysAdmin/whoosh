@@ -27,6 +27,7 @@ plugins:
           use_public_ip: false       # default: private IP
           deploy_tag: { Name: Deploy, Value: "true" }      # only matches deploy, rest listed, not deployed
           required_tag: { Name: Critical, Value: "true" }  # tag-matching instances are required: true
+          resolve_config_hosts: true # dedup discovered IPs against the static hosts' resolved FQDNs
       # The asg/ami actions are available whether or not they're listed here.
       - name: aws:ec2:asg
       - name: aws:ec2:ami
@@ -112,6 +113,9 @@ deletes their backing snapshots. At least one filter is required so a misconfigu
   (The command is provided by the default-on `print-hosts-table` plugin - it replaced the former built-in `hosts`
   command, demonstrating that plugins can add CLI commands.)
   With `deploy_tag` set, only instances carrying that tag are deployed to, while the rest are still listed.
+- A statically declared host always wins over a discovered duplicate (same address). With
+  `resolve_config_hosts: true` the dedup also resolves static FQDN addresses to IPs (on the operator's machine),
+  so a host declared by name and discovered by EC2 by IP is not listed twice. A failed lookup only warns.
 - **Per-stage activation**: `only: [stages]` / `except: [stages]` on the plugin limit which stages it loads in.
   When inactive for a stage, its startup never runs (no inventory, no AWS contact) and its action tasks are
   **skipped** (logged), not failed - so e.g. a `staging` stage with no AWS just no-ops the AWS tasks.

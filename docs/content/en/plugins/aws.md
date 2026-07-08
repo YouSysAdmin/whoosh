@@ -96,6 +96,10 @@ plugins:
           # optional: tag-matching instances are required: true (never skipped
           # under on_unreachable: skip):
           required_tag: { Name: Critical, Value: "true" }
+          # optional: also resolve the static hosts' FQDN addresses to IPs for the
+          # duplicate check, so a host declared by name and discovered by IP is not
+          # listed twice:
+          resolve_config_hosts: true
 ```
 
 | Param           | Description                                                                                         |
@@ -106,6 +110,7 @@ plugins:
 | `use_public_ip` | Use the public IP instead of the private one (default false).                                       |
 | `deploy_tag`    | `{Name, Value}` - only instances with this tag deploy, others are inventory-only (`deploy: false`). |
 | `required_tag`  | `{Name, Value}` - instances with this tag are `required: true`.                                     |
+| `resolve_config_hosts` | Resolve static FQDN addresses to IPs for the duplicate check, so a host declared by name and discovered by IP is listed once (default false). A failed lookup only warns. |
 
 See the discovered fleet with `whoosh <stage> deploy:hosts` (provided by the default-on `print-hosts-table` plugin - it
 works for any inventory source and shows `deploy: false` hosts).
