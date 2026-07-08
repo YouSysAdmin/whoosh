@@ -147,6 +147,15 @@ app:
   keep_releases: 5                     # releases kept per host, older pruned (default 5)
 ```
 
+`branch` may be a Go template, rendered once at load time with the same context as `vars` (the process env and
+`env_files` via `env`/`envSecret`, plus the already-rendered vars) - so CI can pick the branch per run:
+
+```yaml
+branch: '{{ env "BRANCH" | default "qa" }}'
+```
+
+A template that renders to an empty string falls back to the default branch (`master`).
+
 `deploy_to` is the root of the [on-target layout](/usage/#on-target-layout): `releases/`, `shared/`, `repo/`, and the
 `current` symlink all live under it. `keep_releases` is how many timestamped releases to retain on each host, older
 ones are pruned at `deploy:finishing`. It is exposed to templates/scripts as `{{.keep_releases}}` / `$KEEP_RELEASES`.

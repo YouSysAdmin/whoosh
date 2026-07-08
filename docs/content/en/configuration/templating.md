@@ -38,6 +38,8 @@ Plus:
 - **Your `vars`** - each key is a template value (`{{.KEY}}`). To surface one to the shell, map it explicitly:
   `envs: { KEY: "{{ .KEY }}" }`. Var values are themselves templates, rendered once at load - see
   [Vars & envs](/configuration/vars-and-envs/).
+- **`app.branch`** is also rendered once at load time (after `vars`), so the branch can come from the environment
+  or a var: `branch: '{{ env "BRANCH" | default "qa" }}'`.
 - **`envs:` entries** (global and per-task) - exported as env vars.
 - **`{{.config}}`** (template only) - the whole resolved Deployfile keyed by its YAML field names:
   `{{.config.app.name}}`, `{{range .config.hosts}}{{.address}} {{end}}`.
