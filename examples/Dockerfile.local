@@ -5,7 +5,7 @@ FROM golang:1.26.4-alpine AS builder
 WORKDIR /src
 COPY . .
 
-RUN go build -o /whoosh ./cmd/whoosh
+RUN go build -o /whoosh ./cmd/whoosh-core
 
 RUN /whoosh build -o /whoosh-ext \
     --with github.com/yousysadmin/whoosh/plugins/aws \

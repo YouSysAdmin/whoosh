@@ -1,4 +1,4 @@
-FROM ghcr.io/yousysadmin/whoosh:latest AS whoosh
+FROM ghcr.io/yousysadmin/whoosh:latest-core AS whoosh
 
 FROM golang:1.26.4-alpine AS builder
 COPY --from=whoosh /usr/bin/whoosh /whoosh
