@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	gssh "github.com/gliderlabs/ssh"
 	"golang.org/x/crypto/ssh"
@@ -113,15 +114,35 @@ func authHandler(authorized []gssh.PublicKey) gssh.PublicKeyHandler {
 }
 
 // handleSession runs the requested command through the local shell and relays stdout/stderr and the exit code back to
-// the client.
+// the client. The command runs in its own process group, killed when the session's context ends (a client cancel or
+// disconnect), so a cancelled test never orphans a shell past its own exit.
 func handleSession(s gssh.Session) {
 	cmd := exec.Command("/bin/sh", "-c", s.RawCommand())
 	cmd.Stdout = s
 	cmd.Stderr = s.Stderr()
-	err := cmd.Run()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(s.Stderr(), "start: %v\n", err)
+		_ = s.Exit(127)
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-s.Context().Done():
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		case <-done:
+		}
+	}()
+	err := cmd.Wait()
+	close(done)
 	code := 0
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
-		code = ee.ExitCode()
+	if err != nil {
+		// A failure without an exit code (killed, wait error) must not report success.
+		code = 1
+		if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() >= 0 {
+			code = ee.ExitCode()
+		}
 	}
 	_ = s.Exit(code)
 }
