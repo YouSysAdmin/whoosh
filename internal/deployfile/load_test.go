@@ -640,3 +640,35 @@ func TestDiscover_PrefersOverride(t *testing.T) {
 		t.Errorf("Discover override = %q, want %q", got, custom)
 	}
 }
+
+func TestLoad_IncludeSharedAcrossBaseAndStageMergedOnce(t *testing.T) {
+	// The same fragment included by both the shared Deployfile and the stage file must merge once - a duplicated
+	// hosts entry would run every command twice in parallel and race building the same release dir.
+	shared := `
+app: { name: a, repo: r, deploy_to: /d }
+include: [deploy/shared/hosts.yml]
+`
+	stage := `
+include: [shared/hosts.yml]
+tasks: { t: { cmds: ["echo t"] } }
+`
+	df := writeProject(t, shared, "production", stage)
+	writeFragment(t, df, "deploy/shared/hosts.yml", `
+hosts:
+  - { address: shared-host, roles: [app] }
+`)
+
+	cfg, err := deployfile.Load(df, "production")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	var n int
+	for _, h := range cfg.Hosts {
+		if h.Address == "shared-host" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("shared-host appears %d times, want 1 (fragment included by base and stage must merge once)", n)
+	}
+}

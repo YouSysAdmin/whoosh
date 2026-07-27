@@ -17,7 +17,11 @@ import (
 // Each file may pull in shared fragments via `include:` (see resolveIncludes), those are merged underneath the file
 // naming them before the base/stage merge.
 func Load(deployfilePath, stage string) (*ast.DeployFile, error) {
-	base, err := resolveIncludes(deployfilePath, nil, map[string]bool{})
+	// One seen set spans both resolutions: a fragment included by the shared Deployfile AND the stage file (the same
+	// absolute path) is merged once, not twice - a duplicated hosts entry would run every command twice in parallel
+	// and race building the same release dir.
+	seen := map[string]bool{}
+	base, err := resolveIncludes(deployfilePath, nil, seen)
 	if err != nil {
 		return nil, err
 	}
@@ -27,9 +31,12 @@ func Load(deployfilePath, stage string) (*ast.DeployFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	stageCfg, err := resolveIncludes(sp, nil, map[string]bool{})
+	stageCfg, err := resolveIncludes(sp, nil, seen)
 	if err != nil {
 		return nil, err
+	}
+	if stageCfg == nil { // the stage file itself was already merged as an include of the Deployfile
+		stageCfg = &ast.DeployFile{}
 	}
 
 	cfg := ast.Merge(base, stageCfg)
@@ -94,10 +101,10 @@ func readConfig(path string) (*ast.DeployFile, error) {
 // resolveIncludes reads the file at path and merges any files it names via `include:` underneath it.
 // Include paths resolve relative to path's directory (require_relative style), they are merged in listed order with the
 // declaring file winning, and each include is itself resolved recursively. chain holds the absolute ancestor paths so a
-// circular include is reported instead of looping. seen holds every file already merged into this resolution (fresh
-// per root file), so a diamond - the same fragment reachable via two parents - is merged once instead of duplicating
-// its concatenated fields (hosts, plugins, env_files, custom_phases); the second occurrence resolves to nil and is
-// skipped.
+// circular include is reported instead of looping. seen holds every file already merged into the load (shared across
+// the base and stage resolutions), so a diamond - the same fragment reachable via two parents, or included by both
+// the Deployfile and the stage file - is merged once instead of duplicating its concatenated fields (hosts, plugins,
+// env_files, custom_phases); the second occurrence resolves to nil and is skipped.
 func resolveIncludes(path string, chain []string, seen map[string]bool) (*ast.DeployFile, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
