@@ -197,7 +197,8 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	methods, err := authMethods("", "", ag)
+	methods, cleanup, err := authMethods("", "", ag)
+	defer cleanup()
 	if err != nil {
 		t.Fatalf("authMethods: %v", err)
 	}
@@ -206,7 +207,8 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 	}
 
 	// Without the builtin agent the system agent is still picked up.
-	methods, err = authMethods("", "", nil)
+	methods, cleanup2, err := authMethods("", "", nil)
+	defer cleanup2()
 	if err != nil {
 		t.Fatalf("authMethods without builtin agent: %v", err)
 	}
@@ -217,7 +219,7 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 
 func TestAuthMethods_NoAuthErrorMentionsIdentities(t *testing.T) {
 	t.Setenv("SSH_AUTH_SOCK", "")
-	_, err := authMethods("", "", nil)
+	_, _, err := authMethods("", "", nil)
 	if err == nil || !strings.Contains(err.Error(), "ssh.identities") {
 		t.Fatalf("error = %v, want it to mention ssh.identities", err)
 	}

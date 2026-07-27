@@ -92,10 +92,13 @@ type Client struct {
 
 // Dial opens an SSH connection to the target.
 func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
-	auth, err := authMethods(t.IdentityFile, t.Passphrase, opts.Agent)
+	auth, authCleanup, err := authMethods(t.IdentityFile, t.Passphrase, opts.Agent)
 	if err != nil {
 		return nil, err
 	}
+	// Auth only happens during the handshake, so the agent socket (if one was opened) is released as soon as the
+	// dial resolves.
+	defer authCleanup()
 	hostKey, err := hostKeyCallback(opts)
 	if err != nil {
 		return nil, err
@@ -387,13 +390,16 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func authMethods(identityFile, passphrase string, ag agent.Agent) ([]ssh.AuthMethod, error) {
-	var methods []ssh.AuthMethod
+// authMethods assembles the auth methods for a dial. The returned cleanup closes the system ssh-agent connection
+// opened here, if any - auth callbacks only run during the handshake, so the caller closes it once the handshake is
+// over (either way) instead of leaking one socket per dial. cleanup is never nil.
+func authMethods(identityFile, passphrase string, ag agent.Agent) (methods []ssh.AuthMethod, cleanup func(), err error) {
+	cleanup = func() {}
 
 	if identityFile != "" {
 		signer, err := loadIdentity(identityFile, passphrase)
 		if err != nil {
-			return nil, err
+			return nil, cleanup, err
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}
@@ -401,19 +407,20 @@ func authMethods(identityFile, passphrase string, ag agent.Agent) ([]ssh.AuthMet
 	// The builtin agent replaces the system agent: its keys are the operator's declared identities, so falling back to
 	// SSH_AUTH_SOCK on top of them would defeat the point of pinning the keys in config.
 	if ag != nil {
-		return append(methods, ssh.PublicKeysCallback(ag.Signers)), nil
+		return append(methods, ssh.PublicKeysCallback(ag.Signers)), cleanup, nil
 	}
 
 	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
 		if conn, err := net.Dial("unix", sock); err == nil {
 			methods = append(methods, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
+			cleanup = func() { _ = conn.Close() }
 		}
 	}
 
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
+		return nil, cleanup, fmt.Errorf("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
 	}
-	return methods, nil
+	return methods, cleanup, nil
 }
 
 func loadIdentity(path, passphrase string) (ssh.Signer, error) {
