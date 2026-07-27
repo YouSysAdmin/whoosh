@@ -27,8 +27,9 @@ type logFlags struct {
 // PersistentPreRunE, then setupLogging may run again to layer in the Deployfile's `log:` config.
 // The CLI runs once per process, so package scope is fine (newRootCmd resets it).
 var logState struct {
-	base io.Writer // root stdout before any --log-file tee
-	file *os.File  // currently open log file, if any
+	base   io.Writer // root stdout before any --log-file tee
+	file   *os.File  // currently open --log-file, if any
+	output *os.File  // currently open --log-output file (when it is a path), closed on reconfigure like file
 }
 
 // setupLogging installs the slog logger from resolved log settings, and when a file is set, captures it too.
@@ -47,9 +48,25 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 		_ = logState.file.Close()
 		logState.file = nil
 	}
+	if logState.output != nil {
+		_ = logState.output.Close()
+		logState.output = nil
+	}
 	root.SetOut(logState.base)
 
-	sinks := []logger.Sink{{Level: level, Output: output, Format: format, Color: color}}
+	primary := logger.Sink{Level: level, Output: output, Format: format, Color: color}
+	if output != "" && !strings.EqualFold(output, "stdout") && !strings.EqualFold(output, "stderr") {
+		// A file destination is opened here (not left to the sink) so reconfiguring - setupLogging runs again after
+		// the Deployfile's log: config loads - closes the previous handle instead of leaking one per setup.
+		f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err != nil {
+			return err
+		}
+		logState.output = f
+		primary.Writer = f
+		primary.Output = ""
+	}
+	sinks := []logger.Sink{primary}
 	if file != "" {
 		f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {

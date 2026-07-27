@@ -72,7 +72,10 @@ func newRootCmd(args []string) *cobra.Command {
 	if logState.file != nil {
 		_ = logState.file.Close()
 	}
-	logState.base, logState.file = nil, nil
+	if logState.output != nil {
+		_ = logState.output.Close()
+	}
+	logState.base, logState.file, logState.output = nil, nil, nil
 	root := &cobra.Command{
 		Use:   "whoosh",
 		Short: "Deployment tools, driven by a Deployfile",
