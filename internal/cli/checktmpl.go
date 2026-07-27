@@ -129,7 +129,6 @@ func validateContext(cfg *ast.DeployFile) varstmpl.Context {
 	// verified offline and would fail here, guard imports at run time instead (e.g. in the script). Task output
 	// ({{ .tasks.* }}) is likewise run-time-only; checkTemplates skips templates that reference it.
 	ctx := loadTimeContext(cfg)
-	ctx.KeepReleases = cfg.App.KeepReleases
 	ctx.Config, _ = cfg.AsMap()
 	ctx.ReleasePath = ctx.CurrentPath
 	ctx.ReleaseTimestamp = "19700101000000"

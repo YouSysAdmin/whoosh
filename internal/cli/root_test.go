@@ -46,13 +46,14 @@ func TestDetectStage(t *testing.T) {
 func TestRenderVars(t *testing.T) {
 	t.Setenv("WHOOSH_TEST_PROC_VAR", "v1.2.3")
 	cfg := &ast.DeployFile{
-		App:           ast.App{Name: "myapp", DeployTo: "/srv/app"},
+		App:           ast.App{Name: "myapp", DeployTo: "/srv/app", KeepReleases: 7},
 		Stage:         "uat",
 		EnvFileValues: map[string]string{"WHOOSH_TEST_FILE_VAR": "hook-url"},
 		Vars: map[string]any{
 			"app_version": `{{ env "WHOOSH_TEST_PROC_VAR" }}`, // process env
 			"webhook":     `{{ env "WHOOSH_TEST_FILE_VAR" }}`, // env_files fallback
 			"stage_name":  "{{ .stage }}",                     // static load-time key
+			"keep":        "{{ .keep_releases }}",             // must be the real value, not the zero default
 			"nested":      map[string]any{"list": []any{"{{ .app_name }}"}},
 			"count":       3, // non-string preserved
 		},
@@ -68,6 +69,9 @@ func TestRenderVars(t *testing.T) {
 	}
 	if cfg.Vars["stage_name"] != "uat" {
 		t.Errorf("stage_name = %v, want uat", cfg.Vars["stage_name"])
+	}
+	if cfg.Vars["keep"] != "7" {
+		t.Errorf("keep (keep_releases) = %v, want 7", cfg.Vars["keep"])
 	}
 	nested, _ := cfg.Vars["nested"].(map[string]any)
 	list, _ := nested["list"].([]any)

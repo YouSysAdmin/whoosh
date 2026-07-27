@@ -265,6 +265,7 @@ func loadTimeContext(cfg *ast.DeployFile) varstmpl.Context {
 		AppName:       cfg.App.Name,
 		Repo:          cfg.App.Repo,
 		Branch:        cfg.App.Branch,
+		KeepReleases:  cfg.App.KeepReleases,
 		Stage:         cfg.Stage,
 		Deployer:      operator.Name(),
 		DeployTo:      layout.DeployTo,
