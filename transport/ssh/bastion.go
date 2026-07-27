@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -24,7 +25,8 @@ type Bastion struct {
 func NewBastion(t Target) *Bastion { return &Bastion{target: t} }
 
 // connect dials the bastion once and caches the client or the failure (a dead bastion fails every host the
-// same way a dead host fails once - it is not re-dialed). opts is the run's Options with Bastion cleared to
+// same way a dead host fails once - it is not re-dialed). A dial aborted by context cancellation is not
+// cached, so a later call with a live context retries. opts is the run's Options with Bastion cleared to
 // end the recursion and agent forwarding disabled for the hop (OpenSSH -J does not forward to the jump host).
 func (b *Bastion) connect(ctx context.Context, opts Options) (*Client, error) {
 	b.mu.Lock()
@@ -32,14 +34,21 @@ func (b *Bastion) connect(ctx context.Context, opts Options) (*Client, error) {
 	if b.dialed {
 		return b.client, b.err
 	}
-	b.dialed = true
 	opts.Bastion = nil
 	opts.ForwardAgent = false
 	opts.ForwardKey = ""
-	b.client, b.err = Dial(ctx, b.target, opts)
-	if b.err != nil {
-		b.err = fmt.Errorf("bastion %s: %w", b.target.Host, b.err)
+	client, err := Dial(ctx, b.target, opts)
+	if err != nil {
+		err = fmt.Errorf("bastion %s: %w", b.target.Host, err)
+		// A dial aborted by a cancelled or expired context says nothing about the bastion. Leave it un-dialed
+		// so a later call with a live context - notably deploy:failed hooks after a fail-fast cancel - retries
+		// instead of failing every remaining host.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 	}
+	b.dialed = true
+	b.client, b.err = client, err
 	return b.client, b.err
 }
 

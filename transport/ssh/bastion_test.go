@@ -231,3 +231,25 @@ func TestDialThroughBastion_HostKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestBastionCancelledDialRetries pins that a bastion dial aborted by a cancelled context is not cached: the
+// next dial with a live context opens the connection instead of inheriting the cancellation.
+func TestBastionCancelledDialRetries(t *testing.T) {
+	bastionSrv, targetSrv := startPair(t)
+
+	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
+	defer b.Close()
+	target := Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := Dial(ctx, target, Options{Bastion: b}); err == nil {
+		t.Fatal("dial with a cancelled context should fail")
+	}
+
+	c, err := Dial(context.Background(), target, Options{Bastion: b})
+	if err != nil {
+		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
+	}
+	defer c.Close()
+}

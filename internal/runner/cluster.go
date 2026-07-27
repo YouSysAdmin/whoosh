@@ -169,6 +169,16 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 		}
 		e.conn = client
 	})
+	if e.err != nil && (errors.Is(e.err, context.Canceled) || errors.Is(e.err, context.DeadlineExceeded)) {
+		// A dial aborted by its context says nothing about the host. Drop the entry so a later call with a live
+		// context - notably the deploy:failed hooks, which run on a fresh context after a fail-fast cancel -
+		// re-dials instead of inheriting the cancellation.
+		c.connMu.Lock()
+		if c.conns[key] == e {
+			delete(c.conns, key)
+		}
+		c.connMu.Unlock()
+	}
 	return e.conn, e.err
 }
 

@@ -116,3 +116,31 @@ func TestCluster_StrictDoesNotReuseInsecureConn(t *testing.T) {
 		t.Fatal("strict target reused the unverified pooled connection")
 	}
 }
+
+// A dial aborted by a cancelled context must not be cached: after a fail-fast cancel, deploy:failed hooks run
+// with a fresh context on the same cluster and need to reach the host.
+func TestCluster_CancelledDialIsNotCached(t *testing.T) {
+	srv, err := sshtest.Start()
+	if err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	defer srv.Close()
+
+	c := runner.NewCluster(runner.Options{}, io.Discard)
+	defer c.Close()
+	target := runner.Target{Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := c.Capture(ctx, target, "echo hi"); err == nil {
+		t.Fatal("dial with a cancelled context should fail")
+	}
+
+	got, err := c.Capture(context.Background(), target, "echo hi")
+	if err != nil {
+		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
+	}
+	if got != "hi" {
+		t.Fatalf("Capture = %q, want %q", got, "hi")
+	}
+}
