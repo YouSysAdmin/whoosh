@@ -5,6 +5,7 @@ import (
 
 	"github.com/yousysadmin/whoosh/internal/deployfile"
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
+	"github.com/yousysadmin/whoosh/internal/masking"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 )
 
@@ -52,7 +53,10 @@ func newPluginCmd(stage string, c plugins.Command, gf *globalFlags) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			return c.Run(cmd.Context(), cfg, reg, cmd.OutOrStdout(), args)
+			// Redact secrets like every other output path (config, run, the executor).
+			out := masking.NewWriter(cmd.OutOrStdout())
+			defer out.Flush()
+			return c.Run(cmd.Context(), cfg, reg, out, args)
 		},
 	}
 }
