@@ -167,7 +167,10 @@ What it does, in order:
    exact copy of the previous one.
 4. If `set_default` (default true), make that new version the template's `$Default` - so a group launching from
    `$Default` picks it up (a group tracking `$Latest` does so regardless).
-5. Start an instance refresh and **wait** for it (same polling/preferences as `aws:ec2:asg:refresh`).
+5. Start an instance refresh and **wait** for it (same polling/preferences as `aws:ec2:asg:refresh`). Unlike
+   `refresh`, a refresh already in progress (typically the bad deploy's own rollout) is **cancelled** first and the
+   rollback's refresh started in its place - skipping it would leave the fleet rolling onto the version being rolled
+   back.
 
 | Param                                                                                                       | Description                                                                                |
 |-------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|

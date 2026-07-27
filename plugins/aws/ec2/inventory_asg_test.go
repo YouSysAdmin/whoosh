@@ -40,6 +40,9 @@ func (f *fakeEC2) DescribeInstances(_ context.Context, in *awsec2.DescribeInstan
 type fakeASG struct {
 	input         *autoscaling.StartInstanceRefreshInput
 	startErr      error                           // returned by StartInstanceRefresh when set
+	startErrOnce  bool                            // clear startErr after the first StartInstanceRefresh call
+	cancelN       int                             // count of CancelInstanceRefresh calls
+	cancelErr     error                           // returned by CancelInstanceRefresh when set
 	statuses      []astypes.InstanceRefreshStatus // returned per DescribeInstanceRefreshes call
 	describeN     int                             // count of DescribeInstanceRefreshes calls
 	emptyDescribe bool                            // DescribeInstanceRefreshes returns no refreshes (vanished)
@@ -48,10 +51,21 @@ type fakeASG struct {
 
 func (f *fakeASG) StartInstanceRefresh(_ context.Context, in *autoscaling.StartInstanceRefreshInput, _ ...func(*autoscaling.Options)) (*autoscaling.StartInstanceRefreshOutput, error) {
 	f.input = in
-	if f.startErr != nil {
-		return nil, f.startErr
+	if err := f.startErr; err != nil {
+		if f.startErrOnce {
+			f.startErr = nil
+		}
+		return nil, err
 	}
 	return &autoscaling.StartInstanceRefreshOutput{InstanceRefreshId: awssdk.String("ir-123")}, nil
+}
+
+func (f *fakeASG) CancelInstanceRefresh(_ context.Context, _ *autoscaling.CancelInstanceRefreshInput, _ ...func(*autoscaling.Options)) (*autoscaling.CancelInstanceRefreshOutput, error) {
+	f.cancelN++
+	if f.cancelErr != nil {
+		return nil, f.cancelErr
+	}
+	return &autoscaling.CancelInstanceRefreshOutput{}, nil
 }
 
 func (f *fakeASG) DescribeInstanceRefreshes(_ context.Context, _ *autoscaling.DescribeInstanceRefreshesInput, _ ...func(*autoscaling.Options)) (*autoscaling.DescribeInstanceRefreshesOutput, error) {
@@ -680,5 +694,55 @@ func TestASGRollback_RequiresName(t *testing.T) {
 	a := &asgPlugin{api: &fakeASG{}, ec2: &fakeLTEC2{}}
 	if err := a.runRollback(context.Background(), map[string]any{}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when ASG name is missing")
+	}
+}
+
+func TestASGRollback_CancelsInFlightRefresh(t *testing.T) {
+	// A refresh is already running (the bad deploy's own rollout): rollback must cancel it and start its own
+	// refresh, not skip and report success while the fleet keeps rolling onto the bad version.
+	fa := &fakeASG{
+		startErr:     &astypes.InstanceRefreshInProgressFault{},
+		startErrOnce: true,
+		statuses: []astypes.InstanceRefreshStatus{
+			astypes.InstanceRefreshStatusCancelled,  // the in-flight refresh settles after the cancel
+			astypes.InstanceRefreshStatusSuccessful, // the rollback's own refresh completes
+		},
+	}
+	fe := &fakeLTEC2{versions: []int64{1, 2, 3}, newVersion: 4}
+	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
+
+	err := a.runRollback(context.Background(), map[string]any{
+		"name":            "web-asg",
+		"launch_template": map[string]any{"id": "lt-1"},
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("runRollback: %v", err)
+	}
+	if fa.cancelN != 1 {
+		t.Errorf("CancelInstanceRefresh called %d times, want 1", fa.cancelN)
+	}
+	if fa.input == nil {
+		t.Fatal("rollback did not start its own refresh after cancelling")
+	}
+}
+
+func TestASGRollback_CancelRaceTolerated(t *testing.T) {
+	// The in-flight refresh finishes between the failed start and the cancel: ActiveInstanceRefreshNotFoundFault
+	// means nothing is left to cancel, and the rollback's refresh proceeds.
+	fa := &fakeASG{
+		startErr:     &astypes.InstanceRefreshInProgressFault{},
+		startErrOnce: true,
+		cancelErr:    &astypes.ActiveInstanceRefreshNotFoundFault{},
+		statuses:     []astypes.InstanceRefreshStatus{astypes.InstanceRefreshStatusSuccessful},
+	}
+	fe := &fakeLTEC2{versions: []int64{1, 2, 3}, newVersion: 4}
+	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
+
+	err := a.runRollback(context.Background(), map[string]any{
+		"name":            "web-asg",
+		"launch_template": map[string]any{"id": "lt-1"},
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("runRollback: %v", err)
 	}
 }

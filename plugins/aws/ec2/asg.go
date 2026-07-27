@@ -22,6 +22,7 @@ import (
 // DescribeAuto- ScalingGroups is used by the rollback action to find the launch template attached to a group.
 type asgAPI interface {
 	StartInstanceRefresh(ctx context.Context, in *autoscaling.StartInstanceRefreshInput, optFns ...func(*autoscaling.Options)) (*autoscaling.StartInstanceRefreshOutput, error)
+	CancelInstanceRefresh(ctx context.Context, in *autoscaling.CancelInstanceRefreshInput, optFns ...func(*autoscaling.Options)) (*autoscaling.CancelInstanceRefreshOutput, error)
 	DescribeInstanceRefreshes(ctx context.Context, in *autoscaling.DescribeInstanceRefreshesInput, optFns ...func(*autoscaling.Options)) (*autoscaling.DescribeInstanceRefreshesOutput, error)
 	DescribeAutoScalingGroups(ctx context.Context, in *autoscaling.DescribeAutoScalingGroupsInput, optFns ...func(*autoscaling.Options)) (*autoscaling.DescribeAutoScalingGroupsOutput, error)
 }
@@ -96,7 +97,7 @@ func (a *asgPlugin) runRefresh(ctx context.Context, params map[string]any, _ io.
 	if ap.Name == "" {
 		return fmt.Errorf("%s: 'name' is required", actionASGRefresh)
 	}
-	return a.startAndWait(ctx, ap)
+	return a.startAndWait(ctx, ap, false)
 }
 
 // runRollback copies the launch template's previous version forward to a new latest version (optionally making it the
@@ -145,12 +146,16 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	slog.Info("launch template rolled back", "launch_template", ltID,
 		"new_version", newVer, "copied_from", prev, "default", setDefault)
 
-	return a.startAndWait(ctx, rp.asgRefreshParams)
+	// Cancel a refresh already in flight: rollback typically happens while the bad deploy's own refresh is still
+	// rolling the fleet onto the configuration being rolled back - skipping it would report success while the bad
+	// version keeps deploying.
+	return a.startAndWait(ctx, rp.asgRefreshParams, true)
 }
 
 // startAndWait starts an instance refresh with the given preferences and blocks until it finishes.
-// A refresh already running is logged and skipped (not fatal).
-func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams) error {
+// A refresh already running is logged and skipped (not fatal) unless cancelInFlight is set, in which case it is
+// cancelled and this refresh started in its place once the cancellation settles.
+func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams, cancelInFlight bool) error {
 	in := &autoscaling.StartInstanceRefreshInput{
 		AutoScalingGroupName: awssdk.String(ap.Name),
 		Preferences: &astypes.RefreshPreferences{
@@ -163,11 +168,17 @@ func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams) error
 	}
 
 	res, err := a.api.StartInstanceRefresh(ctx, in)
-	if err != nil {
-		if _, ok := errors.AsType[*astypes.InstanceRefreshInProgressFault](err); ok {
+	if _, inProgress := errors.AsType[*astypes.InstanceRefreshInProgressFault](err); inProgress {
+		if !cancelInFlight {
 			slog.Warn("instance refresh already in progress, skipping", "asg", ap.Name)
 			return nil
 		}
+		if err := a.cancelActiveRefresh(ctx, ap.Name); err != nil {
+			return err
+		}
+		res, err = a.api.StartInstanceRefresh(ctx, in)
+	}
+	if err != nil {
 		return fmt.Errorf("start instance refresh: %w", err)
 	}
 	id := awssdk.ToString(res.InstanceRefreshId)
@@ -178,6 +189,53 @@ func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams) error
 		"skip_matching", awssdk.ToBool(in.Preferences.SkipMatching))
 
 	return a.waitForRefresh(ctx, ap.Name, id)
+}
+
+// cancelActiveRefresh cancels the ASG's in-flight instance refresh and waits until it reaches a terminal state, so a
+// new refresh can be started in its place.
+func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error {
+	slog.Warn("cancelling in-flight instance refresh", "asg", name)
+	if _, err := a.api.CancelInstanceRefresh(ctx, &autoscaling.CancelInstanceRefreshInput{
+		AutoScalingGroupName: awssdk.String(name),
+	}); err != nil {
+		// The refresh finished between the failed start and the cancel - nothing left to wait for.
+		if _, gone := errors.AsType[*astypes.ActiveInstanceRefreshNotFoundFault](err); gone {
+			return nil
+		}
+		return fmt.Errorf("cancel instance refresh: %w", err)
+	}
+
+	interval := a.pollInterval
+	if interval <= 0 {
+		interval = asgPollInterval
+	}
+	for {
+		out, err := a.api.DescribeInstanceRefreshes(ctx, &autoscaling.DescribeInstanceRefreshesInput{
+			AutoScalingGroupName: awssdk.String(name),
+			MaxRecords:           awssdk.Int32(1),
+		})
+		if err != nil {
+			return fmt.Errorf("describe instance refreshes: %w", err)
+		}
+		if len(out.InstanceRefreshes) == 0 {
+			return nil
+		}
+		switch st := out.InstanceRefreshes[0].Status; st {
+		case astypes.InstanceRefreshStatusSuccessful,
+			astypes.InstanceRefreshStatusFailed,
+			astypes.InstanceRefreshStatusCancelled,
+			astypes.InstanceRefreshStatusRollbackFailed,
+			astypes.InstanceRefreshStatusRollbackSuccessful:
+			return nil
+		default:
+			slog.Info("waiting for in-flight instance refresh to cancel", "asg", name, "status", string(st))
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("stopped waiting for instance refresh cancellation: %w", ctx.Err())
+		case <-time.After(interval):
+		}
+	}
 }
 
 // rollbackLaunchTemplateID resolves which launch template to roll back: an explicit id, the template of a named ASG, or
