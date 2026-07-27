@@ -90,12 +90,15 @@ func TestCommands_DeployHosts(t *testing.T) {
 }
 
 func TestHostsTable(t *testing.T) {
-	out := hostsTable([]whoosh.Host{
+	out, err := hostsTable([]whoosh.Host{
 		{Address: "10.0.0.1", Roles: []string{"app", "web"}},                                      // no source -> "config"
 		{Address: "10.0.0.2", Roles: []string{"db"}, Deploy: new(false)},                          // no source -> "config"
 		{Address: "10.0.0.3", Roles: []string{"app"}, Primary: true, Source: "aws:ec2:inventory"}, // discovered, primary
 		{Address: "localhost", Local: true},
 	})
+	if err != nil {
+		t.Fatalf("hostsTable: %v", err)
+	}
 
 	for _, want := range []string{"HOST", "ROLES", "DEPLOY", "PRIMARY", "TRANSPORT", "SOURCE", "10.0.0.1", "app,web", "localhost", "local", "aws:ec2:inventory"} {
 		if !strings.Contains(out, want) {

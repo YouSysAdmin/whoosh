@@ -80,13 +80,17 @@ func (p *plugin) Commands() []whoosh.Command {
 
 // Output table of hosts
 func printHostsTable(w io.Writer, hosts []whoosh.Host) error {
-	_, err := fmt.Fprint(w, hostsTable(hosts))
+	table, err := hostsTable(hosts)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(w, table)
 	return err
 }
 
 // hostsTable renders every host as a bordered text table - address, roles, deploy flag, primary marker, transport,
 // and source - including deploy:false hosts. It backs the `deploy:hosts` command and the deploy-time auto-print.
-func hostsTable(hosts []whoosh.Host) string {
+func hostsTable(hosts []whoosh.Host) (string, error) {
 	rows := make([][]string, 0, len(hosts))
 	for _, h := range hosts {
 		deploy := "no"
@@ -120,13 +124,11 @@ func hostsTable(hosts []whoosh.Host) string {
 	table := tablewriter.NewWriter(&b)
 	defer table.Close()
 	table.Header([]string{"HOST", "ROLES", "DEPLOY", "PRIMARY", "TRANSPORT", "SOURCE"})
-	err := table.Bulk(rows)
-	if err != nil {
-		slog.Error("generate table of hosts", "error", err.Error())
+	if err := table.Bulk(rows); err != nil {
+		return "", fmt.Errorf("generate hosts table: %w", err)
 	}
-	err = table.Render()
-	if err != nil {
-		slog.Error("render table of hosts", "error", err.Error())
+	if err := table.Render(); err != nil {
+		return "", fmt.Errorf("render hosts table: %w", err)
 	}
-	return b.String()
+	return b.String(), nil
 }
