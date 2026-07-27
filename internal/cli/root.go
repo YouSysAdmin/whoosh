@@ -487,5 +487,10 @@ func loadConfig(ctx context.Context, cmd *cobra.Command, gf *globalFlags, stage 
 		return nil, nil, fmt.Errorf("plugins startup: %w", err)
 	}
 	cfg.ApplyDefaults()
+	// Hooks can only be checked once the plugins have contributed their tasks, custom phases, and hook entries -
+	// a typo'd hook key (user or plugin phase:) would otherwise be silently dead.
+	if err := cfg.ValidateHooks(); err != nil {
+		return nil, nil, err
+	}
 	return cfg, reg, nil
 }

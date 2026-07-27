@@ -90,4 +90,9 @@ A hook task can read which phase it is running for via `{{.phase}}` / `$DEPLOY_P
 handle start / success / failure - see
 [`examples/06-slack-notify`](https://github.com/YouSysAdmin/whoosh/tree/master/examples/06-slack-notify).
 
+Hook keys are validated at load (after plugins have contributed their tasks and phases): a key must be a deploy
+phase, a custom phase, `deploy:failed` / `deploy:rollback`, or an existing task, and every hooked task must exist -
+a typo'd key (`deploy:publish:`) fails the command instead of silently never firing. `deploy:failed` only fires
+`after` hooks, so a `before:` entry for it is rejected too.
+
 See [Usage -> Deploy lifecycle](/usage/#deploy-lifecycle) for what each phase *does*.

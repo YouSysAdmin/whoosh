@@ -100,3 +100,45 @@ func (c *DeployFile) Validate() error {
 	}
 	return nil
 }
+
+// ValidateHooks checks that every hooks: key refers to something that fires - a built-in phase,
+// deploy:failed / deploy:rollback, a custom phase, or an existing task (task hooks fire around that task) - and that
+// every hook task exists. A typo'd key would otherwise register a hook nothing ever reads (a lost
+// failure-notification hook is exactly what gets discovered during an incident).
+// It is not part of Validate: hooks may reference tasks and phases contributed by plugin startups, so the check runs
+// once the plugins have loaded (config load step 7), covering plugin-contributed hooks too.
+func (c *DeployFile) ValidateHooks() error {
+	valid := map[string]bool{PhaseFailed: true, PhaseRollback: true}
+	for _, p := range BuiltinPhases {
+		valid[p] = true
+	}
+	for _, p := range c.CustomPhases {
+		valid[p.Name] = true
+	}
+	check := func(kind string, m map[string][]string) error {
+		for _, key := range slices.Sorted(maps.Keys(m)) {
+			if !valid[key] {
+				if t, ok := c.Tasks[key]; !ok || t == nil {
+					return errors.Config("hooks.%s %q: not a deploy phase, custom phase, or task", kind, key)
+				}
+			}
+			for _, tn := range m[key] {
+				if t, ok := c.Tasks[tn]; !ok || t == nil {
+					return errors.Config("hooks.%s %q: task %q not found", kind, key, tn)
+				}
+			}
+		}
+		return nil
+	}
+	if err := check("before", c.Hooks.Before); err != nil {
+		return err
+	}
+	if err := check("after", c.Hooks.After); err != nil {
+		return err
+	}
+	// deploy:failed is an after-only hook point - a before entry would silently never fire.
+	if len(c.Hooks.Before[PhaseFailed]) > 0 {
+		return errors.Config("hooks.before %q is never run (deploy:failed only fires 'after' hooks)", PhaseFailed)
+	}
+	return nil
+}

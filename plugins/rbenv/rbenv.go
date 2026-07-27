@@ -141,6 +141,10 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := whoosh.DecodeParams(spec.Params, &pr); err != nil {
 		return fmt.Errorf("rbenv params: %w", err)
 	}
+	// A misspelled when value would otherwise silently mean "before".
+	if pr.When != "" && !strings.EqualFold(pr.When, "before") && !strings.EqualFold(pr.When, "after") {
+		return fmt.Errorf("rbenv: when must be \"before\" or \"after\", got %q", pr.When)
+	}
 	reg.AddStartup(pr.startup)
 	return nil
 }

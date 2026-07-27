@@ -304,3 +304,11 @@ func equalSet(a, b []string) bool {
 	}
 	return true
 }
+
+// A typo'd when: would otherwise silently fall back to "before" - it must be rejected at load.
+func TestConfigure_RejectsInvalidWhen(t *testing.T) {
+	_, err := whoosh.Load([]whoosh.PluginSpec{{Name: pluginName, Params: map[string]any{"when": "afterwards"}}})
+	if err == nil || !strings.Contains(err.Error(), "before") {
+		t.Fatalf("Load = %v, want a when-validation error", err)
+	}
+}

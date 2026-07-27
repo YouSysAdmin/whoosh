@@ -1,5 +1,7 @@
 package ast
 
+import "slices"
+
 // Built-in deploy phase names. They double as hook points (before/after) for user tasks and plugins, in the order
 // below. They live in the config model (not internal/deploy) so the public plugin SDK (the root whoosh package) can
 // re-export them - a plugin hooking a phase shouldn't hardcode the string.
@@ -29,3 +31,14 @@ const (
 	// public/assets after a rollback.
 	PhaseRollback = "deploy:rollback"
 )
+
+// BuiltinPhases lists the lifecycle phases in run order. deploy:failed and deploy:rollback are hook points, not
+// lifecycle steps, so they are not included.
+var BuiltinPhases = []string{
+	PhaseStarting, PhaseCheck, PhaseInit, PhaseStarted, PhaseUpdating,
+	PhaseSymlink, PhaseUpdated, PhasePublishing, PhasePublished,
+	PhaseFinishing, PhaseFinished,
+}
+
+// IsBuiltinPhase reports whether name is a lifecycle phase (see BuiltinPhases).
+func IsBuiltinPhase(name string) bool { return slices.Contains(BuiltinPhases, name) }

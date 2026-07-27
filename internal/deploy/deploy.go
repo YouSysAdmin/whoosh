@@ -22,22 +22,6 @@ import (
 // symlink swap, cleanup) stay whoosh's.
 var replaceablePhases = map[string]bool{ast.PhaseRollback: true}
 
-// builtinPhases are the lifecycle phases, in run order. A custom phase anchors (before/after) on one of these.
-var builtinPhases = []string{
-	ast.PhaseStarting, ast.PhaseCheck, ast.PhaseInit, ast.PhaseStarted, ast.PhaseUpdating,
-	ast.PhaseSymlink, ast.PhaseUpdated, ast.PhasePublishing, ast.PhasePublished,
-	ast.PhaseFinishing, ast.PhaseFinished,
-}
-
-func isBuiltinPhase(name string) bool {
-	for _, p := range builtinPhases {
-		if p == name {
-			return true
-		}
-	}
-	return false
-}
-
 // step is one entry of the lifecycle: a phase name and its built-in command (or a no-op for a marker / pure hook-anchor phase).
 type step struct {
 	phase string
@@ -91,7 +75,7 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 		switch {
 		case p.Name == "":
 			return nil, fmt.Errorf("custom phase: name is required")
-		case isBuiltinPhase(p.Name), p.Name == ast.PhaseFailed, p.Name == ast.PhaseRollback:
+		case ast.IsBuiltinPhase(p.Name), p.Name == ast.PhaseFailed, p.Name == ast.PhaseRollback:
 			return nil, fmt.Errorf("custom phase %q: name collides with a built-in phase", p.Name)
 		case seenPhase[p.Name]:
 			return nil, fmt.Errorf("custom phase %q: defined more than once", p.Name)
@@ -103,7 +87,7 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 		if anchor == "" {
 			anchor = p.After
 		}
-		if !isBuiltinPhase(anchor) {
+		if !ast.IsBuiltinPhase(anchor) {
 			return nil, fmt.Errorf("custom phase %q: anchor %q is not a built-in phase", p.Name, anchor)
 		}
 		if p.Task != "" {
