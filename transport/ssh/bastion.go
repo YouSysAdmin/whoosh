@@ -73,18 +73,20 @@ func (b *Bastion) dialThrough(ctx context.Context, addr string, opts Options) (n
 }
 
 // Close tears down the bastion connection. Safe on a nil receiver and idempotent. A dial after Close fails
-// instead of reopening the connection.
+// instead of reopening the connection - including on a bastion that was declared but never dialed, so nothing can
+// open a connection no caller would ever close.
 func (b *Bastion) Close() error {
 	if b == nil {
 		return nil
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.client == nil {
-		return nil
+	var err error
+	if b.client != nil {
+		err = b.client.Close()
 	}
-	err := b.client.Close()
 	b.client = nil
+	b.dialed = true
 	b.err = fmt.Errorf("bastion %s: connection closed", b.target.Host)
 	return err
 }
