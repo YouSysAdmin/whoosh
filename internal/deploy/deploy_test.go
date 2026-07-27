@@ -840,3 +840,45 @@ func TestDeploy_PhaseFuncHookRuns(t *testing.T) {
 		t.Errorf("phase func hook did not run / write to console:\n%s", buf.String())
 	}
 }
+
+// A hook task hitting an unreachable non-required host must respect on_unreachable: skip like the built-in steps:
+// the host is dropped and the deploy completes (surfaced as SkippedHostsError), instead of aborting.
+func TestDeploy_SkipUnreachableHostInHookTask(t *testing.T) {
+	f := newFixture(t, 5)
+	f.withDeadHost(t, false)
+	f.cfg.OnUnreachable = ast.OnUnreachableSkip
+	// Anchor the hook before deploy:starting, so the dead host is still live when the hook task runs - the first
+	// built-in all-host step (deploy:check) has not dropped it yet. dir pins the task away from the default
+	// release dir, which does not exist at this phase.
+	f.cfg.Tasks = map[string]*ast.Task{"probe": {Cmds: []string{"true"}, Dir: "/"}}
+	f.cfg.Hooks.Before = map[string][]string{"deploy:starting": {"probe"}}
+
+	err := f.runDeploy(t)
+	var skipped *errors.SkippedHostsError
+	if !errors.As(err, &skipped) {
+		t.Fatalf("want SkippedHostsError, got %v", err)
+	}
+	if len(skipped.Hosts) != 1 || skipped.Hosts[0] != "localhost" {
+		t.Errorf("skipped hosts = %v, want [localhost]", skipped.Hosts)
+	}
+	if _, err := os.Readlink(filepath.Join(f.deployTo, "current")); err != nil {
+		t.Fatalf("current symlink missing on the surviving host: %v", err)
+	}
+}
+
+// The same hook task must still abort the deploy under the default policy.
+func TestDeploy_AbortOnUnreachableHostInHookTaskByDefault(t *testing.T) {
+	f := newFixture(t, 5)
+	f.withDeadHost(t, false)
+	f.cfg.Tasks = map[string]*ast.Task{"probe": {Cmds: []string{"true"}, Dir: "/"}}
+	f.cfg.Hooks.Before = map[string][]string{"deploy:starting": {"probe"}}
+
+	err := f.runDeploy(t)
+	if err == nil {
+		t.Fatal("expected the deploy to abort (default policy) on an unreachable host in a hook task")
+	}
+	var se *errors.SkippedHostsError
+	if errors.As(err, &se) {
+		t.Fatalf("default policy must abort, not skip: %v", err)
+	}
+}

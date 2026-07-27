@@ -58,7 +58,6 @@ type Deployer struct {
 	policy   string            // on_unreachable: abort (default) or skip
 	required map[string]bool   // hosts whose unreachability is always fatal
 	primary  string            // lock-holder host (implicitly required)
-	skipped  []string          // hosts dropped this run under `skip`
 	replace  map[string]string // phase -> task name overriding its built-in command
 	prevSHA  string            // previously deployed revision, read off the primary host at deploy start
 }
@@ -138,7 +137,13 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	// required: losing it would strand the lock, so it must never be dropped by `skip`.
 	primary := ast.PickPrimary(hosts)
 	d.primary = primary[0].Address
-	d.skipped = nil
+	// Mirror the policy into the executor so hook and custom-phase tasks drop unreachable hosts under `skip` the same
+	// way the built-in steps do (the primary is implicitly required - losing it would strand the lock).
+	required := map[string]bool{d.primary: true}
+	for h := range d.required {
+		required[h] = true
+	}
+	d.ex.SetUnreachablePolicy(d.policy, required)
 
 	now := time.Now().UTC()
 	ts := now.Format("20060102150405")
@@ -197,7 +202,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 			// With the mirror updated, read the deployed commit SHA off a live host and publish it to the context, so
 			// hooks/tasks from here on can use {{.commit_hash}} / $COMMIT_HASH. Skipped in dry-run (nothing is run).
 			if !d.ex.DryRun() {
-				sha, err := d.ex.Capture(ctx, d.ex.Hosts()[0], d.git.Revision(d.layout.RepoPath))
+				sha, err := d.captureLive(ctx, d.git.Revision(d.layout.RepoPath))
 				if err != nil {
 					return fmt.Errorf("resolve commit hash: %w", err)
 				}
@@ -260,11 +265,11 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 		return runErr
 	}
 
-	if len(d.skipped) > 0 {
-		// Deployed on the reachable hosts, but some were skipped.
+	if skipped := d.ex.UnreachableHosts(); len(skipped) > 0 {
+		// Deployed on the reachable hosts, but some were skipped (by a built-in step or a hook task).
 		// Not a failure (so no deploy:failed hook), but surfaced as a non-zero exit for CI.
-		slog.Warn("deployed with unreachable hosts skipped", "app", d.cfg.App.Name, "stage", d.cfg.Stage, "skipped", d.skipped)
-		return &errors.SkippedHostsError{Stage: d.cfg.Stage, Hosts: d.skipped}
+		slog.Warn("deployed with unreachable hosts skipped", "app", d.cfg.App.Name, "stage", d.cfg.Stage, "skipped", skipped)
+		return &errors.SkippedHostsError{Stage: d.cfg.Stage, Hosts: skipped}
 	}
 
 	slog.Info("deployed", "app", d.cfg.App.Name, "stage", d.cfg.Stage)
@@ -326,6 +331,9 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 		if r.Err == nil {
 			continue
 		}
+		if errors.Is(r.Err, context.Canceled) || errors.Is(r.Err, context.DeadlineExceeded) {
+			return fmt.Errorf("%s: %w", r.Host, r.Err) // an operator cancel, not a verdict on the host
+		}
 		if !errors.IsUnreachable(r.Err) {
 			return fmt.Errorf("%s: %w", r.Host, r.Err) // command failure -> always fatal
 		}
@@ -334,7 +342,6 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 		}
 		slog.Warn("host unreachable, skipping", "host", r.Host, "error", r.Err)
 		d.ex.MarkUnreachable(r.Host)
-		d.skipped = append(d.skipped, r.Host)
 	}
 	if len(d.ex.Hosts()) == 0 {
 		return fmt.Errorf("all hosts became unreachable")
@@ -346,6 +353,28 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 // primary.
 func (d *Deployer) isRequired(host string) bool {
 	return host == d.primary || d.required[host]
+}
+
+// captureLive reads a value off the first live host, applying the on_unreachable policy like runStep: under `skip`,
+// an unreachable non-required host is dropped (recorded) and the next host is tried.
+func (d *Deployer) captureLive(ctx context.Context, cmd string) (string, error) {
+	for {
+		hosts := d.ex.Hosts()
+		if len(hosts) == 0 {
+			return "", fmt.Errorf("no reachable hosts remain")
+		}
+		out, err := d.ex.Capture(ctx, hosts[0], cmd)
+		if err == nil {
+			return out, nil
+		}
+		host := hosts[0].Address
+		if d.policy != ast.OnUnreachableSkip || !errors.IsUnreachable(err) ||
+			errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || d.isRequired(host) {
+			return "", err
+		}
+		slog.Warn("host unreachable, skipping", "host", host, "error", err)
+		d.ex.MarkUnreachable(host)
+	}
 }
 
 // onFailure runs the deploy:failed hook tasks (best-effort) so a failed deploy can notify.

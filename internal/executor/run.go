@@ -110,13 +110,14 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 		slog.Warn("no hosts match task", "task", name)
 		return nil
 	}
-	targets := e.taskTargets(task, hosts)
 	steps, err := e.taskSteps(task)
 	if err != nil {
 		return err
 	}
 
 	for _, st := range steps {
+		// Recomputed per step: the on_unreachable policy below may drop hosts mid-task.
+		targets := e.taskTargets(task, hosts)
 		rendered := make(map[string]string, len(hosts))
 		for _, h := range hosts {
 			cmd, err := st.build(h.Address)
@@ -151,10 +152,21 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 			}
 		}
 
-		results := e.cluster.Run(ctx, targets, func(h string) string { return rendered[h] }, e.concurrency, !task.ContinueOnError)
+		// Under on_unreachable: skip, let every host finish the step (like the built-in phase steps via RunOnReport) so
+		// the policy can judge each host's own result instead of a sibling's cancellation.
+		failFast := !task.ContinueOnError && !e.skipUnreachable()
+		results := e.cluster.Run(ctx, targets, func(h string) string { return rendered[h] }, e.concurrency, failFast)
 		if runner.Failed(results) {
 			if !task.ContinueOnError {
-				return firstError(results)
+				hosts, err = e.applyUnreachablePolicy(name, hosts, results)
+				if err != nil {
+					return err
+				}
+				if len(hosts) == 0 {
+					slog.Warn("all task hosts unreachable, skipping remaining steps", "task", name)
+					return nil
+				}
+				continue
 			}
 			// Non-fatal mode: surface each failed host so a sweep's failures (e.g. an unreachable host, which streams no stderr)
 			// aren't silently dropped.

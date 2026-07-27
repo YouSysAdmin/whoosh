@@ -1,7 +1,13 @@
 package executor
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"slices"
+
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
+	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/runner"
 )
 
@@ -11,6 +17,69 @@ func (e *Executor) MarkUnreachable(host string) {
 	e.unreachableMu.Lock()
 	defer e.unreachableMu.Unlock()
 	e.unreachable[host] = true
+}
+
+// UnreachableHosts returns the hosts dropped so far (sorted), for the deploy's final skipped-hosts report.
+func (e *Executor) UnreachableHosts() []string {
+	e.unreachableMu.Lock()
+	defer e.unreachableMu.Unlock()
+	hosts := make([]string, 0, len(e.unreachable))
+	for h := range e.unreachable {
+		hosts = append(hosts, h)
+	}
+	slices.Sort(hosts)
+	return hosts
+}
+
+// SetUnreachablePolicy installs the deploy lifecycle's on_unreachable policy for task runs, so hook and custom-phase
+// tasks apply the same host-drop rules as the built-in phase steps. required holds the hosts whose loss is always
+// fatal (explicitly required hosts plus the lock-holding primary). Unset (the default) means abort on any failure.
+func (e *Executor) SetUnreachablePolicy(policy string, required map[string]bool) {
+	e.unreachablePolicy = policy
+	e.requiredHosts = required
+}
+
+// skipUnreachable reports whether unreachable hosts are dropped rather than fatal.
+func (e *Executor) skipUnreachable() bool { return e.unreachablePolicy == ast.OnUnreachableSkip }
+
+// applyUnreachablePolicy applies on_unreachable to one task step's per-host results and returns the hosts still live.
+// Under skip, an unreachable non-required host is dropped (marked, so nothing targets it again). Everything else is
+// fatal: a command that ran and failed, a required or primary host lost, a context cancellation (an operator Ctrl-C or
+// a cancelled sibling says nothing about the host), or any failure under the default abort policy.
+func (e *Executor) applyUnreachablePolicy(task string, hosts []ast.Host, results []runner.Result) ([]ast.Host, error) {
+	if !e.skipUnreachable() {
+		return hosts, firstError(results)
+	}
+	for _, r := range results {
+		if r.Err == nil {
+			continue
+		}
+		if werrors.Is(r.Err, context.Canceled) || werrors.Is(r.Err, context.DeadlineExceeded) {
+			return hosts, firstError(results)
+		}
+		if !werrors.IsUnreachable(r.Err) {
+			return hosts, firstError(results)
+		}
+		if e.requiredHosts[r.Host] {
+			return hosts, fmt.Errorf("required host %s unreachable: %w", r.Host, r.Err)
+		}
+	}
+	dropped := map[string]bool{}
+	for _, r := range results {
+		if r.Err == nil {
+			continue
+		}
+		slog.Warn("host unreachable, skipping", "task", task, "host", r.Host, "error", r.Err)
+		e.MarkUnreachable(r.Host)
+		dropped[r.Host] = true
+	}
+	live := make([]ast.Host, 0, len(hosts))
+	for _, h := range hosts {
+		if !dropped[h.Address] {
+			live = append(live, h)
+		}
+	}
+	return live, nil
 }
 
 // filterExcluded drops hosts marked unreachable.

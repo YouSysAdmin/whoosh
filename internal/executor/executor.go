@@ -54,6 +54,11 @@ type Executor struct {
 
 	unreachableMu sync.Mutex
 	unreachable   map[string]bool // hosts dropped by on_unreachable: skip
+
+	// unreachablePolicy/requiredHosts mirror the deploy lifecycle's on_unreachable policy for task runs (hooks, custom
+	// phases). Set once via SetUnreachablePolicy before the deploy starts, empty for standalone task runs (= abort).
+	unreachablePolicy string
+	requiredHosts     map[string]bool
 }
 
 // Options configure an Executor.
