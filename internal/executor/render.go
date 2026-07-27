@@ -57,7 +57,7 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	// These mirror the {{ .<ns>.<key> }} template values.
 	for ns, kv := range e.cfg.Imports {
 		for k, v := range kv {
-			env[envName(ns+"_"+k)] = v
+			env[EnvName(ns+"_"+k)] = v
 		}
 	}
 	taskEnv, err := e.renderEnvMap(task.Envs, host)
@@ -70,9 +70,10 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	return env, nil
 }
 
-// envName renders a string as a shell env var name: uppercased, with each run of non-alphanumeric characters collapsed
+// EnvName renders a string as a shell env var name: uppercased, with each run of non-alphanumeric characters collapsed
 // to a single underscore and surrounding underscores trimmed (e.g. "ssm_db-url" -> "SSM_DB_URL").
-func envName(s string) string {
+// Exported so the CLI's ad-hoc `run` exposes plugin imports under the same names task execution does.
+func EnvName(s string) string {
 	var b strings.Builder
 	underscore := false
 	for _, r := range strings.ToUpper(s) {

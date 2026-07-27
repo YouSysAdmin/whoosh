@@ -65,24 +65,30 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 	}
 }
 
-// renderRunEnvs Go-templates the global `envs:` values for an ad-hoc run, like the executor does for task cmds, so
-// e.g. `TOK: '{{ env "TOK" }}'` exports the resolved value rather than the literal template. One command goes to all
-// hosts, so the context is host-less (release_path falls back to the live `current`). Dry-run renders leniently.
+// renderRunEnvs builds the environment for an ad-hoc run with the same layering task cmds get (execEnv):
+// env_files as the base, the Go-templated global `envs:` (so e.g. `TOK: '{{ env "TOK" }}'` exports the resolved
+// value), then plugin imports as $<NS>_<KEY>. One command goes to all hosts, so the context is host-less
+// (release_path falls back to the live `current`). Dry-run renders leniently.
 func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (map[string]string, error) {
-	if len(cfg.Envs) == 0 {
-		return nil, nil
-	}
 	ctx := loadTimeContext(cfg)
 	ctx.Config, _ = cfg.AsMap()
 	ctx.Imports = cfg.Imports
 	ctx.ReleasePath = releaseDir
-	out := make(map[string]string, len(cfg.Envs))
+	out := make(map[string]string, len(cfg.EnvFileValues)+len(cfg.Envs))
+	for k, v := range cfg.EnvFileValues {
+		out[k] = v
+	}
 	for k, v := range cfg.Envs {
 		rv, err := varstmpl.RenderWith(v, ctx, !dryRun)
 		if err != nil {
 			return nil, fmt.Errorf("env %q: %w", k, err)
 		}
 		out[k] = rv
+	}
+	for ns, kv := range cfg.Imports {
+		for k, v := range kv {
+			out[executor.EnvName(ns+"_"+k)] = v
+		}
 	}
 	return out, nil
 }

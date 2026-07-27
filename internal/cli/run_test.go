@@ -15,22 +15,24 @@ func TestRenderRunEnvs(t *testing.T) {
 			"PLAIN": "value",
 			"TMPL":  `{{ env "WHOOSH_TEST_RUN_ENV" | default "fallback" }}-{{ .stage }}`,
 		},
-		EnvFileValues: map[string]string{},
+		EnvFileValues: map[string]string{"FROM_DOTENV": "dotenv-value", "PLAIN": "overridden"},
+		Imports:       map[string]map[string]string{"ssm": {"db-url": "postgres://h/db"}},
 	}
 	envs, err := renderRunEnvs(cfg, "/srv/app/current", false)
 	if err != nil {
 		t.Fatalf("renderRunEnvs: %v", err)
 	}
 	if envs["PLAIN"] != "value" {
-		t.Errorf("PLAIN = %q, want value", envs["PLAIN"])
+		t.Errorf("PLAIN = %q, want value (global envs override env_files)", envs["PLAIN"])
 	}
 	if envs["TMPL"] != "fallback-prod" {
 		t.Errorf("TMPL = %q, want fallback-prod (rendered, not the literal template)", envs["TMPL"])
 	}
-
-	// No envs -> nothing to render.
-	cfg.Envs = nil
-	if envs, err := renderRunEnvs(cfg, "/srv/app/current", false); err != nil || envs != nil {
-		t.Errorf("empty envs: got %v, %v", envs, err)
+	// Task-env parity: env_files are the base layer and plugin imports are exported as $<NS>_<KEY>.
+	if envs["FROM_DOTENV"] != "dotenv-value" {
+		t.Errorf("FROM_DOTENV = %q, want dotenv-value (env_files base layer)", envs["FROM_DOTENV"])
+	}
+	if envs["SSM_DB_URL"] != "postgres://h/db" {
+		t.Errorf("SSM_DB_URL = %q, want the plugin import value", envs["SSM_DB_URL"])
 	}
 }
