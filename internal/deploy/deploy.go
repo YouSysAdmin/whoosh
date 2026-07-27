@@ -160,7 +160,9 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	var locked bool
 	defer func() {
 		if locked {
-			_ = d.ex.RunOn(context.Background(), primary, unlockCmd(d.layout))
+			if err := d.ex.RunOn(context.Background(), primary, unlockCmd(d.layout)); err != nil {
+				slog.Warn("failed to release the deploy lock, clear it with deploy:unlock", "stage", d.cfg.Stage, "error", err)
+			}
 		}
 	}()
 
