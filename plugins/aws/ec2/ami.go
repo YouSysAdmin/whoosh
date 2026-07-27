@@ -400,16 +400,22 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 		}
 		in.Filters = append(in.Filters, ec2types.Filter{Name: awssdk.String("tag:" + k), Values: vals})
 	}
-	resp, err := p.ec2.DescribeImages(ctx, in)
-	if err != nil {
-		return fmt.Errorf("%s: describe images: %w", actionAMICleanup, err)
-	}
 	var images []ec2types.Image
-	for _, img := range resp.Images {
-		if ap.NamePrefix != "" && !strings.HasPrefix(awssdk.ToString(img.Name), ap.NamePrefix+"-") {
-			continue
+	for {
+		resp, err := p.ec2.DescribeImages(ctx, in)
+		if err != nil {
+			return fmt.Errorf("%s: describe images: %w", actionAMICleanup, err)
 		}
-		images = append(images, img)
+		for _, img := range resp.Images {
+			if ap.NamePrefix != "" && !strings.HasPrefix(awssdk.ToString(img.Name), ap.NamePrefix+"-") {
+				continue
+			}
+			images = append(images, img)
+		}
+		if resp.NextToken == nil || *resp.NextToken == "" {
+			break
+		}
+		in.NextToken = resp.NextToken
 	}
 	// Timestamp-formatted ISO dates sort chronologically as strings, newest first.
 	sort.Slice(images, func(i, j int) bool {
