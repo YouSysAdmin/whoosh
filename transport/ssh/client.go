@@ -132,7 +132,19 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 			return nil, connectError(err)
 		}
 	}
+	stop := handshakeWatchdog(ctx, netConn, timeout)
 	conn, chans, reqs, err := ssh.NewClientConn(netConn, t.addr(), cfg)
+	if interrupted := stop(); interrupted {
+		// The watchdog closed netConn, so even a nominally successful handshake is on a dead connection.
+		if conn != nil {
+			_ = conn.Close()
+		}
+		_ = netConn.Close()
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("ssh handshake: %w", ctx.Err())
+		}
+		return nil, fmt.Errorf("ssh handshake: timeout after %s", timeout)
+	}
 	if err != nil {
 		_ = netConn.Close()
 		return nil, fmt.Errorf("ssh handshake: %w", err)
@@ -269,6 +281,45 @@ func localAgentSocket() (string, error) {
 func IsExitError(err error) bool {
 	var ee *ssh.ExitError
 	return errors.As(err, &ee)
+}
+
+// handshakeWatchdog bounds the SSH handshake by closing netConn when ctx is cancelled or timeout elapses first.
+// ssh.NewClientConn has no deadline of its own (ClientConfig.Timeout only applies inside x/crypto's ssh.Dial), so a
+// host that accepts TCP but never answers SSH would otherwise hang forever - and keepalive starts only after the
+// handshake. Closing the conn is used instead of SetDeadline because bastion-tunneled conns do not support deadlines.
+// The returned stop func must be called exactly once after NewClientConn returns; it reports whether the watchdog
+// already closed the connection (so the caller can attribute the failure to the timeout or cancellation).
+func handshakeWatchdog(ctx context.Context, netConn net.Conn, timeout time.Duration) (stop func() bool) {
+	var (
+		mu    sync.Mutex
+		fired bool
+		done  = make(chan struct{})
+	)
+	timer := time.NewTimer(timeout)
+	go func() {
+		defer timer.Stop()
+		select {
+		case <-done:
+			return
+		case <-ctx.Done():
+		case <-timer.C:
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		select {
+		case <-done:
+			return // handshake finished first, leave the connection alone
+		default:
+		}
+		fired = true
+		_ = netConn.Close()
+	}()
+	return func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		close(done)
+		return fired
+	}
 }
 
 // connectError reduces a net dial error to a concise reason.

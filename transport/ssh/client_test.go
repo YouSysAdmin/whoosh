@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
@@ -9,7 +10,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 // timeoutErr is a net.Error reporting a timeout, as the net layer produces for an i/o timeout.
@@ -118,5 +121,63 @@ func TestLocalAgentSocket_Present(t *testing.T) {
 	}
 	if got != "/tmp/agent.sock" {
 		t.Errorf("socket = %q, want /tmp/agent.sock", got)
+	}
+}
+
+// stalledListener accepts TCP connections and never speaks, simulating a host whose sshd is wedged.
+func stalledListener(t *testing.T) net.Listener {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+		}
+	}()
+	return ln
+}
+
+func TestDial_HandshakeTimeout(t *testing.T) {
+	t.Setenv("SSH_AUTH_SOCK", "")
+	ln := stalledListener(t)
+	addr := ln.Addr().(*net.TCPAddr)
+
+	start := time.Now()
+	_, err := Dial(context.Background(),
+		Target{Host: addr.IP.String(), Port: addr.Port, User: "test", IdentityFile: writeTestKey(t)},
+		Options{ConnectTimeout: 200 * time.Millisecond, KeepaliveInterval: -1})
+	if err == nil {
+		t.Fatal("expected handshake timeout error")
+	}
+	if !strings.Contains(err.Error(), "timeout") {
+		t.Errorf("error = %q, want a timeout mention", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("Dial took %s, the handshake was not bounded", elapsed)
+	}
+}
+
+func TestDial_HandshakeCtxCancel(t *testing.T) {
+	t.Setenv("SSH_AUTH_SOCK", "")
+	ln := stalledListener(t)
+	addr := ln.Addr().(*net.TCPAddr)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+	_, err := Dial(ctx,
+		Target{Host: addr.IP.String(), Port: addr.Port, User: "test", IdentityFile: writeTestKey(t)},
+		Options{ConnectTimeout: time.Minute, KeepaliveInterval: -1})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
 	}
 }
