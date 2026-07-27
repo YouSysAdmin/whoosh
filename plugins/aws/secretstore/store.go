@@ -171,6 +171,9 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 			if expanded {
 				for k, v := range obj {
 					env[dotenv.NormalizeKey(k)] = v
+					// Register for redaction like the startup import path, so the values stay masked if a
+					// later command prints them (e.g. an app dumping its env).
+					whoosh.AddSecret(v)
 				}
 				continue
 			}
@@ -179,6 +182,7 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 				key = key[strings.LastIndex(key, "/")+1:]
 			}
 			env[dotenv.NormalizeKey(key)] = sec.value
+			whoosh.AddSecret(sec.value)
 		}
 	}
 

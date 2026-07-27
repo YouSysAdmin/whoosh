@@ -123,6 +123,13 @@ func TestSecretsEnvironmentFile(t *testing.T) {
 	if fake.listCalls["shared/github-auth-key"] != 0 {
 		t.Errorf("a no-slash prefix must not call ListSecrets, got %d", fake.listCalls["shared/github-auth-key"])
 	}
+
+	// to-dotenv values - both JSON-expanded and plain - are registered for redaction like the startup import path.
+	for _, v := range []string{"postgres://u:p@h/db", "ghp_abc123"} {
+		if red := whoosh.Masking("x=" + v); strings.Contains(red, v) {
+			t.Errorf("to-dotenv value not registered for redaction: %q", red)
+		}
+	}
 }
 
 func TestSecretsEnvironmentFile_JSONOverride(t *testing.T) {

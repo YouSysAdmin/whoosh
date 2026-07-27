@@ -153,6 +153,9 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 				key = name[strings.LastIndex(name, "/")+1:]
 			}
 			env[dotenv.NormalizeKey(key)] = value
+			// Register for redaction like the startup import path, so the values stay masked if a later
+			// command prints them (e.g. an app dumping its env).
+			whoosh.AddSecret(value)
 		}
 	}
 

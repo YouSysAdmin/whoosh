@@ -117,6 +117,11 @@ func TestSSMEnvironmentFile(t *testing.T) {
 	if fake.calls["/shared/github-auth-key"] != 0 {
 		t.Errorf("a no-slash prefix must not call GetParametersByPath, got %d", fake.calls["/shared/github-auth-key"])
 	}
+
+	// to-dotenv values are registered for redaction like the startup import path.
+	if red := whoosh.Masking("token=ghp_abc123"); strings.Contains(red, "ghp_abc123") {
+		t.Errorf("to-dotenv value not registered for redaction: %q", red)
+	}
 }
 
 func TestSSMEnvironmentFile_Validation(t *testing.T) {
