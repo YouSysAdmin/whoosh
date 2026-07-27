@@ -15,8 +15,8 @@ import (
 // startup/help/completion path.
 // A plugins command whose name collides with a built-in action or an already-registered subcommand (a task) is skipped,
 // so built-ins and tasks win.
-func registerPluginCmds(stageCmd *cobra.Command, stage string, gf *globalFlags) {
-	for _, c := range plugins.Commands(activePluginSpecs(stage)) {
+func registerPluginCmds(stageCmd *cobra.Command, stage, deployfileOverride string, gf *globalFlags) {
+	for _, c := range plugins.Commands(activePluginSpecs(stage, deployfileOverride)) {
 		if reservedActions[c.Name] || hasSubcommand(stageCmd, c.Name) {
 			continue
 		}
@@ -28,9 +28,9 @@ func registerPluginCmds(stageCmd *cobra.Command, stage string, gf *globalFlags) 
 // declared plugins (if it loads) plus the default-on plugins, filtered by enabled/only/except.
 // On any error it falls back to just the default-on plugins, so a default plugin's commands still register even without
 // (or with an invalid) Deployfile.
-func activePluginSpecs(stage string) []ast.PluginSpec {
+func activePluginSpecs(stage, deployfileOverride string) []ast.PluginSpec {
 	var declared []ast.PluginSpec
-	if path, err := deployfile.Discover(".", ""); err == nil {
+	if path, err := deployfile.Discover(".", deployfileOverride); err == nil {
 		if cfg, err := deployfile.Load(path, stage); err == nil {
 			declared = cfg.Plugins
 		}

@@ -20,7 +20,7 @@ func TestHostsNoLongerReserved(t *testing.T) {
 // discovered offline (no Deployfile needed - the default-on plugins is included via the fallback in activePluginSpecs).
 func TestRegisterPluginCmds_AddsDeployHosts(t *testing.T) {
 	stageCmd := &cobra.Command{Use: "production"}
-	registerPluginCmds(stageCmd, "production", &globalFlags{})
+	registerPluginCmds(stageCmd, "production", "", &globalFlags{})
 
 	if !hasSubcommand(stageCmd, "deploy:hosts") {
 		var names []string
@@ -36,7 +36,7 @@ func TestRegisterPluginCmds_SkipsCollisions(t *testing.T) {
 	stageCmd := &cobra.Command{Use: "production"}
 	stageCmd.AddCommand(&cobra.Command{Use: "deploy:hosts"}) // pre-existing (e.g. a task)
 	before := len(stageCmd.Commands())
-	registerPluginCmds(stageCmd, "production", &globalFlags{})
+	registerPluginCmds(stageCmd, "production", "", &globalFlags{})
 	if got := len(stageCmd.Commands()); got != before {
 		t.Errorf("registerPluginCmds added a colliding command: %d -> %d", before, got)
 	}

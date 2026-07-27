@@ -111,11 +111,27 @@ func newRootCmd(args []string) *cobra.Command {
 	root.AddCommand(builder.NewCommand())
 
 	// The stage is data, not a fixed command, so register it dynamically from the arguments and hang the action
-	// subcommands off it.
+	// subcommands off it. --deployfile is pre-scanned the same way: flags aren't parsed yet, but task and plugin
+	// command discovery must read the config the command will actually load.
 	if stage, ok := detectStage(args); ok {
-		root.AddCommand(newStageCmd(stage))
+		root.AddCommand(newStageCmd(stage, detectDeployfile(args)))
 	}
 	return root
+}
+
+// detectDeployfile pre-scans the raw arguments for --deployfile (space- or =-separated), for use before cobra has
+// parsed flags - dynamic command registration would otherwise discover tasks from the cwd's Deployfile (or none)
+// while the actual load honors the flag, making named tasks uninvocable from outside the project dir.
+func detectDeployfile(args []string) string {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--deployfile" && i+1 < len(args) {
+			return args[i+1]
+		}
+		if v, ok := strings.CutPrefix(args[i], "--deployfile="); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 // reservedFirstArgs are top-level tokens that are never stage names.
@@ -189,7 +205,9 @@ func detectStage(args []string) (string, bool) {
 
 // newStageCmd builds the command for a stage and attaches its actions.
 // The shared globalFlags are registered as persistent flags so they work after any action.
-func newStageCmd(stage string) *cobra.Command {
+// deployfileOverride is the pre-scanned --deployfile value (see detectDeployfile), used only for the offline task and
+// plugin command discovery below - the actions themselves read the parsed flag.
+func newStageCmd(stage, deployfileOverride string) *cobra.Command {
 	gf := &globalFlags{}
 	cmd := &cobra.Command{
 		Use:          stage,
@@ -213,10 +231,10 @@ func newStageCmd(stage string) *cobra.Command {
 	cmd.AddCommand(newRollbackCmd(stage, gf))
 	cmd.AddCommand(newReleasesCmd(stage, gf))
 	cmd.AddCommand(newUnlockCmd(stage, gf))
-	registerTaskCmds(cmd, stage, gf)
+	registerTaskCmds(cmd, stage, deployfileOverride, gf)
 	// Plugin-contributed actions (e.g. print-hosts-table's deploy:hosts).
 	// Added last so a built-in or a task of the same name wins.
-	registerPluginCmds(cmd, stage, gf)
+	registerPluginCmds(cmd, stage, deployfileOverride, gf)
 	return cmd
 }
 
@@ -235,8 +253,8 @@ var reservedActions = map[string]bool{
 // registerTaskCmds discovers task names from the shared Deployfile merged with the stage file and adds a subcommand for
 // each, so "whoosh <stage> <task>" works - including tasks defined only in deploy/<stage>.yml.
 // Discovery is best-effort: if no Deployfile is found, only the built-in actions are present.
-func registerTaskCmds(stageCmd *cobra.Command, stage string, gf *globalFlags) {
-	path, err := deployfile.Discover(".", "")
+func registerTaskCmds(stageCmd *cobra.Command, stage, deployfileOverride string, gf *globalFlags) {
+	path, err := deployfile.Discover(".", deployfileOverride)
 	if err != nil {
 		return
 	}

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -214,5 +216,43 @@ func TestSelectPluginsForStage_Disabled(t *testing.T) {
 	}
 	if len(cfg.SkippedPlugins) != 1 || cfg.SkippedPlugins[0] != "datadog" {
 		t.Errorf("skipped = %v, want [datadog]", cfg.SkippedPlugins)
+	}
+}
+
+func TestDetectDeployfile(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"space form", []string{"prod", "mytask", "--deployfile", "../app/Deployfile.yml"}, "../app/Deployfile.yml"},
+		{"equals form", []string{"prod", "--deployfile=../d.yml", "deploy"}, "../d.yml"},
+		{"absent", []string{"prod", "deploy"}, ""},
+		{"dangling flag", []string{"prod", "--deployfile"}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := detectDeployfile(tc.args); got != tc.want {
+				t.Errorf("detectDeployfile(%v) = %q, want %q", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
+// Named tasks must register even when the Deployfile is outside the cwd and given via --deployfile - registration
+// pre-scans the flag because cobra has not parsed flags yet.
+func TestRegisterTaskCmds_HonorsDeployfileFlag(t *testing.T) {
+	dir := t.TempDir()
+	df := filepath.Join(dir, "Deployfile.yml")
+	if err := os.WriteFile(df, []byte("version: 1\napp:\n  name: myapp\n  deploy_to: /srv/app\ntasks:\n  mytask:\n    cmds: [\"true\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Run from a directory with no Deployfile.
+	t.Chdir(t.TempDir())
+
+	root := newRootCmd([]string{"prod", "mytask", "--deployfile", df})
+	stageCmd, _, err := root.Find([]string{"prod", "mytask"})
+	if err != nil || stageCmd.Name() != "mytask" {
+		t.Fatalf("task command not registered with --deployfile: cmd=%v err=%v", stageCmd.Name(), err)
 	}
 }
