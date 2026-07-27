@@ -19,7 +19,14 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 	if !task.Local {
 		servers := e.targetsForTask(task)
 		if len(servers) == 0 {
+			// Store the format's zero value (like dry-run does) so a later {{ .tasks.<name> }} still renders instead
+			// of failing strict rendering far from the cause.
 			slog.Warn("no hosts match task", "task", name)
+			val, err := parseOutput(task.Output, "")
+			if err != nil {
+				return fmt.Errorf("task %q: %w", name, err)
+			}
+			e.setTaskState(name, val)
 			return nil
 		}
 		target = e.taskTargets(task, servers[:1])[0]

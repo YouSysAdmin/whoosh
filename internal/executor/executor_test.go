@@ -1841,3 +1841,26 @@ func TestRunTask_EnvTemplateFuncSeesEnvFiles(t *testing.T) {
 		t.Fatalf("env func should resolve from env_files, got:\n%s", buf.String())
 	}
 }
+
+// An output task whose role filter matches no host must still record its zero state (like dry-run), so a later
+// {{ .tasks.<name> }} reference renders instead of failing strict rendering far from the cause.
+func TestRunTask_CaptureNoHostsStoresZeroState(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:   ast.App{Name: "app", DeployTo: "/srv/app"},
+		Stage: "test",
+		Hosts: []ast.Host{{Address: "localhost", Local: true, Roles: []string{"app"}}},
+		Tasks: map[string]*ast.Task{
+			"probe": {Roles: []string{"db"}, Output: "lines", Cmds: []string{"hostname"}},
+			"use":   {Local: true, Deps: []string{"probe"}, Cmds: []string{`echo "n={{ len .tasks.probe }}"`}},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
+	defer ex.Close()
+	if err := ex.RunTask(context.Background(), "use"); err != nil {
+		t.Fatalf("RunTask: %v\n%s", err, buf.String())
+	}
+	if out := buf.String(); !strings.Contains(out, "n=0") {
+		t.Fatalf("zero state not stored/rendered:\n%s", out)
+	}
+}
