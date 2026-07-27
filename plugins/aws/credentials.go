@@ -240,26 +240,28 @@ const imdsBase = "http://169.254.169.254/latest"
 
 // fetchIMDS walks the IMDSv2 token -> region -> role -> credentials sequence using run to execute each curl on the
 // target host. The token is requested with a 6h TTL (21600s), far more than one credential fetch needs.
+// Each curl uses -f so an IMDS HTTP error (e.g. a 404 when the instance has no IAM instance profile, or a blocked
+// token PUT) fails its step with a labeled error instead of the error body being parsed as data.
 func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	token, err := runNonEmpty(ctx, run, "obtain IMDSv2 token",
-		"curl -sS -X PUT '"+imdsBase+"/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'")
+		"curl -sSf -X PUT '"+imdsBase+"/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'")
 	if err != nil {
 		return imdsCreds{}, err
 	}
 	hdr := "-H 'X-aws-ec2-metadata-token: " + token + "'"
 
 	region, err := runNonEmpty(ctx, run, "obtain region from instance metadata",
-		"curl -sS "+hdr+" "+imdsBase+"/meta-data/placement/region")
+		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/placement/region")
 	if err != nil {
 		return imdsCreds{}, err
 	}
 	role, err := runNonEmpty(ctx, run, "obtain IAM role name from instance metadata",
-		"curl -sS "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/")
+		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/")
 	if err != nil {
 		return imdsCreds{}, err
 	}
 	body, err := runNonEmpty(ctx, run, "obtain IAM role credentials from instance metadata",
-		"curl -sS "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/"+role)
+		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/"+role)
 	if err != nil {
 		return imdsCreds{}, err
 	}
