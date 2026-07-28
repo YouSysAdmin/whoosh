@@ -49,39 +49,20 @@ func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
 	}
 	for _, sc := range task.Scripts {
 		sc := sc
-		if sc.Script != "" {
-			steps = append(steps, step{
-				label:    scriptLabel(sc),
-				isScript: true,
-				build: func(host string) (string, error) {
-					content, err := e.render(sc.Script, host)
-					if err != nil {
-						return "", err
-					}
-					env, err := e.execEnv(host, task)
-					if err != nil {
-						return "", err
-					}
-					dir, err := e.taskDir(task, host)
-					if err != nil {
-						return "", err
-					}
-					return buildScriptCommand(sc.Interpreter, content, dir, env), nil
-				},
-			})
-			continue
+		// Inline scripts are always templated, a file script only when asked (explicit flag or .tmpl suffix).
+		content, templated := sc.Script, true
+		if sc.Script == "" {
+			data, err := e.readScriptFile(sc.Path)
+			if err != nil {
+				return nil, err
+			}
+			content, templated = string(data), sc.Template || strings.HasSuffix(sc.Path, ".tmpl")
 		}
-		content, err := e.readScriptFile(sc.Path)
-		if err != nil {
-			return nil, err
-		}
-		// Render the file as a template when asked (explicit flag or .tmpl suffix).
-		templated := sc.Template || strings.HasSuffix(sc.Path, ".tmpl")
 		steps = append(steps, step{
 			label:    scriptLabel(sc),
 			isScript: true,
 			build: func(host string) (string, error) {
-				body := string(content)
+				body := content
 				if templated {
 					rendered, err := e.render(body, host)
 					if err != nil {
