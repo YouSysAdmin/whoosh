@@ -134,9 +134,16 @@ func IsRegistered(name string) bool { return plugins.IsRegistered(name) }
 func Load(specs []PluginSpec) (*Registry, error) { return plugins.Load(specs) }
 
 // DecodeParams maps an untyped params map into a typed struct via a YAML round trip, so a plugin can use ordinary
-// structs with YAML tags.
+// structs with YAML tags. Unknown keys are ignored - use DecodeParamsStrict when the struct defines the whole
+// params surface.
 func DecodeParams(params map[string]any, target any) error {
 	return plugins.DecodeParams(params, target)
+}
+
+// DecodeParamsStrict is DecodeParams with unknown keys rejected, so a misspelled param errors at load instead of
+// silently applying the default.
+func DecodeParamsStrict(params map[string]any, target any) error {
+	return plugins.DecodeParamsStrict(params, target)
 }
 
 // WithHostFileWriter returns ctx carrying w (the executor sets this before an action runs).

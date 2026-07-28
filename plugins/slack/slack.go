@@ -163,7 +163,7 @@ type notifier struct {
 // the notification tasks.
 func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	var pr params
-	if err := whoosh.DecodeParams(spec.Params, &pr); err != nil {
+	if err := whoosh.DecodeParamsStrict(spec.Params, &pr); err != nil {
 		return fmt.Errorf("slack params: %w", err)
 	}
 	if pr.WebhookURL == "" {

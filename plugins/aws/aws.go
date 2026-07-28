@@ -63,8 +63,8 @@ func (a *awsPlugin) Version() string { return pluginVersion }
 // (each builds its own client from it).
 func (a *awsPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	var c awsConfig
-	if err := whoosh.DecodeParams(spec.Params, &c); err != nil {
-		return err
+	if err := whoosh.DecodeParamsStrict(spec.Params, &c); err != nil {
+		return fmt.Errorf("aws params: %w", err)
 	}
 	cfg, err := loadAWS(context.Background(), c)
 	if err != nil {

@@ -114,3 +114,20 @@ func specNames(specs []ast.PluginSpec) []string {
 	}
 	return out
 }
+
+func TestDecodeParamsStrict(t *testing.T) {
+	type p struct {
+		Name string `yaml:"name"`
+	}
+	var got p
+	if err := DecodeParamsStrict(map[string]any{"name": "x"}, &got); err != nil || got.Name != "x" {
+		t.Fatalf("DecodeParamsStrict = %v (got %+v), want name decoded", err, got)
+	}
+	if err := DecodeParamsStrict(map[string]any{"wrongkey": "x"}, &got); err == nil {
+		t.Fatal("expected an unknown-key error for a misspelled param")
+	}
+	// Empty params must decode to the zero value, not error on the empty YAML document.
+	if err := DecodeParamsStrict(nil, &got); err != nil {
+		t.Fatalf("DecodeParamsStrict(nil) = %v, want nil", err)
+	}
+}

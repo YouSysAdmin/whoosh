@@ -13,7 +13,9 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -248,11 +250,27 @@ func Load(specs []ast.PluginSpec) (*Registry, error) {
 }
 
 // DecodeParams maps an untyped params map into a typed struct via a YAML round trip, so plugins can use ordinary
-// structs with yaml tags.
+// structs with yaml tags. Unknown keys are ignored - use DecodeParamsStrict when the struct defines the whole
+// params surface.
 func DecodeParams(params map[string]any, target any) error {
 	data, err := yaml.Marshal(params)
 	if err != nil {
 		return err
 	}
 	return yaml.Unmarshal(data, target)
+}
+
+// DecodeParamsStrict is DecodeParams with unknown keys rejected. Use it when the target struct defines the whole
+// params surface, so a misspelled key errors at load instead of silently applying the default.
+func DecodeParamsStrict(params map[string]any, target any) error {
+	data, err := yaml.Marshal(params)
+	if err != nil {
+		return err
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(target); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }

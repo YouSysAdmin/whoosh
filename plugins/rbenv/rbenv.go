@@ -138,8 +138,12 @@ type params struct {
 // Configure decodes the params and registers the startup hook.
 func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	var pr params
-	if err := whoosh.DecodeParams(spec.Params, &pr); err != nil {
+	if err := whoosh.DecodeParamsStrict(spec.Params, &pr); err != nil {
 		return fmt.Errorf("rbenv params: %w", err)
+	}
+	// The plugin has no per-feature actions: config lives entirely in params, so any actions: entry is a mistake.
+	for _, a := range spec.Actions {
+		return fmt.Errorf("rbenv: unknown feature %q under actions: (the plugin is configured via params: only)", a.Name)
 	}
 	// A misspelled when value would otherwise silently mean "before".
 	if pr.When != "" && !strings.EqualFold(pr.When, "before") && !strings.EqualFold(pr.When, "after") {

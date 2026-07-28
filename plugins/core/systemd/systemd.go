@@ -137,7 +137,7 @@ type actions struct {
 // actions: entry with a phase: - a startup hook contributing the hidden hook task.
 func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	var gp params
-	if err := whoosh.DecodeParams(spec.Params, &gp); err != nil {
+	if err := whoosh.DecodeParamsStrict(spec.Params, &gp); err != nil {
 		return fmt.Errorf("systemd params: %w", err)
 	}
 	if err := gp.validate(""); err != nil {
@@ -154,7 +154,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 		}
 		merged := merge(spec.Params, a.Params)
 		var fp params
-		if err := whoosh.DecodeParams(merged, &fp); err != nil {
+		if err := whoosh.DecodeParamsStrict(merged, &fp); err != nil {
 			return fmt.Errorf("systemd: %s params: %w", a.Name, err)
 		}
 		if err := fp.validate(verb); err != nil {
@@ -223,7 +223,7 @@ func (n *actions) run(action string) whoosh.ActionFunc {
 			base = n.global
 		}
 		var p params
-		if err := whoosh.DecodeParams(merge(base, with), &p); err != nil {
+		if err := whoosh.DecodeParamsStrict(merge(base, with), &p); err != nil {
 			return fmt.Errorf("systemd: %s: %w", action, err)
 		}
 		if err := p.validate(verb); err != nil {
