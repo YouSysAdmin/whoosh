@@ -4,7 +4,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yousysadmin/whoosh/internal/deploy"
+	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	"github.com/yousysadmin/whoosh/internal/executor"
+	"github.com/yousysadmin/whoosh/internal/plugins"
 )
 
 func newDeployCmd(stage string, gf *globalFlags) *cobra.Command {
@@ -39,18 +41,14 @@ func newDeployCheckCmd(stage string, gf *globalFlags) *cobra.Command {
 	}
 }
 
-// newDeployer loads config and wires an executor + Deployer, returning a cleanup function that releases SSH
-// connections.
-func newDeployer(cmd *cobra.Command, stage string, gf *globalFlags) (*deploy.Deployer, func(), error) {
-	cfg, reg, err := loadConfig(cmd.Context(), cmd, gf, stage)
-	if err != nil {
-		return nil, nil, err
-	}
+// newExecutor wires an executor over a loaded config from the command's flags - the single place the CLI assembles
+// executor.Options, shared by the deploy commands and named-task runs so the two paths cannot drift.
+func newExecutor(cmd *cobra.Command, cfg *ast.DeployFile, reg *plugins.Registry, gf *globalFlags) (*executor.Executor, error) {
 	sshOpts, err := sshOptions(cfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	ex := executor.New(cfg, executor.Options{
+	return executor.New(cfg, executor.Options{
 		SSH:         sshOpts,
 		Out:         cmd.OutOrStdout(),
 		DryRun:      gf.dryRun,
@@ -60,7 +58,20 @@ func newDeployer(cmd *cobra.Command, stage string, gf *globalFlags) (*deploy.Dep
 		Concurrency: gf.conc,
 		Registry:    reg,
 		Color:       colorOutput(cmd, cfg.Log),
-	})
+	}), nil
+}
+
+// newDeployer loads config and wires an executor + Deployer, returning a cleanup function that releases SSH
+// connections.
+func newDeployer(cmd *cobra.Command, stage string, gf *globalFlags) (*deploy.Deployer, func(), error) {
+	cfg, reg, err := loadConfig(cmd.Context(), cmd, gf, stage)
+	if err != nil {
+		return nil, nil, err
+	}
+	ex, err := newExecutor(cmd, cfg, reg, gf)
+	if err != nil {
+		return nil, nil, err
+	}
 	d, err := deploy.New(cfg, ex)
 	if err != nil {
 		ex.Close()

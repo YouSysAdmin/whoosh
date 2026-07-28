@@ -29,21 +29,10 @@ func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.C
 			if err != nil {
 				return err
 			}
-			sshOpts, err := sshOptions(cfg)
+			ex, err := newExecutor(cmd, cfg, reg, gf)
 			if err != nil {
 				return err
 			}
-			ex := executor.New(cfg, executor.Options{
-				SSH:         sshOpts,
-				Out:         cmd.OutOrStdout(),
-				DryRun:      gf.dryRun,
-				Verbose:     effectiveVerbose(cmd, gf.verbose, cfg.Log),
-				Roles:       gf.roles,
-				Limit:       gf.limit,
-				Concurrency: gf.conc,
-				Registry:    reg,
-				Color:       colorOutput(cmd, cfg.Log),
-			})
 			defer ex.Close()
 			err = ex.RunTask(cmd.Context(), name)
 			if err != nil && !gf.dryRun {
