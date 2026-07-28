@@ -176,18 +176,27 @@ func (e *Executor) globalEnv(host string) (map[string]string, error) {
 	return out, nil
 }
 
-// render is the task-time render: the base context plus the resolved global envs, so {{ env "X" }} in cmds, scripts,
-// task envs, and dir sees process env > global envs > env_files.
-func (e *Executor) render(raw, host string) (string, error) {
+// renderContext is the task-time render context: the base context plus the resolved global envs, so {{ env "X" }}
+// sees process env > global envs > env_files. Dry-run tolerates a global env that needs run-time state (the preview
+// must not break), real runs propagate the error.
+func (e *Executor) renderContext(host string) (varstmpl.Context, error) {
 	c := e.baseContext(host)
 	ge, err := e.globalEnv(host)
 	if err != nil {
-		// Dry-run previews leniently: a global env that needs run-time state must not break the plan.
 		if !e.dryRun {
-			return "", err
+			return c, err
 		}
-	} else {
-		c.GlobalEnvValues = ge
+		return c, nil
+	}
+	c.GlobalEnvValues = ge
+	return c, nil
+}
+
+// render is the task-time render for cmds, scripts, task envs, and dir.
+func (e *Executor) render(raw, host string) (string, error) {
+	c, err := e.renderContext(host)
+	if err != nil {
+		return "", err
 	}
 	// Dry-run renders leniently: captured task state ({{.tasks.*}}) and other run-time-only values aren't known when
 	// previewing, so a missing key yields "<no value>" instead of failing the preview. Real runs stay strict.

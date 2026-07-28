@@ -127,14 +127,9 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 // Action tasks run operator-side, so there is no host - {{.host}} renders empty. Like every task-time render, {{ env
 // "X" }} sees the resolved global envs (dry-run stays lenient when they need run-time state).
 func (e *Executor) renderParams(in map[string]any) (map[string]any, error) {
-	c := e.baseContext("")
-	ge, err := e.globalEnv("")
+	c, err := e.renderContext("")
 	if err != nil {
-		if !e.dryRun {
-			return nil, err
-		}
-	} else {
-		c.GlobalEnvValues = ge
+		return nil, err
 	}
 	return varstmpl.RenderParams(in, c, !e.dryRun)
 }
