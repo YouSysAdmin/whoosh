@@ -35,7 +35,7 @@ the core one.
 
 Run `whoosh plugins` (or `whoosh version`) to see which plugins a binary contains.
 
-See [README.md](plugins/aws/README.md) for the Whoosh AWS Plugin
+See [README.md](plugins/aws/README.md) for the Whoosh AWS plugin.
 
 ## Quick start
 
@@ -103,7 +103,7 @@ Regenerate it after changing the config with `make schema`.
 
 # https://whoosh.yousysadmin.com/deployfile.schema.json
 # https://yousysadmin.github.io/whoosh/deployfile.schema.json
-# https://raw.githubusercontent.com/YouSysAdmin/whoosh/refs/heads/master/deployfile.schema.json  
+# https://raw.githubusercontent.com/YouSysAdmin/whoosh/refs/heads/master/deployfile.schema.json
 ```
 
 > The schema validates the config structure and all core fields, but **not** plugin-specific `params:`/`with:` keys
@@ -251,9 +251,8 @@ tasks:
 ```
 
 > **Both flags act on the inventory captured at process start.**
-> A fresh `whoosh <stage> <task>` run re-fetches dynamic inventory, so instances created *during* a deployment (e.g. by
-> an
-> ASG refresh) only appear on the **next** invocation - not to a hook running within the same deploy.
+> A fresh `whoosh <stage> <task>` run re-fetches dynamic inventory, so instances created *during* a deployment
+> (e.g. by an ASG refresh) only appear on the **next** invocation - not to a hook running within the same deploy.
 > So run these as their own post-deploy CI step (`whoosh prod asg-healthcheck`), not as a deployment hook.
 
 ### Unreachable hosts (`on_unreachable`)
@@ -275,8 +274,7 @@ hosts:
 
 - **`abort`** (default) - any unreachable host fails the deployment. Unchanged behavior.
 - **`skip`** - an unreachable host is dropped (from the remaining phases *and* from hook tasks), the deployment
-  completes
-  on the rest, the skipped hosts are logged, and the command exits **non-zero** so CI notices.
+  completes on the rest, the skipped hosts are logged, and the command exits **non-zero** so CI notices.
   Per-host `required: true` keeps a critical host from being skipped (the lock-holding primary is always required).
 - Applies to **unreachable** hosts only - a dial failure or a connection lost mid-command.
   A command that *runs and exits non-zero* (e.g. a failed migration) always aborts regardless (use per-task
@@ -303,11 +301,12 @@ A task's `cmds` run first, then its `scripts`.
   stages it runs in, empty = all, while `except` lists stages to skip, and `except` wins).
   A task inactive for the stage is **skipped** (logged), not run - whether invoked directly, as a `deps` entry, or
   from a hook - and is omitted from that stage's `--help` listing. So a shared hook like
-  `deploy:published: [restart, warm-cache]` can run `restart` everywhere and skip `warm-cache` where `except:
-[staging]`, without per-stage hook lists.
+  `deploy:published: [restart, warm-cache]` can run `restart` everywhere and skip `warm-cache` where
+  `except: [staging]`, without per-stage hook lists.
 - **`replace: deploy:rollback`** - make this task run **in place of** a phase's built-in command.
-  Only `deploy:rollback` is replaceable today: so an `aws:ec2:asg:rollback` (or any) task can take over `whoosh
-  <stage> deploy:rollback` instead of the default current-symlink swap - one rollback command, app-specific behavior.
+  Only `deploy:rollback` is replaceable today: so an `aws:ec2:asg:rollback` (or any) task can take over
+  `whoosh <stage> deploy:rollback` instead of the default current-symlink swap - one rollback command, app-specific
+  behavior.
   The phase's `before`/`after` hooks still run, and `--cleanup` doesn't apply to a replaced rollback.
   (At most one task may replace a phase.)
 
@@ -354,15 +353,14 @@ tasks:
   Local (`local: true`) tasks run in your machine's cwd.
   (A hook that runs *before* the release exists - before `deploy:updating` - must set its own `dir:`.)
 - **Deploy context as env**: every task command, script, and ad-hoc `run` gets the deployment context exported as
-  standard
-  env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`, `$COMMIT_HASH`,
-  `$PREVIOUS_COMMIT_HASH`, `$DEPLOYER`,
-  `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST` - plus your `vars`.
+  standard env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`,
+  `$COMMIT_HASH`, `$PREVIOUS_COMMIT_HASH`, `$DEPLOYER`, `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST` - plus
+  your `vars`.
   So a `cmd` can use either `{{.release_path}}`/`{{.host}}` (Go template, expanded by whoosh) or
   `$RELEASE_PATH`/`$HOST` (shell env, expanded on the host). Both work in `cmds` and `scripts` alike.
 - **Environment**: a top-level `envs:` map is exported for every task command, script, and ad-hoc `run`, and a task's
   own `envs:` overrides it per key.
-  Values are **shell-expanded**, so they can reference existing vars - this is how you put language-version- manager
+  Values are **shell-expanded**, so they can reference existing vars - this is how you put language-version-manager
   shims on `PATH`:
 
   ```yaml
@@ -438,8 +436,7 @@ tasks:
   over SSH and in local mode, no upload needed.
 - **Environment**: each script gets the task's `envs` and the deployment context exported as standard
   env vars - `$RELEASE_PATH`, `$CURRENT_PATH`, `$SHARED_PATH`, `$DEPLOY_TO`, `$RELEASE_TIMESTAMP`, `$COMMIT_HASH`,
-  `$PREVIOUS_COMMIT_HASH`, `$DEPLOYER`,
-  `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`.
+  `$PREVIOUS_COMMIT_HASH`, `$DEPLOYER`, `$APP_NAME`, `$BRANCH`, `$STAGE`, `$REPO`, `$HOST`.
   Config `vars` are template-only - surface one explicitly with `envs: { NAME: "{{ .var }}" }`.
 - **Templating**: inline scripts are always Go-templated, while a file script is templated when its path ends in
   `.tmpl` or it sets `template: true`.
@@ -465,12 +462,12 @@ Each one validates its params on load (`Configure`) and registers what it contri
 
 **Core** (in both `whoosh` and `whoosh-core`, on by default - disable with `enabled: false`):
 
-| Plugin              | What it does                                                                                                                              | Docs                                                   |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| Plugin              | What it does                                                                                                                              | Docs                                               |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
 | `print-hosts-table` | Prints the resolved hosts table at deploy start and via `whoosh <stage> deploy:hosts`                                                     | [README](plugins/core/print_hosts_table/README.md) |
 | `systemd`           | `systemd:start/stop/restart/enable/disable/daemon-reload` actions run `systemctl` on the task's hosts, ad-hoc or hooked to a deploy phase | [README](plugins/core/systemd/README.md)           |
 
-**Separate modules** (in the default `whoosh` binary; add to a core-based custom build with `whoosh build --with <module>`):
+**Separate modules** (in the default `whoosh` binary - add to a core-based custom build with `whoosh build --with <module>`):
 
 | Plugin  | What it does                                                                                         | Docs                              |
 |---------|------------------------------------------------------------------------------------------------------|-----------------------------------|
@@ -488,27 +485,27 @@ same values are exported to the shell as env vars - so you can write either `{{.
 or `$RELEASE_PATH` (expanded on the host).
 Both forms work in `cmds`, inline `scripts`, file scripts, and ad-hoc `run`.
 
-| Value                                       | Template                 | Env var                 |
-|---------------------------------------------|--------------------------|-------------------------|
-| App name (`app.name`)                       | `{{.app_name}}`          | `$APP_NAME`             |
-| Repo URL (`app.repo`)                       | `{{.repo}}`              | `$REPO`                 |
-| Branch (`app.branch`)                       | `{{.branch}}`            | `$BRANCH`               |
-| Stage name                                  | `{{.stage}}`             | `$STAGE`                |
-| Deploy root (`app.deploy_to`)               | `{{.deploy_to}}`         | `$DEPLOY_TO`            |
-| Releases dir (`<deploy_to>/releases`)       | `{{.releases_path}}`     | `$RELEASES_PATH`        |
-| Shared dir (`<deploy_to>/shared`)           | `{{.shared_path}}`       | `$SHARED_PATH`          |
-| Git mirror (`<deploy_to>/repo`)             | `{{.repo_path}}`         | `$REPO_PATH`            |
-| Current symlink (`<deploy_to>/current`)     | `{{.current_path}}`      | `$CURRENT_PATH`         |
-| This release dir                            | `{{.release_path}}`      | `$RELEASE_PATH`         |
-| Release id (timestamp)                      | `{{.release_timestamp}}` | `$RELEASE_TIMESTAMP`    |
-| Deployed commit SHA                         | `{{.commit_hash}}`       | `$COMMIT_HASH`          |
-| Previously deployed SHA                     | `{{.previous_commit_hash}}` | `$PREVIOUS_COMMIT_HASH` |
-| Deploy changelog (commits since the previous revision) | `{{.changelog}}` | `$DEPLOY_CHANGELOG`     |
-| Deploy operator                             | `{{.deployer}}`          | `$DEPLOYER`             |
-| Target host the command runs on             | `{{.host}}`              | `$HOST`                 |
-| Roles of that host (its full set)           | `{{.roles}}` (list)      | `$ROLES` (comma-joined) |
-| Deploy phase a hook is running for          | `{{.phase}}`             | `$DEPLOY_PHASE`         |
-| Failure message (in a `deploy:failed` hook) | `{{.error}}`             | `$DEPLOY_ERROR`         |
+| Value                                                  | Template                    | Env var                 |
+|--------------------------------------------------------|-----------------------------|-------------------------|
+| App name (`app.name`)                                  | `{{.app_name}}`             | `$APP_NAME`             |
+| Repo URL (`app.repo`)                                  | `{{.repo}}`                 | `$REPO`                 |
+| Branch (`app.branch`)                                  | `{{.branch}}`               | `$BRANCH`               |
+| Stage name                                             | `{{.stage}}`                | `$STAGE`                |
+| Deploy root (`app.deploy_to`)                          | `{{.deploy_to}}`            | `$DEPLOY_TO`            |
+| Releases dir (`<deploy_to>/releases`)                  | `{{.releases_path}}`        | `$RELEASES_PATH`        |
+| Shared dir (`<deploy_to>/shared`)                      | `{{.shared_path}}`          | `$SHARED_PATH`          |
+| Git mirror (`<deploy_to>/repo`)                        | `{{.repo_path}}`            | `$REPO_PATH`            |
+| Current symlink (`<deploy_to>/current`)                | `{{.current_path}}`         | `$CURRENT_PATH`         |
+| This release dir                                       | `{{.release_path}}`         | `$RELEASE_PATH`         |
+| Release id (timestamp)                                 | `{{.release_timestamp}}`    | `$RELEASE_TIMESTAMP`    |
+| Deployed commit SHA                                    | `{{.commit_hash}}`          | `$COMMIT_HASH`          |
+| Previously deployed SHA                                | `{{.previous_commit_hash}}` | `$PREVIOUS_COMMIT_HASH` |
+| Deploy changelog (commits since the previous revision) | `{{.changelog}}`            | `$DEPLOY_CHANGELOG`     |
+| Deploy operator                                        | `{{.deployer}}`             | `$DEPLOYER`             |
+| Target host the command runs on                        | `{{.host}}`                 | `$HOST`                 |
+| Roles of that host (its full set)                      | `{{.roles}}` (list)         | `$ROLES` (comma-joined) |
+| Deploy phase a hook is running for                     | `{{.phase}}`                | `$DEPLOY_PHASE`         |
+| Failure message (in a `deploy:failed` hook)            | `{{.error}}`                | `$DEPLOY_ERROR`         |
 
 Plus:
 
@@ -598,9 +595,9 @@ for *"the release is built but not yet live"*, and `deploy:published` for *"the 
 on an internal step name like `symlink` / `publishing`.
 (For a marker phase, `before` and `after` are the same point - use either.)
 
-`deploy:init` fires right after the directory tree is ensured but before the release is built - the place to `apt-get
-install`, ensure a runtime, etc. Because the release dir doesn't exist yet, set such a task's `dir:` to an existing
-path (it's Go-templated, so `dir: "{{.deploy_to}}"` works):
+`deploy:init` fires right after the directory tree is ensured but before the release is built - the place to
+`apt-get install`, ensure a runtime, etc. Because the release dir doesn't exist yet, set such a task's `dir:` to an
+existing path (it's Go-templated, so `dir: "{{.deploy_to}}"` works):
 
 ```yaml
 tasks:
@@ -652,7 +649,7 @@ command at once, `0` = all), `--deployfile <path>`.
 clean rendered form, scripts by name, built-in git/symlink commands omitted. Add `-v` to expand the plan to the full
 commands that would be sent to each host (env exports, `cd`, script bodies, built-in steps).
 
-Logging flags: `--log-level` (debug/info/warn/error, default info; `debug` implies `--verbose` and disables secret
+Logging flags: `--log-level` (debug/info/warn/error, default info - `debug` implies `--verbose` and disables secret
 redaction), `--log-format` (text/json, default text),
 `--log-output` (stdout, stderr, or a file path), `--log-color` (on by default, automatically suppressed when output is
 a file or a pipe, so logs stay clean).
@@ -710,13 +707,12 @@ Redaction is **disabled at `--log-level debug`**, so you can see raw output when
   first time is trusted and its key appended to the known_hosts file (created, along with its directory, when missing),
   while a **changed** key fails - so fresh environments (containers, CI) work out of the box without losing
   protection against key swaps.
-  Set `ssh.accept_new: false` to require every host key to already be present (strictest; pre-populate with
+  Set `ssh.accept_new: false` to require every host key to already be present (strictest - pre-populate with
   `ssh-keyscan`), `ssh.strict_host_key: false` to skip verification entirely, or `ssh.known_hosts_file` for a custom
   path.
   A single task can override this with `strict_host_key: false` in its definition - for ephemeral hosts whose key is
-  legitimately unknown (e.g.
-  ASG instances from one AMI that share a key and rotate IPs), without loosening verification for the rest of the
-  deployment.
+  legitimately unknown (e.g. ASG instances from one AMI that share a key and rotate IPs), without loosening
+  verification for the rest of the deployment.
 - **Bastion (jump host)**: `ssh.bastion` routes every SSH connection through one jump host, like OpenSSH
   `ProxyJump` (single hop) - for app hosts that live in a private network:
 
@@ -752,13 +748,12 @@ Redaction is **disabled at `--log-level debug`**, so you can see raw output when
     # forward_key: ~/.ssh/deploy   # OR forward just this key, in-memory (never written to the host)
   ```
 
-`forward_key` takes precedence if both are set, and must be an unencrypted key (use `forward_agent` for
-passphrase-protected keys). With `ssh.identities` configured, `forward_agent` forwards the builtin agent and needs no
-`SSH_AUTH_SOCK`. Forwarding applies to all remote hosts in the run.
-The request is best-effort (like `ssh -A`): if a host refuses it (`AllowAgentForwarding no` in its `sshd_config`) the
-command still runs, but git there won't see your keys - enable agent forwarding on the host for forwarded git auth to
-work.
-
+  `forward_key` takes precedence if both are set, and must be an unencrypted key (use `forward_agent` for
+  passphrase-protected keys). With `ssh.identities` configured, `forward_agent` forwards the builtin agent and needs
+  no `SSH_AUTH_SOCK`. Forwarding applies to all remote hosts in the run.
+  The request is best-effort (like `ssh -A`): if a host refuses it (`AllowAgentForwarding no` in its `sshd_config`)
+  the command still runs, but git there won't see your keys - enable agent forwarding on the host for forwarded git
+  auth to work.
 - **Concurrency**: each phase runs on all target hosts in parallel, with a barrier between phases.
   Output is streamed prefixed by host.
 - **Locking**: a deployment takes a lock on the primary host to block concurrent deploys.
