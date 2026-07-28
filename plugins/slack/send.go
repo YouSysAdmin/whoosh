@@ -157,9 +157,9 @@ func (n *notifier) send(ctx context.Context, raw map[string]any, _ io.Writer) er
 	}
 
 	pl := payload{
-		Channel:     def(sp.Channel, n.cfg.Channel),
-		Username:    def(sp.Username, n.cfg.Username),
-		IconEmoji:   def(sp.IconEmoji, n.cfg.IconEmoji),
+		Channel:     whoosh.OrZero(sp.Channel, n.cfg.Channel),
+		Username:    whoosh.OrZero(sp.Username, n.cfg.Username),
+		IconEmoji:   whoosh.OrZero(sp.IconEmoji, n.cfg.IconEmoji),
 		Attachments: batches[0],
 	}
 
@@ -219,7 +219,7 @@ func (n *notifier) webhookFor(event string) string {
 		eventFailed:   n.cfg.WebhookFail,
 		eventRollback: n.cfg.WebhookRollback,
 	}
-	return def(byEvent[event], n.cfg.WebhookURL)
+	return whoosh.OrZero(byEvent[event], n.cfg.WebhookURL)
 }
 
 // post POSTs the payload to the webhook. The client's Timeout bounds the call even when ctx has no deadline (the

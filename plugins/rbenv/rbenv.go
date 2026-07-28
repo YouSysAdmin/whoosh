@@ -161,7 +161,7 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 
 	// Requirement 4: make rbenv available to every subsequent task via whoosh's own env context. Env values are
 	// shell-expanded when exported, so $HOME/$PATH resolve on the host.
-	if boolOr(p.InjectPath, true) {
+	if whoosh.Or(p.InjectPath, true) {
 		if cfg.Envs == nil {
 			cfg.Envs = map[string]string{}
 		}
@@ -178,8 +178,8 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	// Resolve the desired versions operator-side: explicit params, plus the app's .ruby-version (read here, at load) and
 	// the global version. The host script adds the previous release's .ruby-version on top.
 	versions := append([]string(nil), p.Versions...)
-	if boolOr(p.ReadRubyVersion, true) {
-		if v := readLocalRubyVersion(cfg.Dir, def(p.RubyVersionFile, defaultRubyVersion)); v != "" {
+	if whoosh.Or(p.ReadRubyVersion, true) {
+		if v := readLocalRubyVersion(cfg.Dir, whoosh.OrZero(p.RubyVersionFile, defaultRubyVersion)); v != "" {
 			versions = append(versions, v)
 		}
 	}
@@ -205,9 +205,9 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 		env[k] = v
 	}
 	env["RBENV_ROOT"] = root
-	env["RBENV_REPO"] = def(p.RbenvRepo, defaultRbenvRepo)
-	env["RUBY_BUILD_REPO"] = def(p.RubyBuildRepo, defaultRubyBuildRepo)
-	env["RBENV_DEFAULT_GEMS_REPO"] = def(p.DefaultGemsRepo, defaultDefaultGemsRepo)
+	env["RBENV_REPO"] = whoosh.OrZero(p.RbenvRepo, defaultRbenvRepo)
+	env["RUBY_BUILD_REPO"] = whoosh.OrZero(p.RubyBuildRepo, defaultRubyBuildRepo)
+	env["RBENV_DEFAULT_GEMS_REPO"] = whoosh.OrZero(p.DefaultGemsRepo, defaultDefaultGemsRepo)
 	// One gem per line - entries may contain spaces ("bcat ~>0.6", "rails --pre"), so newlines separate them and the
 	// script writes the value verbatim to $RBENV_ROOT/default-gems. Empty when no gems are configured (script skips it).
 	env["RBENV_DEFAULT_GEMS_LIST"] = strings.Join(p.DefaultGems, "\n")
@@ -218,8 +218,8 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	env["RBENV_SHELLS"] = strings.Join(shells, " ")
 	env["RBENV_PRUNE"] = boolStr(p.Prune)
 	env["RBENV_UPDATE"] = boolStr(p.Update)
-	env["RBENV_INSTALL_RUBY"] = boolStr(boolOr(p.InstallRuby, true))
-	env["RBENV_READ_RUBY_VERSION"] = boolStr(boolOr(p.ReadRubyVersion, true))
+	env["RBENV_INSTALL_RUBY"] = boolStr(whoosh.Or(p.InstallRuby, true))
+	env["RBENV_READ_RUBY_VERSION"] = boolStr(whoosh.Or(p.ReadRubyVersion, true))
 
 	task := &whoosh.Task{
 		Desc:  "Install/verify rbenv + ruby-build and ensure Ruby versions",
@@ -231,10 +231,10 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 			Script: setupScript,
 		}},
 	}
-	name := def(p.TaskName, defaultTaskName)
+	name := whoosh.OrZero(p.TaskName, defaultTaskName)
 	cfg.AddTask(name, task)
 
-	phase := def(p.Phase, defaultPhase)
+	phase := whoosh.OrZero(p.Phase, defaultPhase)
 	if strings.EqualFold(p.When, "after") {
 		cfg.AddHookAfter(phase, name)
 	} else {
@@ -316,22 +316,6 @@ func dedupe(in []string) []string {
 		out = append(out, s)
 	}
 	return out
-}
-
-// def returns v when non-empty, otherwise fallback.
-func def(v, fallback string) string {
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
-// boolOr returns *p, or def when p is nil.
-func boolOr(p *bool, def bool) bool {
-	if p == nil {
-		return def
-	}
-	return *p
 }
 
 // boolStr renders a bool as the "1"/"0" the shell script expects.

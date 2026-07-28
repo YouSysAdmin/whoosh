@@ -152,7 +152,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 		if !ok {
 			return fmt.Errorf("systemd: unknown action %q (want one of %s)", a.Name, strings.Join(actionNames(), ", "))
 		}
-		merged := merge(spec.Params, a.Params)
+		merged := whoosh.MergeParams(spec.Params, a.Params)
 		var fp params
 		if err := whoosh.DecodeParamsStrict(merged, &fp); err != nil {
 			return fmt.Errorf("systemd: %s params: %w", a.Name, err)
@@ -223,7 +223,7 @@ func (n *actions) run(action string) whoosh.ActionFunc {
 			base = n.global
 		}
 		var p params
-		if err := whoosh.DecodeParamsStrict(merge(base, with), &p); err != nil {
+		if err := whoosh.DecodeParamsStrict(whoosh.MergeParams(base, with), &p); err != nil {
 			return fmt.Errorf("systemd: %s: %w", action, err)
 		}
 		if err := p.validate(verb); err != nil {
@@ -328,25 +328,6 @@ func quoteUnits(units []string) string {
 		quoted[i] = "'" + u + "'"
 	}
 	return strings.Join(quoted, " ")
-}
-
-// merge layers over on top of base: nested maps merge recursively, scalars and slices replace. Neither input is
-// mutated.
-func merge(base, over map[string]any) map[string]any {
-	out := make(map[string]any, len(base)+len(over))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range over {
-		if bm, ok := out[k].(map[string]any); ok {
-			if om, ok := v.(map[string]any); ok {
-				out[k] = merge(bm, om)
-				continue
-			}
-		}
-		out[k] = v
-	}
-	return out
 }
 
 // stripSpecOnly copies m without the plugin-spec-only keys, so a contributed hook task's with: passes the action's

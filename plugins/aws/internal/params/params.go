@@ -13,12 +13,7 @@ func DecodeFeature(defaults, with map[string]any, target any) error {
 }
 
 // Or returns *p when set, else def - the default for an optional (*T) param left unset.
-func Or[T any](p *T, def T) T {
-	if p != nil {
-		return *p
-	}
-	return def
-}
+func Or[T any](p *T, def T) T { return whoosh.Or(p, def) }
 
 // OrPtr returns p when set, else a pointer to def - for optional params handed to AWS SDK inputs, which take pointers.
 func OrPtr[T any](p *T, def T) *T {
@@ -28,23 +23,5 @@ func OrPtr[T any](p *T, def T) *T {
 	return &def
 }
 
-// Merge returns base with over layered on top (over wins).
-// Nested map[string]any values are merged recursively, every other value (scalars, slices) is replaced wholesale by
-// over. A nil base yields a copy of over, so an unconfigured feature behaves exactly as "task `with:` only".
-// Inputs are not mutated.
-func Merge(base, over map[string]any) map[string]any {
-	out := make(map[string]any, len(base)+len(over))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range over {
-		if bm, ok := out[k].(map[string]any); ok {
-			if om, ok := v.(map[string]any); ok {
-				out[k] = Merge(bm, om)
-				continue
-			}
-		}
-		out[k] = v
-	}
-	return out
-}
+// Merge returns base with over layered on top (over wins), see whoosh.MergeParams.
+func Merge(base, over map[string]any) map[string]any { return whoosh.MergeParams(base, over) }

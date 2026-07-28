@@ -146,6 +146,44 @@ func DecodeParamsStrict(params map[string]any, target any) error {
 	return plugins.DecodeParamsStrict(params, target)
 }
 
+// MergeParams returns base with over layered on top (over wins) - the standard way to layer a task's `with:` over a
+// plugin's action defaults. Nested map[string]any values merge recursively, every other value (scalars, slices) is
+// replaced wholesale. A nil base yields a copy of over. Inputs are not mutated.
+func MergeParams(base, over map[string]any) map[string]any {
+	out := make(map[string]any, len(base)+len(over))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range over {
+		if bm, ok := out[k].(map[string]any); ok {
+			if om, ok := v.(map[string]any); ok {
+				out[k] = MergeParams(bm, om)
+				continue
+			}
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// Or returns *p when set, else fallback - the default for an optional pointer param (*bool, *int32, ...) left unset.
+func Or[T any](p *T, fallback T) T {
+	if p != nil {
+		return *p
+	}
+	return fallback
+}
+
+// OrZero returns v when non-zero, else fallback - the default for an optional scalar param where the zero value
+// ("" or 0) means unset.
+func OrZero[T comparable](v, fallback T) T {
+	var zero T
+	if v != zero {
+		return v
+	}
+	return fallback
+}
+
 // WithHostFileWriter returns ctx carrying w (the executor sets this before an action runs).
 // Plugin authors rarely call this, use HostFileWriterFrom.
 func WithHostFileWriter(ctx context.Context, w HostFileWriter) context.Context {

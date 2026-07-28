@@ -274,21 +274,21 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 		}
 	}
 
-	if boolOr(n.cfg.NotifyStart, true) {
+	if whoosh.Or(n.cfg.NotifyStart, true) {
 		add(taskNotifyStart, "Notify Slack: deploy started",
-			eventStarted, def(n.cfg.MessageStart, defaultMsgStart), def(n.cfg.ColorStart, colorStart), whoosh.PhaseStarting, true)
+			eventStarted, whoosh.OrZero(n.cfg.MessageStart, defaultMsgStart), whoosh.OrZero(n.cfg.ColorStart, colorStart), whoosh.PhaseStarting, true)
 	}
-	if boolOr(n.cfg.NotifySuccess, true) {
+	if whoosh.Or(n.cfg.NotifySuccess, true) {
 		add(taskNotifySuccess, "Notify Slack: deploy succeeded",
-			eventFinished, def(n.cfg.MessageSuccess, defaultMsgSuccess), def(n.cfg.ColorSuccess, colorSuccess), whoosh.PhaseFinished, false)
+			eventFinished, whoosh.OrZero(n.cfg.MessageSuccess, defaultMsgSuccess), whoosh.OrZero(n.cfg.ColorSuccess, colorSuccess), whoosh.PhaseFinished, false)
 	}
-	if boolOr(n.cfg.NotifyFail, true) {
+	if whoosh.Or(n.cfg.NotifyFail, true) {
 		add(taskNotifyFail, "Notify Slack: deploy failed",
-			eventFailed, def(n.cfg.MessageFail, defaultMsgFail), def(n.cfg.ColorFail, colorFail), whoosh.PhaseFailed, false)
+			eventFailed, whoosh.OrZero(n.cfg.MessageFail, defaultMsgFail), whoosh.OrZero(n.cfg.ColorFail, colorFail), whoosh.PhaseFailed, false)
 	}
 	if n.cfg.NotifyRollback {
 		add(taskNotifyRollback, "Notify Slack: rollback",
-			eventRollback, def(n.cfg.MessageRollback, defaultMsgRollback), def(n.cfg.ColorRollback, colorRollback), whoosh.PhaseRollback, false)
+			eventRollback, whoosh.OrZero(n.cfg.MessageRollback, defaultMsgRollback), whoosh.OrZero(n.cfg.ColorRollback, colorRollback), whoosh.PhaseRollback, false)
 	}
 
 	// The action only sees its with: map, so the rich fields pull their deploy-context values through runtime
@@ -325,20 +325,4 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 		}
 	}
 	return nil
-}
-
-// def returns v when non-empty, otherwise fallback.
-func def(v, fallback string) string {
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
-// boolOr returns *p, or fallback when p is nil.
-func boolOr(p *bool, fallback bool) bool {
-	if p == nil {
-		return fallback
-	}
-	return *p
 }
