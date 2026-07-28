@@ -93,7 +93,7 @@ func ListStages(deployfileDir string) ([]StageInfo, error) {
 			continue
 		}
 		// Within one dir, walk the extensions in stagePath's order so <stage>.yml wins over <stage>.yaml.
-		for _, rank := range []int{0, 1} {
+		for rank := range stageExts {
 			for _, e := range entries {
 				if e.IsDir() || extRank(e.Name()) != rank {
 					continue
