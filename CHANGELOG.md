@@ -6,6 +6,64 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-28
+### Added
+ - Hook validation at config load: every `hooks:` key must be a deploy phase, a custom phase, `deploy:failed` /
+   `deploy:rollback`, or an existing task, and every hooked task must exist. A typo'd key (or a plugin's misspelled
+   `phase:` param) now fails the command instead of silently never firing. `deploy:failed` only fires `after` hooks,
+   so a `before:` entry for it is rejected too. The check runs after plugin startups, so hooks may reference
+   plugin-contributed tasks and phases.
+ - Plugin SDK:
+   - `whoosh.DecodeParamsStrict` - `DecodeParams` with unknown keys rejected, so a misspelled param errors at load
+     instead of silently applying the default.
+   - `whoosh.MergeParams` - layer a task's `with:` over a plugin's action defaults (nested maps merge recursively).
+   - `whoosh.Or` / `whoosh.OrZero` - defaults for optional pointer and scalar params.
+
+### Changed
+ - `aws:ec2:asg:rollback` now **cancels** an instance refresh already in flight (typically the bad deploy's own
+   rollout) and starts its own refresh in its place. Previously the rollback skipped the refresh and reported
+   success while the fleet kept rolling onto the version being rolled back. `aws:ec2:asg:refresh` still skips an
+   in-flight refresh as before.
+ - The aws, slack, rbenv, and systemd plugins now reject misspelled params (strict decoding): a typo like
+   `use_public_iq:` is a load error instead of a silently applied default. rbenv also rejects unknown `actions:`
+   entries and an invalid `when:` value (which previously fell back to "before").
+
+### Fixed
+ - SSH: the handshake is now bounded by the connect timeout and the command's context. A host that accepts TCP but
+   never answers SSH (a wedged sshd, a tarpit firewall) used to hang the whole run with no `Ctrl-C` escape - only
+   the TCP dial was bounded, and keepalive starts after the handshake. Works through a bastion too.
+ - SSH: a dial aborted by a cancelled context (an operator `Ctrl-C`, or a fail-fast sibling failure) is no longer
+   cached as a permanent failure - neither per host nor for the shared bastion connection. `deploy:failed` hooks,
+   which run on a fresh context after a cancel, can reach those hosts again.
+ - `on_unreachable: skip` is now honored by hook tasks, custom-phase tasks, and the mid-deploy commit-hash read -
+   previously only the built-in phase steps dropped an unreachable non-required host, and a hook hitting a dead
+   host aborted the whole deploy, contrary to the documented behavior.
+ - An `output:` task whose role/host filters match no hosts now stores its format's zero value (like dry-run does),
+   so a later `{{ .tasks.<name> }}` reference renders instead of failing strict rendering far from the cause.
+ - Secret redaction gaps:
+   - Plugin-contributed CLI commands (e.g. `deploy:hosts`) now write through the masking writer like every other
+     output path.
+   - `aws:ssm:to-dotenv` and `aws:secrets:to-dotenv` now register every fetched value for masking, like the startup
+     import path - a later command printing the env can no longer leak them.
+ - `whoosh <stage> run` now gets the same environment layering as task commands: `env_files` as the base layer and
+   plugin imports as `$<NS>_<KEY>`, so `echo $FROM_DOTENV` / `echo $SSM_TOKEN` behave like the identical `cmds:`
+   line in a task.
+ - `{{ .keep_releases }}` now resolves to the real value in load-time templates (`vars:`, plugin params, global
+   `envs:`) - it used to render `0`.
+ - `--deployfile` is now honored when registering task and plugin commands, so named tasks are invocable when the
+   Deployfile lives outside the current directory.
+ - A fragment included by both the shared `Deployfile` and the stage file is merged once - previously it merged
+   twice, and a duplicated host entry ran every command twice in parallel and raced building the same release dir.
+ - `aws:ec2:ami:cleanup` paginates `DescribeImages`, so cleanup keeps pruning in accounts with more than one page
+   of images.
+ - `aws` `credentials_from_host`: the IMDS fetch now fails with a labeled error on an HTTP error (e.g. the instance
+   has no IAM instance profile) instead of parsing the error body as data.
+ - A failed deploy-lock release now logs a warning pointing at `deploy:unlock` instead of being silently ignored.
+ - Smaller leaks and error-reporting fixes: the ssh-agent socket is closed after each handshake, the `--log-output`
+   file handle is closed on logging reconfigure, a never-dialed bastion refuses dials after `Close`, `deploy:hosts`
+   surfaces table-render errors, and the in-process SSH test server kills orphaned commands on disconnect and no
+   longer reports success for non-exit failures.
+
 ## [1.6.0] - 2026-07-08
 ### Changed
  - Release binaries:
@@ -209,9 +267,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.6.0...HEAD
-[1.6.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
-[1.5.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
+[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.7.0
+[1.6.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.6.0
+[1.5.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.5.0
 [1.4.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.4.0
 [1.3.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.3.0
 [1.2.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.2.0
