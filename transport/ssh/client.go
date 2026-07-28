@@ -258,12 +258,15 @@ func keyringFromFile(path string) (agent.Agent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read forward_key %s: %w", path, err)
 	}
-	key, err := ssh.ParseRawPrivateKey(raw)
+	key, err := parsePrivateKey(raw, "")
 	if err != nil {
-		return nil, fmt.Errorf("parse forward_key %s: %w (encrypted keys must use forward_agent)", path, err)
+		if isEncryptedKeyError(err) {
+			return nil, fmt.Errorf("parse forward_key %s: %w (encrypted keys must use forward_agent)", path, err)
+		}
+		return nil, fmt.Errorf("parse forward_key %s: %w", path, err)
 	}
 	kr := agent.NewKeyring()
-	if err := kr.Add(agent.AddedKey{PrivateKey: key}); err != nil {
+	if err := addKey(kr, "forward_key", path, key); err != nil {
 		return nil, fmt.Errorf("load forward_key %s: %w", path, err)
 	}
 	return kr, nil
