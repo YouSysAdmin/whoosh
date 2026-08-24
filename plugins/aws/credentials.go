@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"gopkg.in/yaml.v3"
 
+	"github.com/yousysadmin/whoosh"
 	"github.com/yousysadmin/whoosh/transport/ssh"
 )
 
@@ -90,6 +91,10 @@ func (c awsConfig) resolveCredentials(ctx context.Context) (awssdk.CredentialsPr
 		if c.AccessKeyID == "" || c.SecretAccessKey == "" {
 			return nil, "", fmt.Errorf("aws: access_key_id and secret_access_key must both be set")
 		}
+		// Register the secret material with masking so a `config` dump or a log record never prints it - the
+		// built-in patterns catch the aws_secret_access_key spelling, not the plugin's param names.
+		whoosh.AddSecret(c.SecretAccessKey)
+		whoosh.AddSecret(c.SessionToken)
 		return credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, c.SessionToken), "", nil
 	case c.CredentialsFile != "":
 		cf, err := readCredentialsFile(c.CredentialsFile)
@@ -98,6 +103,7 @@ func (c awsConfig) resolveCredentials(ctx context.Context) (awssdk.CredentialsPr
 		}
 		return cf.provider(), cf.region(), nil
 	case c.CredentialsURL != "":
+		whoosh.AddSecret(c.CredentialsToken)
 		cf, err := fetchCredentialsURL(ctx, c.CredentialsURL, c.CredentialsToken)
 		if err != nil {
 			return nil, "", err
@@ -180,6 +186,9 @@ func parseCredentials(data []byte, source string) (credentialsFile, error) {
 	if f.AccessKeyID == "" || f.SecretAccessKey == "" {
 		return credentialsFile{}, fmt.Errorf("aws: credentials %s missing aws_access_key_id/aws_secret_access_key", source)
 	}
+	// Fetched secrets are registered with masking like the static params, so they never surface in output or logs.
+	whoosh.AddSecret(f.SecretAccessKey)
+	whoosh.AddSecret(f.SessionToken)
 	return f, nil
 }
 
@@ -277,6 +286,9 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
 		return imdsCreds{}, fmt.Errorf("instance metadata returned incomplete credentials")
 	}
+	// Fetched secrets are registered with masking like the static params, so they never surface in output or logs.
+	whoosh.AddSecret(c.SecretAccessKey)
+	whoosh.AddSecret(c.Token)
 	return imdsCreds{AccessKeyID: c.AccessKeyID, SecretAccessKey: c.SecretAccessKey, SessionToken: c.Token, Region: region}, nil
 }
 
