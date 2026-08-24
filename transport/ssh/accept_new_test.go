@@ -87,6 +87,56 @@ func TestDialAcceptNew_ChangedKeyFails(t *testing.T) {
 	}
 }
 
+// TestAcceptNew_ParallelConflictingKeysRejected pins the trust-on-first-use race guard: two parallel first contacts
+// with the same host both verify against a snapshot taken before either appended (a fresh knownhosts callback sees an
+// empty file), so the second acceptance must be checked against what the first one recorded - a different key is a
+// mismatch, not a second trusted entry.
+func TestAcceptNew_ParallelConflictingKeysRejected(t *testing.T) {
+	newKey := func() ssh.PublicKey {
+		t.Helper()
+		pub, _, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatalf("generate key: %v", err)
+		}
+		k, err := ssh.NewPublicKey(pub)
+		if err != nil {
+			t.Fatalf("wrap key: %v", err)
+		}
+		return k
+	}
+	khFile := filepath.Join(t.TempDir(), "known_hosts")
+	if err := os.WriteFile(khFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Both callbacks share the pre-append snapshot, like two dials racing on first contact.
+	base, err := knownhosts.New(khFile)
+	if err != nil {
+		t.Fatalf("known_hosts callback: %v", err)
+	}
+	cb := acceptNewCallback(khFile, base)
+	remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 2222}
+	host := "[127.0.0.1]:2222"
+
+	key1, key2 := newKey(), newKey()
+	if err := cb(host, remote, key1); err != nil {
+		t.Fatalf("first contact rejected: %v", err)
+	}
+	if err := cb(host, remote, key2); err == nil {
+		t.Fatal("conflicting key from a parallel first contact was accepted")
+	}
+	// The same key from another parallel dial stays accepted without a duplicate append.
+	if err := cb(host, remote, key1); err != nil {
+		t.Fatalf("re-acceptance of the recorded key failed: %v", err)
+	}
+	data, err := os.ReadFile(khFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(data), "\n"); got != 1 {
+		t.Errorf("known_hosts has %d entries, want 1:\n%s", got, data)
+	}
+}
+
 // TestDialStrict_MissingKnownHostsStillFails pins the default: without accept_new, strict mode keeps requiring an
 // existing known_hosts file.
 func TestDialStrict_MissingKnownHostsStillFails(t *testing.T) {

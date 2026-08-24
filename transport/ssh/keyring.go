@@ -71,13 +71,9 @@ func addIdentity(kr agent.Agent, id Identity) (int, error) {
 		return addDir(kr, id, path)
 	}
 
-	raw, err := os.ReadFile(path)
+	key, err := loadKeyFile("key", path, id.Passphrase)
 	if err != nil {
 		return 0, fmt.Errorf("ssh identity %q: %w", id.Name, err)
-	}
-	key, err := parsePrivateKey(raw, id.Passphrase)
-	if err != nil {
-		return 0, fmt.Errorf("ssh identity %q: %s: %w", id.Name, id.Path, err)
 	}
 	if err := addKey(kr, id.Name, path, key); err != nil {
 		return 0, fmt.Errorf("ssh identity %q: %s: %w", id.Name, id.Path, err)
@@ -168,8 +164,7 @@ func parsePrivateKey(raw []byte, passphrase string) (any, error) {
 	if err == nil {
 		return key, nil
 	}
-	var missing *ssh.PassphraseMissingError
-	if !errors.As(err, &missing) {
+	if _, ok := errors.AsType[*ssh.PassphraseMissingError](err); !ok {
 		return nil, err
 	}
 	if passphrase == "" {
@@ -185,6 +180,20 @@ func parsePrivateKey(raw []byte, passphrase string) (any, error) {
 // isEncryptedKeyError reports whether a parse failure means "the key is encrypted and we could not open it".
 func isEncryptedKeyError(err error) bool {
 	return errors.Is(err, errEncryptedKey)
+}
+
+// loadKeyFile reads and parses one private-key file (a leading ~/ expands to the home dir), decrypting it with the
+// passphrase when set. Errors are labeled with what the key is for (e.g. "identity", "forward_key") and the path.
+func loadKeyFile(label, path, passphrase string) (any, error) {
+	raw, err := os.ReadFile(expandHome(path))
+	if err != nil {
+		return nil, fmt.Errorf("read %s %s: %w", label, path, err)
+	}
+	key, err := parsePrivateKey(raw, passphrase)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s %s: %w", label, path, err)
+	}
+	return key, nil
 }
 
 // addKey registers a parsed key in the keyring, labeled identity:source for `ssh-add -l`-style listings on the far

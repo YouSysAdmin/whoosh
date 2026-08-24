@@ -113,6 +113,9 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 	if timeout == 0 {
 		timeout = DefaultConnectTimeout
 	}
+	// One budget covers the whole connect: TCP dial (or the bastion channel open) and the SSH handshake share the
+	// deadline instead of each getting the full timeout.
+	deadline := time.Now().Add(timeout)
 
 	cfg := &ssh.ClientConfig{
 		User:            user,
@@ -123,19 +126,23 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 
 	var netConn net.Conn
 	if opts.Bastion != nil {
+		// The deadline ctx caps the channel open (and a first-use bastion connect) at the shared budget. Cancelling
+		// after the open is safe - an established direct-tcpip channel outlives its dial context.
+		dctx, cancel := context.WithDeadline(ctx, deadline)
 		// The error is already labeled with the bastion host, connectError would unwrap past the label.
-		netConn, err = opts.Bastion.dialThrough(ctx, t.addr(), opts)
+		netConn, err = opts.Bastion.dialThrough(dctx, t.addr(), opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		d := net.Dialer{Timeout: timeout}
+		d := net.Dialer{Deadline: deadline}
 		netConn, err = d.DialContext(ctx, "tcp", t.addr())
 		if err != nil {
 			return nil, connectError(err)
 		}
 	}
-	stop := handshakeWatchdog(ctx, netConn, timeout)
+	stop := handshakeWatchdog(ctx, netConn, time.Until(deadline))
 	conn, chans, reqs, err := ssh.NewClientConn(netConn, t.addr(), cfg)
 	if interrupted := stop(); interrupted {
 		// The watchdog closed netConn, so even a nominally successful handshake is on a dead connection.
@@ -254,16 +261,12 @@ func setupForwarding(conn *ssh.Client, opts Options) error {
 // keyringFromFile builds an in-memory agent holding the private key at path.
 // The key is loaded locally and presented over the agent protocol - it is never written to the remote host.
 func keyringFromFile(path string) (agent.Agent, error) {
-	raw, err := os.ReadFile(expandHome(path))
-	if err != nil {
-		return nil, fmt.Errorf("read forward_key %s: %w", path, err)
-	}
-	key, err := parsePrivateKey(raw, "")
+	key, err := loadKeyFile("forward_key", path, "")
 	if err != nil {
 		if isEncryptedKeyError(err) {
-			return nil, fmt.Errorf("parse forward_key %s: %w (encrypted keys must use forward_agent)", path, err)
+			return nil, fmt.Errorf("%w (encrypted keys must use forward_agent)", err)
 		}
-		return nil, fmt.Errorf("parse forward_key %s: %w", path, err)
+		return nil, err
 	}
 	kr := agent.NewKeyring()
 	if err := addKey(kr, "forward_key", path, key); err != nil {
@@ -331,9 +334,14 @@ func handshakeWatchdog(ctx context.Context, netConn net.Conn, timeout time.Durat
 // connectError reduces a net dial error to a concise reason.
 // The net layer formats dial failures as "dial tcp <host>:<port>: <reason>", the host is already supplied by the caller
 // (the orchestration layer labels each host), so repeating it is just noise.
+// The underlying error stays wrapped: a dial aborted by an expired context maps to a net timeout that still satisfies
+// errors.Is(err, context.DeadlineExceeded), and Bastion.connect relies on that identity to avoid caching the abort.
 func connectError(err error) error {
 	if nerr, ok := errors.AsType[net.Error](err); ok && nerr.Timeout() {
-		return errors.New("connection timed out")
+		if op, ok := errors.AsType[*net.OpError](err); ok && op.Err != nil {
+			return fmt.Errorf("connection timed out: %w", op.Err)
+		}
+		return fmt.Errorf("connection timed out: %w", err)
 	}
 	// Unwrap *net.OpError to drop the "dial tcp <addr>:" prefix, leaving the underlying cause (e.g.
 	// "connect: connection refused").
@@ -413,27 +421,33 @@ func authMethods(identityFile, passphrase string, ag agent.Agent) (methods []ssh
 		return append(methods, ssh.PublicKeysCallback(ag.Signers)), cleanup, nil
 	}
 
+	var agentErr error
 	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
-		if conn, err := net.Dial("unix", sock); err == nil {
+		conn, err := net.Dial("unix", sock)
+		if err != nil {
+			// Non-fatal while another method exists, but keep the cause: a stale socket must not silently
+			// degrade auth, and with no other method it becomes the error the user sees.
+			agentErr = err
+			slog.Debug("ssh-agent unreachable", "sock", sock, "error", err)
+		} else {
 			methods = append(methods, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
 			cleanup = func() { _ = conn.Close() }
 		}
 	}
 
 	if len(methods) == 0 {
+		if agentErr != nil {
+			return nil, cleanup, fmt.Errorf("no SSH auth available: ssh-agent (SSH_AUTH_SOCK) unreachable: %w (set ssh.identity_file / ssh.identities or restart the agent)", agentErr)
+		}
 		return nil, cleanup, fmt.Errorf("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
 	}
 	return methods, cleanup, nil
 }
 
 func loadIdentity(path, passphrase string) (ssh.Signer, error) {
-	data, err := os.ReadFile(expandHome(path))
+	key, err := loadKeyFile("identity", path, passphrase)
 	if err != nil {
-		return nil, fmt.Errorf("read identity %s: %w", path, err)
-	}
-	key, err := parsePrivateKey(data, passphrase)
-	if err != nil {
-		return nil, fmt.Errorf("parse identity %s: %w", path, err)
+		return nil, err
 	}
 	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
@@ -490,14 +504,17 @@ func ensureKnownHosts(path string) error {
 }
 
 // acceptNewMu guards appends to known_hosts files: parallel dials each verify against a snapshot of the file
-// (knownhosts.New reads it once), so without the recorded set two first contacts with the same host would both append.
+// (knownhosts.New reads it once), so without the recorded map two first contacts with the same host would both append.
+// The map is keyed by host (not by full entry) so two parallel first contacts presenting different keys are detected
+// as a conflict instead of both being recorded and trusted.
 var acceptNewMu struct {
 	sync.Mutex
-	recorded map[string]bool // "path\n" + known_hosts line
+	recorded map[string]string // "path\n" + normalized host -> accepted known_hosts line
 }
 
 // acceptNewCallback wraps a knownhosts callback with trust-on-first-use: an unknown host's key is appended to path and
-// accepted, while a key conflicting with an existing entry (or any other verification failure) is still rejected.
+// accepted, while a key conflicting with an existing entry (or any other verification failure) is still rejected -
+// including a key that conflicts with one a parallel dial just recorded but this dial's snapshot has not seen yet.
 func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback {
 	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		err := cb(hostname, remote, key)
@@ -505,13 +522,17 @@ func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback 
 		if !errors.As(err, &kerr) || len(kerr.Want) > 0 {
 			return err // nil (host already known), a conflicting key, or an unrelated failure
 		}
-		line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
-		entry := path + "\n" + line
+		host := knownhosts.Normalize(hostname)
+		line := knownhosts.Line([]string{host}, key)
+		hostKey := path + "\n" + host
 
 		acceptNewMu.Lock()
 		defer acceptNewMu.Unlock()
-		if acceptNewMu.recorded[entry] {
-			return nil // a parallel dial already recorded it
+		if prev, ok := acceptNewMu.recorded[hostKey]; ok {
+			if prev == line {
+				return nil // a parallel dial already recorded the same key
+			}
+			return fmt.Errorf("ssh: host key mismatch for %s: key %s conflicts with the one recorded by a parallel connection", hostname, ssh.FingerprintSHA256(key))
 		}
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
@@ -525,9 +546,9 @@ func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback 
 			return fmt.Errorf("known_hosts %s: record new host key: %w", path, werr)
 		}
 		if acceptNewMu.recorded == nil {
-			acceptNewMu.recorded = map[string]bool{}
+			acceptNewMu.recorded = map[string]string{}
 		}
-		acceptNewMu.recorded[entry] = true
+		acceptNewMu.recorded[hostKey] = line
 		slog.Info("accepted new host key", "host", hostname, "fingerprint", ssh.FingerprintSHA256(key), "known_hosts", path)
 		return nil
 	}

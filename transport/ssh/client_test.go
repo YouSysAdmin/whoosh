@@ -33,7 +33,7 @@ func TestConnectError(t *testing.T) {
 		{
 			name: "timeout collapses to a concise message",
 			err:  &net.OpError{Op: "dial", Net: "tcp", Addr: addr, Err: timeoutErr{}},
-			want: "connection timed out",
+			want: "connection timed out: i/o timeout",
 		},
 		{
 			name: "other op errors drop the dial-addr prefix",
@@ -53,6 +53,26 @@ func TestConnectError(t *testing.T) {
 				t.Errorf("connectError = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// deadlineTimeoutErr mimics the net layer's mapping of a context deadline abort: a timeout error whose chain still
+// reaches context.DeadlineExceeded.
+type deadlineTimeoutErr struct{}
+
+func (deadlineTimeoutErr) Error() string   { return "i/o timeout" }
+func (deadlineTimeoutErr) Timeout() bool   { return true }
+func (deadlineTimeoutErr) Temporary() bool { return false }
+func (deadlineTimeoutErr) Unwrap() error   { return context.DeadlineExceeded }
+
+// TestConnectError_KeepsDeadlineIdentity pins the Bastion.connect contract: a dial aborted by an expired context must
+// stay recognizable as context.DeadlineExceeded through connectError, or the abort would be cached as a permanent
+// bastion failure.
+func TestConnectError_KeepsDeadlineIdentity(t *testing.T) {
+	addr := &net.TCPAddr{IP: net.IPv4(10, 4, 20, 66), Port: 22}
+	err := connectError(&net.OpError{Op: "dial", Net: "tcp", Addr: addr, Err: deadlineTimeoutErr{}})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("connectError lost context.DeadlineExceeded: %v", err)
 	}
 }
 
