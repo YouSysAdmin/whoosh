@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 // Client runs commands locally.
@@ -32,6 +33,9 @@ func (c *Client) Run(ctx context.Context, command string, stdout, stderr io.Writ
 		}
 		return err
 	}
+	// A grandchild that left the process group (setsid, a daemonizing tool) survives the group kill and inherits the
+	// output pipes, which would keep Wait blocked forever after cancel - WaitDelay abandons the pipes instead.
+	cmd.WaitDelay = 3 * time.Second
 	err := cmd.Run()
 	// On cancellation/timeout CommandContext kills the process, surfacing as "signal: killed".
 	// Report the context error instead, so an operator Ctrl-C reads as a cancellation - matching the SSH transport (which
