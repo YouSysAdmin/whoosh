@@ -152,7 +152,10 @@ func (rw *Writer) Write(p []byte) (int, error) {
 			break
 		}
 		if _, err := io.WriteString(rw.w, String(string(rw.buf[:i+1]))); err != nil {
-			return 0, err
+			// p is already consumed into the buffer, so report it written and drop the failed line - keeping it
+			// would re-emit it on the next Write.
+			rw.buf = rw.buf[i+1:]
+			return len(p), err
 		}
 		rw.buf = rw.buf[i+1:]
 	}

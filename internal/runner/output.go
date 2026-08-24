@@ -73,7 +73,10 @@ func (lw *LineWriter) Write(p []byte) (int, error) {
 			break
 		}
 		if err := lw.emit(lw.buf[:i+1]); err != nil {
-			return 0, err
+			// p is already consumed into the buffer, so report it written and drop the failed line - keeping it
+			// would re-emit it on the next Write or Flush.
+			lw.buf = lw.buf[i+1:]
+			return len(p), err
 		}
 		lw.buf = lw.buf[i+1:]
 	}
