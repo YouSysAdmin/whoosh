@@ -335,6 +335,10 @@ func (p *amiPlugin) patchLaunchTemplate(ctx context.Context, tgt amiLTTarget, am
 	if err != nil {
 		return fmt.Errorf("create launch template version: %w", err)
 	}
+	// The API may succeed with warnings and omit the version, guard before the deref.
+	if ver.LaunchTemplateVersion == nil {
+		return fmt.Errorf("create launch template version: response carries no version")
+	}
 	version := strconv.FormatInt(awssdk.ToInt64(ver.LaunchTemplateVersion.VersionNumber), 10)
 	if _, err := p.ec2.ModifyLaunchTemplate(ctx, &awsec2.ModifyLaunchTemplateInput{
 		LaunchTemplateId: awssdk.String(ltID),

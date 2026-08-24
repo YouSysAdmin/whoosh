@@ -1,6 +1,8 @@
 package ec2
 
 import (
+	"fmt"
+
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -41,8 +43,13 @@ func Register(reg *whoosh.Registry, cfg awssdk.Config, fp map[string]map[string]
 
 	if p, ok := fp[FeatureInventory]; ok {
 		var ip ec2InventoryParams
-		if err := whoosh.DecodeParams(p, &ip); err != nil {
-			return err
+		if err := whoosh.DecodeParamsStrict(p, &ip); err != nil {
+			return fmt.Errorf("%s params: %w", FeatureInventory, err)
+		}
+		// A tag filter is mandatory - without one the only remaining filter is instance-state-name and the hook
+		// would inventory every running instance in the region as a deployable host.
+		if !ip.hasTagFilter() {
+			return fmt.Errorf("%s: set 'tags' with at least one value to choose which instances to inventory", FeatureInventory)
 		}
 		reg.AddStartup((&ec2Inventory{api: ec2c, params: ip}).appendHosts)
 	}

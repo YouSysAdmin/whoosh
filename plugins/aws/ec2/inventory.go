@@ -39,6 +39,17 @@ type ec2InventoryParams struct {
 	ResolveConfigHosts bool `yaml:"resolve_config_hosts"`
 }
 
+// hasTagFilter reports whether at least one tag filter carries a value - the guard that keeps the startup hook from
+// inventorying every running instance in the region (an empty value list drops its filter in appendHosts).
+func (p ec2InventoryParams) hasTagFilter() bool {
+	for _, vals := range p.Tags {
+		if len(vals) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // tagMatch is a single EC2 tag name/value used to derive a per-host flag.
 type tagMatch struct {
 	Name  string `yaml:"Name"`
@@ -138,7 +149,15 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 		for _, res := range out.Reservations {
 			for _, inst := range res.Instances {
 				addr := instanceHost(inst, i.params.UsePublicIP)
-				if addr == "" || seen[addr] {
+				if addr == "" {
+					// With use_public_ip a matched instance without a public IP would silently vanish from
+					// the inventory, so surface the likely misconfiguration.
+					if i.params.UsePublicIP {
+						slog.Warn("skipping instance without a public IP", "instance", awssdk.ToString(inst.InstanceId))
+					}
+					continue
+				}
+				if seen[addr] {
 					continue
 				}
 				seen[addr] = true
@@ -193,7 +212,7 @@ func tagValue(tags []ec2types.Tag, key string) string {
 
 func splitRoles(v string) []string {
 	var out []string
-	for _, p := range strings.Split(v, ",") {
+	for p := range strings.SplitSeq(v, ",") {
 		if s := strings.TrimSpace(p); s != "" {
 			out = append(out, s)
 		}

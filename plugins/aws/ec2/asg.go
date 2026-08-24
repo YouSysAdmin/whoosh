@@ -132,6 +132,10 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	if err != nil {
 		return fmt.Errorf("%s: create launch template version: %w", actionASGRollback, err)
 	}
+	// The API may succeed with warnings and omit the version, guard before the deref - this runs mid-rollback.
+	if ver.LaunchTemplateVersion == nil {
+		return fmt.Errorf("%s: create launch template version: response carries no version", actionASGRollback)
+	}
 	newVer := awssdk.ToInt64(ver.LaunchTemplateVersion.VersionNumber)
 
 	setDefault := rp.SetDefault == nil || *rp.SetDefault
