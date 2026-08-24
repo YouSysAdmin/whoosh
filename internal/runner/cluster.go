@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -119,9 +120,10 @@ func (c *Cluster) Capture(ctx context.Context, t Target, cmd string) (string, er
 
 // conn returns the cached connection for the target, opening it once.
 // Local targets get a local transport, remote targets dial SSH.
-// Remote connections are pooled per host *and* effective host-key strictness, so a task requiring verification never
-// reuses a connection another task opened with verification disabled (and vice versa) - at most two connections per
-// host, and only when tasks disagree.
+// Remote connections are pooled by every field that changes what the dial produces - address, port, user, identity,
+// and effective host-key strictness - so two inventory entries sharing an address but differing in user or port never
+// silently share a connection, and a task requiring verification never reuses a connection another task opened with
+// verification disabled. Local targets pool separately from a remote target with the same name.
 func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 	// Per-target host-key override (e.g. a task skipping known_hosts for ephemeral hosts), otherwise the cluster's shared
 	// setting applies.
@@ -129,13 +131,13 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 	if t.StrictHostKey != nil {
 		strict = *t.StrictHostKey
 	}
-	key := t.Host
+	key := "local\x00" + t.Host
 	if !t.Local {
+		mode := "insecure"
 		if strict {
-			key += "\x00strict"
-		} else {
-			key += "\x00insecure"
+			mode = "strict"
 		}
+		key = strings.Join([]string{"ssh", t.Host, strconv.Itoa(t.Port), t.User, t.IdentityFile, mode}, "\x00")
 	}
 
 	c.connMu.Lock()
