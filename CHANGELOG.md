@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+ - The toolchain is Go 1.27 across every module, CI workflow, and the docs. The standard `encoding/json` is now
+   backed by Go's new v2 engine with v1 semantics preserved - user-facing behavior (captured `output:` parsing,
+   secret expansion, Slack payloads) and the generated `deployfile.schema.json` are byte-identical. The codebase
+   is modernized to the current idioms (`maps.Copy`, `slices.Contains`, `strings.SplitSeq`/`Cut`, `errors.AsType`,
+   `wg.Go`, generic `reflect.TypeFor`).
+ - Deploys render templates much less often: the per-host render context (resolved global `envs:`, host roles) is
+   built once and reused across a step's command, task envs, `dir:`, and echo, invalidated only when the deploy
+   context actually changes. The echo also reuses the step's rendered command instead of rendering it again.
+ - `whoosh <stage>` parses the config tree once for task and plugin command discovery - previously every
+   invocation (and every shell completion) parsed it three times, including duplicate env-file reads.
+ - `aws:secrets` fetches the secrets under a prefix with bounded concurrency (5 at a time) instead of one by one.
+   Required IAM permissions are unchanged.
+ - The plugin SDK's `whoosh.MergeParams` now copies nested maps instead of aliasing them, so an action mutating
+   its merged params can no longer silently edit the plugin's shared action defaults.
+
+### Fixed
+ - Plugin failures now exit with the documented code 40: plugin configure/startup errors and action failures carry
+   a typed `PluginError` (a more specific command/unreachable code still wins), and an unknown plugin name - in
+   `validate` too - exits with the config code 10 instead of 1.
+ - A task's `strict_host_key:` override is honored by plugin actions' host command and file-writer helpers -
+   previously an action task rendering a file onto (or running commands on) ephemeral hosts dialed with the
+   cluster default strictness and could fail known_hosts verification, unlike every other task path.
+ - `aws:ec2:inventory` with no non-empty `tags` filter is a load error instead of silently inventorying every
+   running instance in the region as deployable hosts. An instance dropped for lacking a public IP under
+   `use_public_ip: true` is now logged instead of vanishing.
+ - `aws:ec2:asg:rollback` / the launch-template patch no longer panic when `CreateLaunchTemplateVersion` returns a
+   partial-success response without the version - it fails with a labeled error.
+ - `connect_timeout` is a single budget over TCP connect plus SSH handshake (bastion included) - previously each
+   phase got the full timeout, doubling the documented bound.
+ - A dial aborted by a context deadline keeps its identity through the "connection timed out" wrap, so the shared
+   bastion no longer caches a deadline-aborted dial as a permanent failure (`deploy:failed` hooks can reconnect).
+ - SSH connections are pooled by the full target identity (address, port, user, identity file, host-key
+   strictness, local flag) - two inventory entries sharing an address but differing in user or port no longer
+   silently share whichever connection dialed first.
+ - A dead or unreachable ssh-agent socket is no longer silent: the dial error is surfaced when no other auth
+   method exists, instead of a misleading "start an ssh-agent" hint while `SSH_AUTH_SOCK` is set.
+ - Two parallel first contacts with the same `accept_new` host must present the same key: a conflicting key is
+   rejected with a host-key mismatch instead of both keys being appended to known_hosts and trusted forever.
+ - Task discovery resolves `include:`s with the same shared state as the real load - when the Deployfile includes
+   the stage file, `whoosh <stage> <task>` registration no longer reads task metadata (desc, hidden, stage gating)
+   from a definition merged with the opposite precedence.
+ - The load-time template check no longer skips static `.config.tasks.*` references - only templates reading
+   run-time task state (`{{ .tasks.* }}`) are exempt from the offline render check.
+ - A typo'd feature params key under an `actions:` entry (aws ec2/ssm/secrets) is a load error instead of silently
+   disabling the feature - validated against the union of the entry's consumers, so legitimate shared keys still
+   pass.
+ - An unknown `--log-level` (or `log: level:`) value is an error instead of silently logging at INFO.
+ - The line-buffering writers (output prefixing, masking) honor the `io.Writer` contract on a failed write - the
+   consumed bytes are reported and the failed line is dropped, so a retrying caller no longer re-emits it.
+ - A local task's daemonizing grandchild that escapes the process group can no longer hang the run after a cancel -
+   the local transport abandons the output pipes after a short delay (`WaitDelay`).
+
+### Security
+ - AWS credentials are registered with the secret masker in every resolution path - static params,
+   `credentials_file`, `credentials_url` (token included), and IMDS-over-SSH - so `whoosh <stage> config` and logs
+   can no longer print a `secret_access_key` in cleartext.
+ - The slog narrative (phase logs, warnings, error records) is masked like every raw output path - a registered
+   secret embedded in an error message no longer reaches the console or log files. Debug level still shows raw
+   values, as before.
 
 ## [1.7.0] - 2026-07-28
 ### Added
