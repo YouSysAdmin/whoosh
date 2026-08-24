@@ -19,6 +19,12 @@ func NormalizeKey(k string) string {
 	return k
 }
 
+// LastSegment returns the part of name after the final '/' (the whole name when it has none) - the default env key
+// for a path-shaped parameter or secret name (/app/prod/DB_URL -> DB_URL).
+func LastSegment(name string) string {
+	return name[strings.LastIndex(name, "/")+1:]
+}
+
 // Render formats env as a sorted dotenv file.
 // Non-empty values are double-quoted with backslashes, quotes, and '$' escaped - dotenv parsers (godotenv, the Rails
 // dotenv gem) interpolate $VAR inside double quotes, so an unescaped '$' in a secret would be expanded when the app

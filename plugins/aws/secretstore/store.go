@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
+	"sync"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 	"github.com/yousysadmin/whoosh"
 	"github.com/yousysadmin/whoosh/plugins/aws/internal/dotenv"
+	"github.com/yousysadmin/whoosh/plugins/aws/internal/envfile"
 	"github.com/yousysadmin/whoosh/plugins/aws/internal/params"
 )
 
@@ -24,6 +25,9 @@ const Feature = "aws:secrets"
 
 // actionSecretsEnvFile writes a dotenv file from Secrets Manager secrets fetched by prefix/name.
 const actionSecretsEnvFile = Feature + ":to-dotenv"
+
+// secretFetchConcurrency bounds the parallel GetSecretValue calls when a prefix lists many secrets.
+const secretFetchConcurrency = 5
 
 // secretsAPI is the slice of the Secrets Manager client the plugin uses: list secrets by name prefix (paginated) and
 // fetch a single secret's value.
@@ -50,6 +54,11 @@ func Register(reg *whoosh.Registry, awsCfg awssdk.Config, fp map[string]map[stri
 		return err
 	}
 	if cfg, ok := fp[Feature]; ok {
+		// The feature entry serves two surfaces (startup hook + to-dotenv defaults), so unknown keys are rejected
+		// against their union - a typo would otherwise silently disable the feature it was meant to configure.
+		if err := whoosh.DecodeParamsStrict(cfg, &secretsFeatureParams{}); err != nil {
+			return fmt.Errorf("%s params: %w", Feature, err)
+		}
 		var cp secretsContextParams
 		if err := whoosh.DecodeParams(cfg, &cp); err != nil {
 			return err
@@ -59,6 +68,18 @@ func Register(reg *whoosh.Registry, awsCfg awssdk.Config, fp map[string]map[stri
 		}
 	}
 	return nil
+}
+
+// secretsFeatureParams is the union of the two surfaces sharing the `aws:secrets` actions entry - the startup hook
+// (secretsContextParams) and the to-dotenv action defaults (secretsEnvFileParams). It exists only to reject unknown
+// keys at load, each consumer still decodes its own struct.
+type secretsFeatureParams struct {
+	Prefixes    []string `yaml:"prefixes"`
+	Namespace   string   `yaml:"namespace"`
+	Path        string   `yaml:"path"`
+	JSON        *bool    `yaml:"json"`
+	FullKeyPath bool     `yaml:"full_key_path"`
+	Multiline   *bool    `yaml:"multiline"`
 }
 
 // rawSecret is one fetched secret before key derivation: its name and raw value.
@@ -131,7 +152,7 @@ func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
 					}
 					continue
 				}
-				key := sec.name[strings.LastIndex(sec.name, "/")+1:]
+				key := dotenv.LastSegment(sec.name)
 				cfg.AddImport(namespace, key, sec.value)
 				whoosh.AddSecret(sec.value)
 				count++
@@ -179,7 +200,7 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 			}
 			key := sec.name
 			if !p.FullKeyPath {
-				key = key[strings.LastIndex(key, "/")+1:]
+				key = dotenv.LastSegment(key)
 			}
 			env[dotenv.NormalizeKey(key)] = sec.value
 			whoosh.AddSecret(sec.value)
@@ -187,21 +208,10 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 	}
 
 	content := []byte(dotenv.Render(env, params.Or(p.Multiline, true)))
-	// Fetched once, operator-side.
-	// Render the file on the task's hosts when the executor provided a host writer (the normal case), otherwise (e.g. a
-	// unit test, or no executor) fall back to writing it on the operator machine.
-	if w := whoosh.HostFileWriterFrom(ctx); w != nil {
-		if err := w.WriteFile(ctx, p.Path, content); err != nil {
-			return err
-		}
-		slog.Info("rendered env file from Secrets Manager on hosts", "path", p.Path, "vars", len(env), "prefixes", len(p.Prefixes))
-		return nil
-	}
-	if err := os.WriteFile(p.Path, content, 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", p.Path, err)
-	}
-	slog.Info("wrote env file from Secrets Manager", "path", p.Path, "vars", len(env), "prefixes", len(p.Prefixes))
-	return nil
+	// Fetched once, operator-side. The write-out (hosts-first, operator fallback) is shared with aws:ssm.
+	return envfile.Write(ctx, p.Path, content,
+		"rendered env file from Secrets Manager on hosts", "wrote env file from Secrets Manager",
+		"path", p.Path, "vars", len(env), "prefixes", len(p.Prefixes))
 }
 
 // fetchPrefix returns the secrets for a prefix.
@@ -233,14 +243,43 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 			}
 			token = resp.NextToken
 		}
+		// Values are fetched with bounded concurrency - a large prefix would otherwise cost one serial round-trip
+		// per secret. The returned slice keeps the listed name order.
+		type slot struct {
+			sec rawSecret
+			ok  bool
+		}
+		slots := make([]slot, len(names))
+		sem := make(chan struct{}, secretFetchConcurrency)
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var firstErr error
+		for idx, name := range names {
+			wg.Go(func() {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				v, ok, err := s.getValue(ctx, name)
+				if err != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = err
+					}
+					mu.Unlock()
+					return
+				}
+				if ok {
+					slots[idx] = slot{sec: rawSecret{name: name, value: v}, ok: true}
+				}
+			})
+		}
+		wg.Wait()
+		if firstErr != nil {
+			return nil, firstErr
+		}
 		out := make([]rawSecret, 0, len(names))
-		for _, name := range names {
-			v, ok, err := s.getValue(ctx, name)
-			if err != nil {
-				return nil, err
-			}
-			if ok {
-				out = append(out, rawSecret{name: name, value: v})
+		for _, sl := range slots {
+			if sl.ok {
+				out = append(out, sl.sec)
 			}
 		}
 		return out, nil

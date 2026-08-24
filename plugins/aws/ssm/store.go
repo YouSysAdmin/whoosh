@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -14,6 +13,7 @@ import (
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/yousysadmin/whoosh"
 	"github.com/yousysadmin/whoosh/plugins/aws/internal/dotenv"
+	"github.com/yousysadmin/whoosh/plugins/aws/internal/envfile"
 	"github.com/yousysadmin/whoosh/plugins/aws/internal/params"
 )
 
@@ -49,6 +49,11 @@ func Register(reg *whoosh.Registry, awsCfg awssdk.Config, fp map[string]map[stri
 		return err
 	}
 	if cfg, ok := fp[Feature]; ok {
+		// The feature entry serves two surfaces (startup hook + to-dotenv defaults), so unknown keys are rejected
+		// against their union - a typo would otherwise silently disable the feature it was meant to configure.
+		if err := whoosh.DecodeParamsStrict(cfg, &ssmFeatureParams{}); err != nil {
+			return fmt.Errorf("%s params: %w", Feature, err)
+		}
 		var cp ssmContextParams
 		if err := whoosh.DecodeParams(cfg, &cp); err != nil {
 			return err
@@ -58,6 +63,19 @@ func Register(reg *whoosh.Registry, awsCfg awssdk.Config, fp map[string]map[stri
 		}
 	}
 	return nil
+}
+
+// ssmFeatureParams is the union of the two surfaces sharing the `aws:ssm` actions entry - the startup hook
+// (ssmContextParams) and the to-dotenv action defaults (ssmEnvFileParams). It exists only to reject unknown keys at
+// load, each consumer still decodes its own struct.
+type ssmFeatureParams struct {
+	Prefixes    []string `yaml:"prefixes"`
+	Namespace   string   `yaml:"namespace"`
+	Path        string   `yaml:"path"`
+	Recursive   *bool    `yaml:"recursive"`
+	Decrypt     *bool    `yaml:"decrypt"`
+	FullKeyPath bool     `yaml:"full_key_path"`
+	Multiline   *bool    `yaml:"multiline"`
 }
 
 // ssmEnvFileParams is the `with:` for aws:ssm:to-dotenv.
@@ -114,7 +132,7 @@ func (s *ssmPlugin) startup(p ssmContextParams) whoosh.StartupFunc {
 				return fmt.Errorf("ssm %s: %w", prefix, err)
 			}
 			for name, value := range params {
-				key := name[strings.LastIndex(name, "/")+1:]
+				key := dotenv.LastSegment(name)
 				cfg.AddImport(namespace, key, value)
 				whoosh.AddSecret(value)
 				count++
@@ -150,7 +168,7 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 		for name, value := range params {
 			key := name
 			if !p.FullKeyPath {
-				key = name[strings.LastIndex(name, "/")+1:]
+				key = dotenv.LastSegment(name)
 			}
 			env[dotenv.NormalizeKey(key)] = value
 			// Register for redaction like the startup import path, so the values stay masked if a later
@@ -160,21 +178,10 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 	}
 
 	content := []byte(dotenv.Render(env, params.Or(p.Multiline, true)))
-	// Fetched once, operator-side.
-	// Render the file on the task's hosts when the executor provided a host writer (the normal case); otherwise (e.g. a
-	// unit test, or no executor) fall back to writing it on the operator machine.
-	if w := whoosh.HostFileWriterFrom(ctx); w != nil {
-		if err := w.WriteFile(ctx, p.Path, content); err != nil {
-			return err
-		}
-		slog.Info("rendered env file from SSM on hosts", "path", p.Path, "params", len(env), "prefixes", len(p.Prefixes))
-		return nil
-	}
-	if err := os.WriteFile(p.Path, content, 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", p.Path, err)
-	}
-	slog.Info("wrote env file from SSM", "path", p.Path, "params", len(env), "prefixes", len(p.Prefixes))
-	return nil
+	// Fetched once, operator-side. The write-out (hosts-first, operator fallback) is shared with aws:secrets.
+	return envfile.Write(ctx, p.Path, content,
+		"rendered env file from SSM on hosts", "wrote env file from SSM",
+		"path", p.Path, "params", len(env), "prefixes", len(p.Prefixes))
 }
 
 // fetchPrefix returns name->value for a prefix.
