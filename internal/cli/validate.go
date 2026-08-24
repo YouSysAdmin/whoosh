@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"fmt"
 	"log/slog"
 
 	"github.com/spf13/cobra"
 
+	"github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 )
 
@@ -31,7 +31,7 @@ func newValidateCmd(stage string, gf *globalFlags) *cobra.Command {
 			// `name: awss`).
 			for _, p := range cfg.Plugins {
 				if !plugins.IsRegistered(p.Name) {
-					return fmt.Errorf("unknown plugin %q (not built into this binary)", p.Name)
+					return errors.Config("unknown plugin %q (not built into this binary)", p.Name)
 				}
 			}
 			slog.Info("configuration is valid", "stage", stage, "deployfile", path, "tasks", len(cfg.Tasks))

@@ -21,6 +21,7 @@ import (
 	"sort"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
+	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -223,11 +224,16 @@ func (r *Registry) Action(name string) (ActionFunc, bool) {
 	return fn, ok
 }
 
-// RunStartup runs every startup hook in registration order.
+// RunStartup runs every startup hook in registration order. A hook failure carries the plugin exit code unless the
+// hook already surfaced a more specific typed error.
 func (r *Registry) RunStartup(ctx context.Context, cfg *ast.DeployFile) error {
 	for _, fn := range r.startups {
 		if err := fn(ctx, cfg); err != nil {
-			return err
+			var typed werrors.Error
+			if werrors.As(err, &typed) {
+				return err
+			}
+			return &werrors.PluginError{Msg: "startup hook", Err: err}
 		}
 	}
 	return nil
@@ -240,10 +246,11 @@ func Load(specs []ast.PluginSpec) (*Registry, error) {
 	for _, spec := range specs {
 		f, ok := factories[spec.Name]
 		if !ok {
-			return nil, fmt.Errorf("unknown plugin %q (not built into this binary)", spec.Name)
+			// A bad plugin name is a Deployfile problem, so it maps to the config exit code.
+			return nil, werrors.Config("unknown plugin %q (not built into this binary)", spec.Name)
 		}
 		if err := f().Configure(spec, reg); err != nil {
-			return nil, fmt.Errorf("plugin %q: %w", spec.Name, err)
+			return nil, &werrors.PluginError{Msg: fmt.Sprintf("plugin %q", spec.Name), Err: err}
 		}
 	}
 	return reg, nil
