@@ -18,11 +18,11 @@ case "$subject" in
 "Merge "* | "Revert "* | "fixup! "* | "squash! "*) exit 0 ;;
 esac
 
-pattern='^(feat|fix|chore|docs|refactor|test|perf|build|ci|style|revert)(\([a-z0-9_.-]+\))?!?: .+'
+pattern='^(feat|fix|chore|docs|refactor|test|perf|build|ci|style|revert)(\([a-z0-9_.-]+\)|\[[a-z0-9_.-]+\])?!?: .+'
 
 if [[ ! $subject =~ $pattern ]]; then
 	echo "✖ Commit subject must follow Conventional Commits:" >&2
-	echo "    <type>[(scope)][!]: <short summary>" >&2
+	echo "    <type>[scope][!]: <short summary>" >&2
 	echo "  types: feat fix chore docs refactor test perf build ci style revert" >&2
 	echo "  got:   ${subject:-<empty>}" >&2
 	exit 1
