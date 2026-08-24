@@ -58,7 +58,7 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 	if output != "" && !strings.EqualFold(output, "stdout") && !strings.EqualFold(output, "stderr") {
 		// A file destination is opened here (not left to the sink) so reconfiguring - setupLogging runs again after
 		// the Deployfile's log: config loads - closes the previous handle instead of leaking one per setup.
-		f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		f, err := logger.OpenAppend(output)
 		if err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 	}
 	sinks := []logger.Sink{primary}
 	if file != "" {
-		f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		f, err := logger.OpenAppend(file)
 		if err != nil {
 			return err
 		}

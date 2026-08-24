@@ -13,6 +13,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/yousysadmin/whoosh/internal/masking"
 )
 
 // ANSI color codes.
@@ -66,9 +68,13 @@ func New(sinks ...Sink) (*slog.Logger, error) {
 	return slog.New(slog.NewMultiHandler(handlers...)), nil
 }
 
-// buildHandler turns one Sink into an slog.Handler.
+// buildHandler turns one Sink into an slog.Handler. Every handler is wrapped in secret masking, so the narrative
+// honors the same redaction as the raw output streams.
 func buildHandler(s Sink) (slog.Handler, error) {
-	level := parseLevel(s.Level)
+	level, err := parseLevel(s.Level)
+	if err != nil {
+		return nil, err
+	}
 	out, err := resolveWriter(s)
 	if err != nil {
 		return nil, err
@@ -81,18 +87,82 @@ func buildHandler(s Sink) (slog.Handler, error) {
 	}
 	switch strings.ToLower(format) {
 	case "json":
-		return slog.NewJSONHandler(out, opts), nil
+		return maskingHandler{slog.NewJSONHandler(out, opts)}, nil
 	case "text":
 		// Only colorize a real terminal: writing ANSI escapes into a file (--log-file app.log) or a pipe (whoosh ... | tee)
 		// would corrupt it. A provided Writer (e.g. a shared transcript file) is never a terminal.
 		if s.Color {
 			if f, ok := out.(*os.File); ok && isTerminal(f) {
-				return &ColorHandler{output: f, level: level}, nil
+				return maskingHandler{&ColorHandler{output: f, level: level}}, nil
 			}
 		}
-		return slog.NewTextHandler(out, opts), nil
+		return maskingHandler{slog.NewTextHandler(out, opts)}, nil
 	default:
 		return nil, fmt.Errorf("invalid log format: %s", format)
+	}
+}
+
+// maskingHandler scrubs secrets from a record's message and attr values before the wrapped handler writes them.
+// Masking respects the process-wide switch, so a debug run still sees raw values.
+type maskingHandler struct{ h slog.Handler }
+
+func (m maskingHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return m.h.Enabled(ctx, level)
+}
+
+func (m maskingHandler) Handle(ctx context.Context, r slog.Record) error {
+	if !masking.Enabled() {
+		return m.h.Handle(ctx, r)
+	}
+	nr := slog.NewRecord(r.Time, r.Level, masking.String(r.Message), r.PC)
+	r.Attrs(func(a slog.Attr) bool {
+		nr.AddAttrs(maskAttr(a))
+		return true
+	})
+	return m.h.Handle(ctx, nr)
+}
+
+func (m maskingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	// Attrs bound early are masked here because Handle never sees them again.
+	masked := make([]slog.Attr, len(attrs))
+	for i, a := range attrs {
+		masked[i] = maskAttr(a)
+	}
+	return maskingHandler{m.h.WithAttrs(masked)}
+}
+
+func (m maskingHandler) WithGroup(name string) slog.Handler {
+	return maskingHandler{m.h.WithGroup(name)}
+}
+
+// maskAttr masks the text-bearing attr kinds: strings, errors, and Stringers (errors and Stringers become masked
+// strings, which also renders them faithfully in JSON mode). Numeric and other kinds pass through untouched.
+func maskAttr(a slog.Attr) slog.Attr {
+	a.Value = maskValue(a.Value.Resolve())
+	return a
+}
+
+func maskValue(v slog.Value) slog.Value {
+	switch v.Kind() {
+	case slog.KindString:
+		return slog.StringValue(masking.String(v.String()))
+	case slog.KindGroup:
+		group := v.Group()
+		masked := make([]slog.Attr, len(group))
+		for i, a := range group {
+			masked[i] = maskAttr(a)
+		}
+		return slog.GroupValue(masked...)
+	case slog.KindAny:
+		switch t := v.Any().(type) {
+		case error:
+			return slog.StringValue(masking.String(t.Error()))
+		case fmt.Stringer:
+			return slog.StringValue(masking.String(t.String()))
+		}
+		return v
+	default:
+		return v
 	}
 }
 
@@ -104,17 +174,20 @@ func resolveWriter(s Sink) (io.Writer, error) {
 	return openOutput(s.Output)
 }
 
-// parseLevel maps a level name to slog.Level (INFO when empty or unknown).
-func parseLevel(s string) slog.Level {
+// parseLevel maps a level name to slog.Level (INFO when empty). An unknown name is an error, matching the strict
+// format handling - a typo'd level must not silently log at INFO.
+func parseLevel(s string) (slog.Level, error) {
 	switch strings.ToUpper(s) {
+	case "", "INFO":
+		return slog.LevelInfo, nil
 	case "DEBUG":
-		return slog.LevelDebug
+		return slog.LevelDebug, nil
 	case "WARN":
-		return slog.LevelWarn
+		return slog.LevelWarn, nil
 	case "ERROR":
-		return slog.LevelError
+		return slog.LevelError, nil
 	default:
-		return slog.LevelInfo
+		return slog.LevelInfo, fmt.Errorf("invalid log level: %s", s)
 	}
 }
 
@@ -127,8 +200,14 @@ func openOutput(dest string) (*os.File, error) {
 	case strings.EqualFold(dest, "stderr"):
 		return os.Stderr, nil
 	default:
-		return os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		return OpenAppend(dest)
 	}
+}
+
+// OpenAppend opens (creating if missing) a log file for appending - the shared mode for every log/transcript file, so
+// flags and permissions cannot drift between the sinks and the CLI's --log-file / --log-output handling.
+func OpenAppend(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 }
 
 // isTerminal reports whether f is an interactive terminal (a character device), so color is suppressed when output is
