@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -262,20 +263,13 @@ func (p PluginSpec) IsEnabled() bool {
 // stageActive is the shared Only/Except stage gate used by both PluginSpec and Task: a stage listed in except is never
 // active (except wins), otherwise an empty only matches every stage, and a non-empty only matches only its members.
 func stageActive(stage string, only, except []string) bool {
-	for _, s := range except {
-		if s == stage {
-			return false
-		}
+	if slices.Contains(except, stage) {
+		return false
 	}
 	if len(only) == 0 {
 		return true
 	}
-	for _, s := range only {
-		if s == stage {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(only, stage)
 }
 
 // App describes the application being deployed and where it lives on the targets.
@@ -544,12 +538,7 @@ type CustomPhase struct {
 
 // HasRole reports whether the host fills the given role.
 func (h Host) HasRole(role string) bool {
-	for _, r := range h.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(h.Roles, role)
 }
 
 // DeployEnabled reports whether the release lifecycle/tasks should target this host.

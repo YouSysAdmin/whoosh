@@ -26,7 +26,7 @@ func main() {
 		// StringList accepts a scalar or a list in YAML, reflection alone would emit only "array".
 		// Map it here so the schema lib stays out of the ast package.
 		Mapper: func(t reflect.Type) *jsonschema.Schema {
-			if t == reflect.TypeOf(ast.StringList{}) {
+			if t == reflect.TypeFor[ast.StringList]() {
 				return &jsonschema.Schema{
 					OneOf: []*jsonschema.Schema{
 						{Type: "string"},

@@ -1,5 +1,7 @@
 package ast
 
+import "slices"
+
 // FilterByRoles returns the hosts filling at least one of the given roles. An empty roles slice matches every host.
 func FilterByRoles(hosts []Host, roles []string) []Host {
 	if len(roles) == 0 {
@@ -7,11 +9,8 @@ func FilterByRoles(hosts []Host, roles []string) []Host {
 	}
 	var out []Host
 	for _, h := range hosts {
-		for _, r := range roles {
-			if h.HasRole(r) {
-				out = append(out, h)
-				break
-			}
+		if slices.ContainsFunc(roles, h.HasRole) {
+			out = append(out, h)
 		}
 	}
 	return out
@@ -65,11 +64,8 @@ func FilterByAddresses(hosts []Host, addrs []string) []Host {
 	}
 	var out []Host
 	for _, h := range hosts {
-		for _, a := range addrs {
-			if h.Address == a {
-				out = append(out, h)
-				break
-			}
+		if slices.Contains(addrs, h.Address) {
+			out = append(out, h)
 		}
 	}
 	return out

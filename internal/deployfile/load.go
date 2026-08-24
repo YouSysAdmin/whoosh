@@ -3,8 +3,10 @@ package deployfile
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -75,9 +77,7 @@ func loadEnvFiles(c *ast.DeployFile) error {
 		if err != nil {
 			return fmt.Errorf("read env file %s: %w", p, err)
 		}
-		for k, v := range kv {
-			values[k] = v
-		}
+		maps.Copy(values, kv)
 	}
 	c.EnvFileValues = values
 	return nil
@@ -110,10 +110,8 @@ func resolveIncludes(path string, chain []string, seen map[string]bool) (*ast.De
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range chain {
-		if p == abs {
-			return nil, fmt.Errorf("circular include: %s (via %v)", abs, chain)
-		}
+	if slices.Contains(chain, abs) {
+		return nil, fmt.Errorf("circular include: %s (via %v)", abs, chain)
 	}
 	if seen[abs] {
 		return nil, nil

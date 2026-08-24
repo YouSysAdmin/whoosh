@@ -41,6 +41,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,9 +202,7 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	// Start from the user's build env (RUBY_CONFIGURE_OPTS, MAKEOPTS, ...) so ruby-build sees it at compile time, then
 	// set the RBENV_* control vars on top - the plugin's own vars always win over build_env.
 	env := map[string]string{}
-	for k, v := range p.BuildEnv {
-		env[k] = v
-	}
+	maps.Copy(env, p.BuildEnv)
 	env["RBENV_ROOT"] = root
 	env["RBENV_REPO"] = whoosh.OrZero(p.RbenvRepo, defaultRbenvRepo)
 	env["RUBY_BUILD_REPO"] = whoosh.OrZero(p.RubyBuildRepo, defaultRubyBuildRepo)

@@ -237,8 +237,7 @@ func (n *notifier) post(ctx context.Context, webhook string, pl payload) error {
 	resp, err := n.client.Do(req)
 	if err != nil {
 		// A *url.Error embeds the full URL in its message; unwrap it so the webhook (a secret) never reaches logs.
-		var uerr *url.Error
-		if errors.As(err, &uerr) {
+		if uerr, ok := errors.AsType[*url.Error](err); ok {
 			err = uerr.Err
 		}
 		return fmt.Errorf("post to webhook: %w", err)

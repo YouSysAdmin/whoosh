@@ -44,7 +44,7 @@ func isCommitSHA(s string) bool { return commitSHARe.MatchString(s) }
 // The subject may itself contain '|'.
 func parseCommits(out string, max int) []commit {
 	var cs []commit
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if len(cs) == max {
 			break
 		}

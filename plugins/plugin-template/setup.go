@@ -24,6 +24,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/yousysadmin/whoosh"
@@ -83,9 +84,7 @@ func (p *plugin) setupStartup(fp setupParams) whoosh.StartupFunc {
 		// The task environment is the config channel to the script: start from the user's extra envs, then set the
 		// plugin's own control vars on top (the plugin always wins). Env values are shell-expanded on the host.
 		env := map[string]string{}
-		for k, v := range fp.Envs {
-			env[k] = v
-		}
+		maps.Copy(env, fp.Envs)
 		env["PLUGIN_TEMPLATE_ENDPOINT"] = p.global.Endpoint
 
 		cfg.AddTask(taskSetup, &whoosh.Task{

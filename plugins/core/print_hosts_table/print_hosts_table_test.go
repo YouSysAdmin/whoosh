@@ -106,7 +106,7 @@ func TestHostsTable(t *testing.T) {
 		}
 	}
 	lineFor := func(host string) string {
-		for _, l := range strings.Split(out, "\n") {
+		for l := range strings.SplitSeq(out, "\n") {
 			if strings.Contains(l, host) {
 				return l
 			}

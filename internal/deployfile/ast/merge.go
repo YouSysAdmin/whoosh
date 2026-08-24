@@ -1,5 +1,7 @@
 package ast
 
+import "maps"
+
 // Merge layers the override config on top of the base and returns the result.
 // Scalars and map entries from override win. Slices differ by field: hosts, plugins, env_files, and custom_phases
 // concatenate (base first), while linked_files/linked_dirs replace wholesale (a non-empty override wins).
@@ -140,12 +142,8 @@ func mergeMap[V any](base, ov map[string]V) map[string]V {
 		return nil
 	}
 	out := make(map[string]V, len(base)+len(ov))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range ov {
-		out[k] = v
-	}
+	maps.Copy(out, base)
+	maps.Copy(out, ov)
 	return out
 }
 

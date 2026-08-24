@@ -62,8 +62,8 @@ func parseModVer(s string) (modVer, error) {
 // "github.com/x" from "github.com/x@v1=./fork".
 func replaceOldPath(spec string) string {
 	left := spec
-	if eq := strings.Index(spec, "="); eq >= 0 {
-		left = spec[:eq]
+	if before, _, ok := strings.Cut(spec, "="); ok {
+		left = before
 	}
 	left = strings.TrimSpace(left)
 	if i := strings.Index(left, "@"); i >= 0 {
@@ -77,11 +77,11 @@ func replaceOldPath(spec string) string {
 // Those modules are resolved by the replacement + `go mod tidy`, so skip `go get` for them (a local/unpublished module
 // has no version to fetch).
 func replaceIsFilesystem(spec string) bool {
-	eq := strings.Index(spec, "=")
-	if eq < 0 {
+	_, after, ok := strings.Cut(spec, "=")
+	if !ok {
 		return false
 	}
-	rhs := strings.TrimSpace(spec[eq+1:])
+	rhs := strings.TrimSpace(after)
 	return strings.HasPrefix(rhs, "./") || strings.HasPrefix(rhs, "../") ||
 		strings.HasPrefix(rhs, ".\\") || strings.HasPrefix(rhs, "..\\") ||
 		filepath.IsAbs(rhs)

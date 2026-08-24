@@ -82,9 +82,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make([]error, len(targets))
 	for i, srv := range targets {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			c, err := Dial(context.Background(),
 				Target{Host: srv.Host, Port: srv.Port, IdentityFile: srv.IdentityFile},
 				Options{Bastion: b})
@@ -101,7 +99,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 			if got, want := strings.TrimSpace(out.String()), fmt.Sprintf("host-%d", i); got != want {
 				errs[i] = fmt.Errorf("output = %q, want %q", got, want)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	for i, err := range errs {

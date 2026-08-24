@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 
 	"github.com/spf13/cobra"
 
@@ -75,9 +76,7 @@ func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (map[str
 	ctx.Imports = cfg.Imports
 	ctx.ReleasePath = releaseDir
 	out := make(map[string]string, len(cfg.EnvFileValues)+len(cfg.Envs))
-	for k, v := range cfg.EnvFileValues {
-		out[k] = v
-	}
+	maps.Copy(out, cfg.EnvFileValues)
 	for k, v := range cfg.Envs {
 		rv, err := varstmpl.RenderWith(v, ctx, !dryRun)
 		if err != nil {
