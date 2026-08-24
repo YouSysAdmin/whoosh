@@ -39,22 +39,19 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 
 	var out strings.Builder
 	for _, st := range steps {
-		cmd, err := st.build(target.Host)
+		b, err := st.build(target.Host)
 		if err != nil {
 			return err
 		}
 		e.announceStep(st)
 		if e.dryRun {
-			line, err := e.stepLine(st, target.Host, cmd)
-			if err != nil {
-				return err
-			}
+			line := e.stepLine(st, b)
 			if !e.logDryRun(target.Host, "capture: "+line) {
 				fmt.Fprintf(e.out, "[dry-run] capture %s: %s\n", target.Host, line)
 			}
 			continue
 		}
-		s, err := e.cluster.Capture(ctx, target, cmd)
+		s, err := e.cluster.Capture(ctx, target, b.cmd)
 		if err != nil {
 			if task.ContinueOnError {
 				slog.Warn("continuing past error", "task", name, "error", err)
@@ -102,6 +99,8 @@ func parseOutput(format, raw string) (any, error) {
 // Task execution is sequential, but the lock keeps the map safe regardless.
 func (e *Executor) setTaskState(name string, v any) {
 	e.stateMu.Lock()
-	defer e.stateMu.Unlock()
 	e.base.Tasks[name] = v
+	e.stateMu.Unlock()
+	// Rendered global env values may bake in {{.tasks.*}} state, so cached contexts are stale now.
+	e.invalidateRenderCache()
 }

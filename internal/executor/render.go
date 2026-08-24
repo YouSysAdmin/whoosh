@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,21 +19,16 @@ import (
 // The user-supplied env values (global and task) are Go-templated, so they can pull from whoosh's own environment with
 // {{ env "VAR" }} (e.g. a registry credential).
 func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, error) {
+	// The cached render context already carries the resolved global envs and the host's roles (dry-run previews
+	// leniently: a global env that needs run-time state must not break the plan - renderContext swallows that there).
+	c, err := e.renderContext(host)
+	if err != nil {
+		return nil, err
+	}
 	env := make(map[string]string, len(e.cfg.EnvFileValues)+len(e.env)+len(task.Envs)+15)
 	// env_files values are a base layer that the global/task `envs` override.
-	for k, v := range e.cfg.EnvFileValues {
-		env[k] = v
-	}
-	globalEnv, err := e.globalEnv(host)
-	if err != nil {
-		// Dry-run previews leniently: a global env that needs run-time state must not break the plan.
-		if !e.dryRun {
-			return nil, err
-		}
-	}
-	for k, v := range globalEnv {
-		env[k] = v
-	}
+	maps.Copy(env, e.cfg.EnvFileValues)
+	maps.Copy(env, c.GlobalEnvValues)
 	env["DEPLOY_TO"] = e.base.DeployTo
 	env["RELEASES_PATH"] = e.base.ReleasesPath
 	env["SHARED_PATH"] = e.base.SharedPath
@@ -48,7 +44,7 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	env["STAGE"] = e.base.Stage
 	env["DEPLOYER"] = e.base.Deployer
 	env["HOST"] = host
-	env["ROLES"] = strings.Join(e.rolesFor(host), ",")
+	env["ROLES"] = strings.Join(c.Roles, ",")
 	env["DEPLOY_PHASE"] = e.base.Phase
 	env["DEPLOY_ERROR"] = e.base.DeployError
 	env["DEPLOY_CHANGELOG"] = e.base.Changelog
@@ -64,9 +60,7 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range taskEnv {
-		env[k] = v
-	}
+	maps.Copy(env, taskEnv)
 	return env, nil
 }
 
@@ -159,7 +153,8 @@ func (e *Executor) baseContext(host string) varstmpl.Context {
 }
 
 // globalEnv resolves the global `envs:` for host, each value rendered against the base context. Values may reference
-// run-time keys ({{.release_path}}, {{.phase}}, {{.tasks.*}}), so they are rendered fresh on every call, never cached.
+// run-time keys ({{.release_path}}, {{.phase}}, {{.tasks.*}}), so the result is only reusable until the base context
+// changes - renderContext caches it per host and every base mutation invalidates that cache.
 func (e *Executor) globalEnv(host string) (map[string]string, error) {
 	if len(e.env) == 0 {
 		return nil, nil
@@ -179,16 +174,29 @@ func (e *Executor) globalEnv(host string) (map[string]string, error) {
 // renderContext is the task-time render context: the base context plus the resolved global envs, so {{ env "X" }}
 // sees process env > global envs > env_files. Dry-run tolerates a global env that needs run-time state (the preview
 // must not break), real runs propagate the error.
+// The resolved context is cached per host - one step renders the command, the task envs, the dir, and the echo, and
+// without the cache each of those would re-render every global env value (a full template parse per value). The cache
+// is dropped on every base-context mutation (see invalidateRenderCache), so values never go stale across steps.
 func (e *Executor) renderContext(host string) (varstmpl.Context, error) {
+	e.ctxMu.Lock()
+	if c, ok := e.ctxCache[host]; ok {
+		e.ctxMu.Unlock()
+		return c, nil
+	}
+	e.ctxMu.Unlock()
+
 	c := e.baseContext(host)
 	ge, err := e.globalEnv(host)
 	if err != nil {
 		if !e.dryRun {
 			return c, err
 		}
-		return c, nil
+	} else {
+		c.GlobalEnvValues = ge
 	}
-	c.GlobalEnvValues = ge
+	e.ctxMu.Lock()
+	e.ctxCache[host] = c
+	e.ctxMu.Unlock()
 	return c, nil
 }
 

@@ -36,6 +36,12 @@ type Executor struct {
 	base        varstmpl.Context
 	stateMu     sync.Mutex // guards writes to base.Tasks (task state)
 
+	// ctxCache holds the resolved per-host render context (global envs rendered, roles collected) so one step's
+	// renders (command, task envs, dir, echo) don't re-render the global envs per value. Any mutation of the base
+	// context (release path, phase, task state, ...) must invalidate it - see invalidateRenderCache.
+	ctxMu    sync.Mutex
+	ctxCache map[string]varstmpl.Context
+
 	// logMode routes command output and the echoed commands through slog as structured records instead of streaming
 	// them raw (cfg.Log.raw_remote_log: false). logTask names the task currently producing output; it is set/restored
 	// in runTask (sequential) and read by the cluster's line handler from the per-host goroutines it brackets.
@@ -129,6 +135,7 @@ func New(cfg *ast.DeployFile, opts Options) *Executor {
 		reg:         opts.Registry,
 		base:        base,
 		skipped:     namespaceSet(cfg.SkippedPlugins),
+		ctxCache:    map[string]varstmpl.Context{},
 		unreachable: map[string]bool{},
 		logMode:     !cfg.Log.RawOutput(),
 		color:       opts.Color,
@@ -223,27 +230,45 @@ func (e *Executor) runOn(ctx context.Context, hosts []ast.Host, command string, 
 	return e.cluster.Run(ctx, Targets(hosts), func(string) string { return command }, e.concurrency, failFast)
 }
 
+// invalidateRenderCache drops the cached per-host render contexts. Every mutation of the base context must call it,
+// so later renders (notably global env values, which bake run-time keys into rendered strings) see the new values.
+func (e *Executor) invalidateRenderCache() {
+	e.ctxMu.Lock()
+	clear(e.ctxCache)
+	e.ctxMu.Unlock()
+}
+
 // SetReleaseContext points release_path/release_timestamp at an in-progress release.
 // The deploy lifecycle calls this before running release-scoped tasks.
 func (e *Executor) SetReleaseContext(releasePath, timestamp string) {
 	e.base.ReleasePath = releasePath
 	e.base.ReleaseTimestamp = timestamp
+	e.invalidateRenderCache()
 }
 
 // SetCommitHash records the deployed commit SHA, exposed to subsequent tasks and hooks as {{.commit_hash}} /
 // $COMMIT_HASH.
 // The deploy lifecycle calls this once the mirror is updated, so it is unknown (empty) for standalone task runs.
-func (e *Executor) SetCommitHash(hash string) { e.base.CommitHash = hash }
+func (e *Executor) SetCommitHash(hash string) {
+	e.base.CommitHash = hash
+	e.invalidateRenderCache()
+}
 
 // SetPreviousCommitHash records the SHA the live release was deployed from, exposed as {{.previous_commit_hash}} /
 // $PREVIOUS_COMMIT_HASH. The deploy lifecycle sets it at deploy start, so it is empty for standalone task runs and on
 // a fresh deploy.
-func (e *Executor) SetPreviousCommitHash(hash string) { e.base.PreviousCommitHash = hash }
+func (e *Executor) SetPreviousCommitHash(hash string) {
+	e.base.PreviousCommitHash = hash
+	e.invalidateRenderCache()
+}
 
 // SetChangelog records the commits between the previous and the new revision (one per line,
 // <sha>|<author>|<email>|<subject>), exposed as {{.changelog}} / $DEPLOY_CHANGELOG. The deploy lifecycle sets it at
 // deploy:updating, so it is empty before that and for standalone task runs.
-func (e *Executor) SetChangelog(log string) { e.base.Changelog = log }
+func (e *Executor) SetChangelog(log string) {
+	e.base.Changelog = log
+	e.invalidateRenderCache()
+}
 
 // Capture runs command on a single host and returns its trimmed stdout, reusing the pooled connection.
 // The deploy lifecycle uses it to read a value off a host (e.g. the deployed commit SHA) into the template context.
@@ -262,12 +287,19 @@ func (e *Executor) RunTask(ctx context.Context, name string) error {
 func (e *Executor) RunTaskInPhase(ctx context.Context, name, phase string) error {
 	prev := e.base.Phase
 	e.base.Phase = phase
-	defer func() { e.base.Phase = prev }()
+	e.invalidateRenderCache()
+	defer func() {
+		e.base.Phase = prev
+		e.invalidateRenderCache()
+	}()
 	return e.runTask(ctx, name, map[string]bool{})
 }
 
 // SetError records a failure message exposed to deploy:failed hook tasks as {{.error}} / $DEPLOY_ERROR.
-func (e *Executor) SetError(msg string) { e.base.DeployError = msg }
+func (e *Executor) SetError(msg string) {
+	e.base.DeployError = msg
+	e.invalidateRenderCache()
+}
 
 // firstError returns the most informative error among the results: a real command/host failure takes precedence over a
 // context cancellation.

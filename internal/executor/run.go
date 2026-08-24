@@ -10,14 +10,19 @@ import (
 	"github.com/yousysadmin/whoosh/internal/runner"
 )
 
-// step is one command or script in a task. build yields the per-host shell command actually sent to the host (env/dir
-// baked in), display yields the clean, user-facing form to echo (the rendered command without the env-export preamble).
-// display is nil for scripts, which are announced by name instead.
+// step is one command or script in a task. build yields the per-host command pair: the full shell command actually
+// sent to the host (env/dir baked in) plus, for cmd steps, the clean user-facing form to echo (the rendered command
+// without the env-export preamble). Scripts carry no display form, they are announced by name instead.
 type step struct {
 	label    string
 	isScript bool
-	build    func(host string) (string, error)
-	display  func(host string) (string, error)
+	build    func(host string) (built, error)
+}
+
+// built is one step rendered for one host.
+type built struct {
+	cmd     string // the full shell command sent to the host
+	display string // the clean echo form (cmd steps only)
 }
 
 // taskSteps assembles a task's cmds (first) and scripts (second) into an ordered list of steps.
@@ -25,30 +30,27 @@ type step struct {
 func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
 	var steps []step
 	for i, raw := range task.Cmds {
-		raw := raw
 		steps = append(steps, step{
 			label: fmt.Sprintf("cmd %d", i+1),
-			build: func(host string) (string, error) {
+			build: func(host string) (built, error) {
 				rendered, err := e.render(raw, host)
 				if err != nil {
-					return "", err
+					return built{}, err
 				}
 				env, err := e.execEnv(host, task)
 				if err != nil {
-					return "", err
+					return built{}, err
 				}
 				dir, err := e.taskDir(task, host)
 				if err != nil {
-					return "", err
+					return built{}, err
 				}
-				return wrapRemote(rendered, dir, env), nil
+				// The echo shows the rendered command itself, not the env-export wrapper.
+				return built{cmd: wrapRemote(rendered, dir, env), display: rendered}, nil
 			},
-			// Echo the rendered command itself, not the env-export wrapper.
-			display: func(host string) (string, error) { return e.render(raw, host) },
 		})
 	}
 	for _, sc := range task.Scripts {
-		sc := sc
 		// Inline scripts are always templated, a file script only when asked (explicit flag or .tmpl suffix).
 		content, templated := sc.Script, true
 		if sc.Script == "" {
@@ -61,24 +63,24 @@ func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
 		steps = append(steps, step{
 			label:    scriptLabel(sc),
 			isScript: true,
-			build: func(host string) (string, error) {
+			build: func(host string) (built, error) {
 				body := content
 				if templated {
 					rendered, err := e.render(body, host)
 					if err != nil {
-						return "", err
+						return built{}, err
 					}
 					body = rendered
 				}
 				env, err := e.execEnv(host, task)
 				if err != nil {
-					return "", err
+					return built{}, err
 				}
 				dir, err := e.taskDir(task, host)
 				if err != nil {
-					return "", err
+					return built{}, err
 				}
-				return buildScriptCommand(sc.Interpreter, body, dir, env), nil
+				return built{cmd: buildScriptCommand(sc.Interpreter, body, dir, env)}, nil
 			},
 		})
 	}
@@ -99,23 +101,19 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 	for _, st := range steps {
 		// Recomputed per step: the on_unreachable policy below may drop hosts mid-task.
 		targets := e.taskTargets(task, hosts)
-		rendered := make(map[string]string, len(hosts))
+		rendered := make(map[string]built, len(hosts))
 		for _, h := range hosts {
-			cmd, err := st.build(h.Address)
+			b, err := st.build(h.Address)
 			if err != nil {
 				return err
 			}
-			rendered[h.Address] = cmd
+			rendered[h.Address] = b
 		}
 
 		e.announceStep(st)
 		if e.dryRun {
 			for _, h := range hosts {
-				line, err := e.stepLine(st, h.Address, rendered[h.Address])
-				if err != nil {
-					return err
-				}
-				e.echoDryRun(h.Address, line)
+				e.echoDryRun(h.Address, e.stepLine(st, rendered[h.Address]))
 			}
 			continue
 		}
@@ -125,18 +123,14 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 		// including values marked via envSecret / sensitive - are masked here too.
 		if !st.isScript || e.verbose {
 			for _, h := range hosts {
-				shown, err := e.stepLine(st, h.Address, rendered[h.Address])
-				if err != nil {
-					return err
-				}
-				e.echoExec(h.Address, shown)
+				e.echoExec(h.Address, e.stepLine(st, rendered[h.Address]))
 			}
 		}
 
 		// Under on_unreachable: skip, let every host finish the step (like the built-in phase steps via RunOnReport) so
 		// the policy can judge each host's own result instead of a sibling's cancellation.
 		failFast := !task.ContinueOnError && !e.skipUnreachable()
-		results := e.cluster.Run(ctx, targets, func(h string) string { return rendered[h] }, e.concurrency, failFast)
+		results := e.cluster.Run(ctx, targets, func(h string) string { return rendered[h].cmd }, e.concurrency, failFast)
 		if runner.Failed(results) {
 			if !task.ContinueOnError {
 				hosts, err = e.applyUnreachablePolicy(name, hosts, results)
@@ -168,25 +162,17 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 	}
 	for _, st := range steps {
 		// dir/env are baked into the command, so run a bare shell here.
-		cmd, err := st.build("local")
+		b, err := st.build("local")
 		if err != nil {
 			return err
 		}
 		e.announceStep(st)
 		if e.dryRun {
-			line, err := e.stepLine(st, "local", cmd)
-			if err != nil {
-				return err
-			}
-			e.echoDryRunLocal(line)
+			e.echoDryRunLocal(e.stepLine(st, b))
 			continue
 		}
 		if !st.isScript || e.verbose {
-			shown, err := e.stepLine(st, "local", cmd)
-			if err != nil {
-				return err
-			}
-			e.echoExec("local", shown)
+			e.echoExec("local", e.stepLine(st, b))
 		}
 		// Tag local task output with a "[local]" host prefix like the cluster does for remote/local:true hosts - colored
 		// in raw mode, a structured record (host "local") in log mode - so every command's output is attributed to a host.
@@ -197,7 +183,7 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 		} else {
 			lw = runner.NewPrefixWriter(e.out, runner.HostLabel("local", e.color)+" ")
 		}
-		err = runLocalShell(ctx, cmd, lw)
+		err = runLocalShell(ctx, b.cmd, lw)
 		lw.Close()
 		if err != nil {
 			if task.ContinueOnError {
@@ -217,16 +203,16 @@ func (e *Executor) announceStep(st step) {
 	}
 }
 
-// stepLine picks what to show for one step on one host, shared by the live echo and the dry-run plan: under --verbose
+// stepLine picks what to show for one built step, shared by the live echo and the dry-run plan: under --verbose
 // the full built command actually sent to the host (env exports, cd), otherwise "script <name>" for scripts and the
 // clean display form for cmds (no env-export or cd preamble). The live echo never takes the script branch - callers
 // echo scripts only under --verbose - which keeps live and dry-run output on a single policy.
-func (e *Executor) stepLine(st step, host, built string) (string, error) {
+func (e *Executor) stepLine(st step, b built) string {
 	if e.verbose {
-		return built, nil
+		return b.cmd
 	}
 	if st.isScript {
-		return "script " + st.label, nil
+		return "script " + st.label
 	}
-	return st.display(host)
+	return b.display
 }
