@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
+	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/plugins"
 	"github.com/yousysadmin/whoosh/internal/runner"
 	"github.com/yousysadmin/whoosh/internal/varstmpl"
@@ -38,7 +39,16 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 	ctx = plugins.WithHostFileWriter(ctx, &hostFileWriter{e: e, task: task, hosts: hosts})
 	ctx = plugins.WithHostCommandRunner(ctx, &hostCommandRunner{e: e, task: task, hosts: hosts})
 	ctx = plugins.WithHostCommandCapturer(ctx, &hostCommandCapturer{e: e, task: task, hosts: hosts})
-	return fn(ctx, with, e.out)
+	if err := fn(ctx, with, e.out); err != nil {
+		// Keep a more specific code (command failed, host unreachable) when the action surfaced one, otherwise the
+		// failure is the plugin's own and maps to the plugin exit code.
+		var typed werrors.Error
+		if werrors.As(err, &typed) {
+			return err
+		}
+		return &werrors.PluginError{Msg: fmt.Sprintf("action %q", task.Action), Err: err}
+	}
+	return nil
 }
 
 // hostCommandRunner runs a command on an action task's hosts (plugins.HostCommandRunner).
@@ -58,11 +68,7 @@ func (r *hostCommandRunner) RunCommand(ctx context.Context, cmd string) error {
 	for _, h := range r.hosts {
 		r.e.echoExec(h.Address, cmd)
 	}
-	results := r.e.cluster.Run(ctx, Targets(r.hosts), func(string) string { return cmd }, r.e.concurrency, true)
-	if runner.Failed(results) {
-		return firstError(results)
-	}
-	return nil
+	return r.e.runOnTargets(ctx, r.e.taskTargets(r.task, r.hosts), func(string) string { return cmd })
 }
 
 // hostCommandCapturer captures command output from the first host an action task targets (plugins.HostCommandCapturer).
@@ -115,7 +121,13 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 			fmt.Fprintf(w.e.out, "%s %s\n", runner.HostLabel(h.Address, w.e.color), msg)
 		}
 	}
-	results := w.e.cluster.Run(ctx, Targets(w.hosts), func(h string) string { return cmds[h] }, w.e.concurrency, true)
+	return w.e.runOnTargets(ctx, w.e.taskTargets(w.task, w.hosts), func(h string) string { return cmds[h] })
+}
+
+// runOnTargets runs a per-host command on the given targets in parallel and fail-fast, returning the first failure
+// with firstError's real-failure-over-cancellation preference.
+func (e *Executor) runOnTargets(ctx context.Context, targets []runner.Target, cmdFor func(host string) string) error {
+	results := e.cluster.Run(ctx, targets, cmdFor, e.concurrency, true)
 	if runner.Failed(results) {
 		return firstError(results)
 	}
