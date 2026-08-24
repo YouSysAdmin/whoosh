@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-08-24
 ### Changed
  - The toolchain is Go 1.27 across every module, CI workflow, and the docs. The standard `encoding/json` is now
    backed by Go's new v2 engine with v1 semantics preserved - user-facing behavior (captured `output:` parsing,
@@ -327,7 +329,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 First public release.
 Version changed from 8.3.1 to v1.0.0 - the new era
 
-[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/YouSysAdmin/whoosh/compare/v1.8.0...HEAD
+[1.7.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.8.0
 [1.7.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.7.0
 [1.6.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.6.0
 [1.5.0]: https://github.com/YouSysAdmin/whoosh/releases/tag/v1.5.0
