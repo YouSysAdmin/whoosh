@@ -126,7 +126,7 @@ func newRootCmd(args []string) *cobra.Command {
 // parsed flags - dynamic command registration would otherwise discover tasks from the cwd's Deployfile (or none)
 // while the actual load honors the flag, making named tasks uninvocable from outside the project dir.
 func detectDeployfile(args []string) string {
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		if args[i] == "--deployfile" && i+1 < len(args) {
 			return args[i+1]
 		}
@@ -234,10 +234,23 @@ func newStageCmd(stage, deployfileOverride string) *cobra.Command {
 	cmd.AddCommand(newRollbackCmd(stage, gf))
 	cmd.AddCommand(newReleasesCmd(stage, gf))
 	cmd.AddCommand(newUnlockCmd(stage, gf))
-	registerTaskCmds(cmd, stage, deployfileOverride, gf)
+	// Parse the config once for both offline discoveries below (tasks and plugin commands) instead of each
+	// re-resolving the whole include tree. Discovery stays best-effort: with an invalid config, tasks still register
+	// from the raw merge, and the default-on plugins register even without a Deployfile.
+	var tasks map[string]*ast.Task
+	var declared []ast.PluginSpec
+	if path, err := deployfile.Discover(".", deployfileOverride); err == nil {
+		if cfg, err := deployfile.Load(path, stage); err == nil {
+			tasks = cfg.Tasks
+			declared = cfg.Plugins
+		} else if t, terr := deployfile.TasksForStage(path, stage); terr == nil {
+			tasks = t
+		}
+	}
+	registerTaskCmds(cmd, stage, tasks, gf)
 	// Plugin-contributed actions (e.g. print-hosts-table's deploy:hosts).
 	// Added last so a built-in or a task of the same name wins.
-	registerPluginCmds(cmd, stage, deployfileOverride, gf)
+	registerPluginCmds(cmd, stage, declared, gf)
 	return cmd
 }
 
@@ -253,18 +266,10 @@ var reservedActions = map[string]bool{
 	"releases":        true,
 }
 
-// registerTaskCmds discovers task names from the shared Deployfile merged with the stage file and adds a subcommand for
-// each, so "whoosh <stage> <task>" works - including tasks defined only in deploy/<stage>.yml.
-// Discovery is best-effort: if no Deployfile is found, only the built-in actions are present.
-func registerTaskCmds(stageCmd *cobra.Command, stage, deployfileOverride string, gf *globalFlags) {
-	path, err := deployfile.Discover(".", deployfileOverride)
-	if err != nil {
-		return
-	}
-	tasks, err := deployfile.TasksForStage(path, stage)
-	if err != nil {
-		return
-	}
+// registerTaskCmds adds a subcommand for each discovered task (the shared Deployfile merged with the stage file, see
+// newStageCmd), so "whoosh <stage> <task>" works - including tasks defined only in deploy/<stage>.yml.
+// Discovery is best-effort: if no Deployfile was found, only the built-in actions are present.
+func registerTaskCmds(stageCmd *cobra.Command, stage string, tasks map[string]*ast.Task, gf *globalFlags) {
 	for name, t := range tasks {
 		if t == nil || reservedActions[name] {
 			continue

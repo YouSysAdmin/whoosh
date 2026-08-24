@@ -17,10 +17,10 @@ func TestHostsNoLongerReserved(t *testing.T) {
 }
 
 // registerPluginCmds should surface the print-hosts-table plugin's deploy:hosts command as a stage subcommand,
-// discovered offline (no Deployfile needed - the default-on plugins is included via the fallback in activePluginSpecs).
+// discovered offline (no Deployfile needed - the default-on plugins are layered over the declared specs).
 func TestRegisterPluginCmds_AddsDeployHosts(t *testing.T) {
 	stageCmd := &cobra.Command{Use: "production"}
-	registerPluginCmds(stageCmd, "production", "", &globalFlags{})
+	registerPluginCmds(stageCmd, "production", nil, &globalFlags{})
 
 	if !hasSubcommand(stageCmd, "deploy:hosts") {
 		var names []string
@@ -36,7 +36,7 @@ func TestRegisterPluginCmds_SkipsCollisions(t *testing.T) {
 	stageCmd := &cobra.Command{Use: "production"}
 	stageCmd.AddCommand(&cobra.Command{Use: "deploy:hosts"}) // pre-existing (e.g. a task)
 	before := len(stageCmd.Commands())
-	registerPluginCmds(stageCmd, "production", "", &globalFlags{})
+	registerPluginCmds(stageCmd, "production", nil, &globalFlags{})
 	if got := len(stageCmd.Commands()); got != before {
 		t.Errorf("registerPluginCmds added a colliding command: %d -> %d", before, got)
 	}
