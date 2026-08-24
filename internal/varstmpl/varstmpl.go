@@ -17,8 +17,8 @@
 package varstmpl
 
 import (
-	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"text/template"
@@ -26,6 +26,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"gopkg.in/yaml.v3"
 
+	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/masking"
 )
 
@@ -96,12 +97,11 @@ func (c Context) lookupEnv(name string) string {
 	return c.EnvFileValues[name]
 }
 
-// Data flattens the context into the map exposed to templates.
+// Data flattens the context into the map exposed to templates. The capacity hint covers the ~24 well-known keys set
+// below on top of the vars and import namespaces, so building the map never rehashes.
 func (c Context) Data() map[string]any {
-	m := make(map[string]any, len(c.Vars)+len(c.Imports))
-	for k, v := range c.Vars {
-		m[k] = v
-	}
+	m := make(map[string]any, len(c.Vars)+len(c.Imports)+24)
+	maps.Copy(m, c.Vars)
 	m["config"] = c.Config
 	m["app_name"] = c.AppName
 	m["repo"] = c.Repo
@@ -163,8 +163,8 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 	}
 	t, err := template.New("cmd").
 		Funcs(sprigFuncs).
-		Funcs(helperFuncs()).
-		Funcs(secretFuncs()).
+		Funcs(helperFuncs).
+		Funcs(secretFuncs).
 		Funcs(envFuncs(c)).
 		Option("missingkey=" + missingkey).
 		Parse(text)
@@ -173,23 +173,11 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 	}
 	var sb strings.Builder
 	if err := t.Execute(&sb, c.Data()); err != nil {
-		return "", fmt.Errorf("render template %q: %w", text, rootCause(err))
+		// text/template wraps the actual cause (e.g. the error a helper like `required` returned) in location noise
+		// (`executing "cmd" at <...>: error calling required: ...`) that buries the message, keep only the root.
+		return "", fmt.Errorf("render template %q: %w", text, werrors.RootCause(err))
 	}
 	return sb.String(), nil
-}
-
-// rootCause returns the innermost error of a template execution failure - the actual cause, e.g. the error a helper
-// like `required` returned. text/template wraps it in location noise (`executing "cmd" at <...>: error calling
-// required: ...`) that buries the message; errors it formats itself (like a strict missing key) have no inner error
-// and are returned as-is.
-func rootCause(err error) error {
-	for {
-		inner := errors.Unwrap(err)
-		if inner == nil {
-			return err
-		}
-		err = inner
-	}
 }
 
 // helperFuncs returns whoosh's own general-purpose helpers - the gaps sprig doesn't cover (its JSON funcs have no
@@ -200,39 +188,39 @@ func rootCause(err error) error {
 //	{{ (fromYaml .tasks.info).version }}         // parse a YAML mapping
 //	{{ range fromYamlArray .hosts_yaml }}...     // parse a YAML sequence
 //	{{ required "vars.bucket must be set" .bucket }}  // fail with the message when nil/empty
-func helperFuncs() template.FuncMap {
-	return template.FuncMap{
-		"toYaml": func(v any) (string, error) {
-			b, err := yaml.Marshal(v)
-			if err != nil {
-				return "", fmt.Errorf("toYaml: %w", err)
-			}
-			return strings.TrimSuffix(string(b), "\n"), nil
-		},
-		"fromYaml": func(s string) (map[string]any, error) {
-			var m map[string]any
-			if err := yaml.Unmarshal([]byte(s), &m); err != nil {
-				return nil, fmt.Errorf("fromYaml: %w", err)
-			}
-			return m, nil
-		},
-		"fromYamlArray": func(s string) ([]any, error) {
-			var a []any
-			if err := yaml.Unmarshal([]byte(s), &a); err != nil {
-				return nil, fmt.Errorf("fromYamlArray: %w", err)
-			}
-			return a, nil
-		},
-		"required": func(msg string, v any) (any, error) {
-			if v == nil {
-				return nil, fmt.Errorf("required: %s", msg)
-			}
-			if s, ok := v.(string); ok && s == "" {
-				return nil, fmt.Errorf("required: %s", msg)
-			}
-			return v, nil
-		},
-	}
+//
+// Built once like sprigFuncs - the helpers are process-constant, only envFuncs is per-context.
+var helperFuncs = template.FuncMap{
+	"toYaml": func(v any) (string, error) {
+		b, err := yaml.Marshal(v)
+		if err != nil {
+			return "", fmt.Errorf("toYaml: %w", err)
+		}
+		return strings.TrimSuffix(string(b), "\n"), nil
+	},
+	"fromYaml": func(s string) (map[string]any, error) {
+		var m map[string]any
+		if err := yaml.Unmarshal([]byte(s), &m); err != nil {
+			return nil, fmt.Errorf("fromYaml: %w", err)
+		}
+		return m, nil
+	},
+	"fromYamlArray": func(s string) ([]any, error) {
+		var a []any
+		if err := yaml.Unmarshal([]byte(s), &a); err != nil {
+			return nil, fmt.Errorf("fromYamlArray: %w", err)
+		}
+		return a, nil
+	},
+	"required": func(msg string, v any) (any, error) {
+		if v == nil {
+			return nil, fmt.Errorf("required: %s", msg)
+		}
+		if s, ok := v.(string); ok && s == "" {
+			return nil, fmt.Errorf("required: %s", msg)
+		}
+		return v, nil
+	},
 }
 
 // secretFuncs returns template helpers that mark a value sensitive: the value is returned for use in the command but
@@ -242,14 +230,12 @@ func helperFuncs() template.FuncMap {
 //	{{ sensitive .db_password }}  // mark any value (var, expression) sensitive
 //
 // (envSecret, the env-reading counterpart, lives in envFuncs since it needs the context's env_files values.)
-func secretFuncs() template.FuncMap {
-	return template.FuncMap{
-		"sensitive": func(v any) string {
-			s := fmt.Sprint(v)
-			masking.AddSecret(s)
-			return s
-		},
-	}
+var secretFuncs = template.FuncMap{
+	"sensitive": func(v any) string {
+		s := fmt.Sprint(v)
+		masking.AddSecret(s)
+		return s
+	},
 }
 
 // envFuncs returns the environment-reading helpers, bound to c so they see the resolved global envs and the
