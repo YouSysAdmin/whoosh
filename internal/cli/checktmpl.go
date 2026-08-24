@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -30,7 +31,7 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 	check := func(what, text string) {
 		// Task output ({{ .tasks.<name>.* }}) exists only at run time, so a template using it can't be checked
 		// offline - a `required` guard on it would false-fail here (like plugin imports; see validateContext).
-		if strings.Contains(text, ".tasks.") {
+		if taskStateRef.MatchString(text) {
 			return
 		}
 		if err := render(text); err != nil {
@@ -102,18 +103,16 @@ func reportTemplateFindings(w io.Writer, findings []error) error {
 	return fmt.Errorf("template check: %d problem(s)", len(findings))
 }
 
+// taskStateRef matches a template reference rooted at .tasks (run-time task state). The guard on the preceding
+// character keeps static references like .config.tasks.* checkable - only a reference that starts at .tasks is
+// run-time-only.
+var taskStateRef = regexp.MustCompile(`(^|[^.\w])\.tasks\.`)
+
 // conciseErr reduces a varstmpl render error to its cause for a findings line: the wrapping layers (the template text,
 // text/template's "template: cmd:" location prefix) repeat what the finding label already says, so only the innermost
 // message is kept, with a template-relative line number where the parser provided one.
 func conciseErr(err error) string {
-	for {
-		inner := errors.Unwrap(err)
-		if inner == nil {
-			break
-		}
-		err = inner
-	}
-	msg := err.Error()
+	msg := errors.RootCause(err).Error()
 	if rest, ok := strings.CutPrefix(msg, "template: cmd:"); ok {
 		msg = "line " + rest
 	}
