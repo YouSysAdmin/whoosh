@@ -148,11 +148,12 @@ func DecodeParamsStrict(params map[string]any, target any) error {
 
 // MergeParams returns base with over layered on top (over wins) - the standard way to layer a task's `with:` over a
 // plugin's action defaults. Nested map[string]any values merge recursively, every other value (scalars, slices) is
-// replaced wholesale. A nil base yields a copy of over. Inputs are not mutated.
+// replaced wholesale. A nil base yields a copy of over. Inputs are not mutated, and nested maps are copied rather
+// than aliased, so writing into the result never edits the plugin's shared defaults.
 func MergeParams(base, over map[string]any) map[string]any {
 	out := make(map[string]any, len(base)+len(over))
 	for k, v := range base {
-		out[k] = v
+		out[k] = copyParamValue(v)
 	}
 	for k, v := range over {
 		if bm, ok := out[k].(map[string]any); ok {
@@ -161,7 +162,21 @@ func MergeParams(base, over map[string]any) map[string]any {
 				continue
 			}
 		}
-		out[k] = v
+		out[k] = copyParamValue(v)
+	}
+	return out
+}
+
+// copyParamValue copies map[string]any values recursively so a merged params map never aliases a nested map owned by
+// an input. Slices and scalars pass through as-is - params are layered by key, not mutated element-wise.
+func copyParamValue(v any) any {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	out := make(map[string]any, len(m))
+	for k, mv := range m {
+		out[k] = copyParamValue(mv)
 	}
 	return out
 }
