@@ -1,6 +1,6 @@
 module github.com/yousysadmin/whoosh/plugins/rbenv
 
-go 1.26.4
+go 1.27.0
 
 require github.com/yousysadmin/whoosh v1.1.1
 

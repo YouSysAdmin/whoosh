@@ -1,6 +1,6 @@
 module github.com/yousysadmin/whoosh-example-hello
 
-go 1.26.4
+go 1.27.0
 
 require github.com/yousysadmin/whoosh v0.0.0-00010101000000-000000000000
 

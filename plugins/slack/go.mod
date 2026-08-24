@@ -1,6 +1,6 @@
 module github.com/yousysadmin/whoosh/plugins/slack
 
-go 1.26.4
+go 1.27.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0

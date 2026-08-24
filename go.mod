@@ -1,6 +1,6 @@
 module github.com/yousysadmin/whoosh
 
-go 1.26.4
+go 1.27.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
