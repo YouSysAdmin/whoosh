@@ -32,27 +32,8 @@ func (p globalParams) validate() error {
 	return nil
 }
 
-// merge layers over on top of base: nested maps merge recursively, scalars and slices replace.
-// Neither input is mutated. This is the layering primitive behind decodeFeature.
-func merge(base, over map[string]any) map[string]any {
-	out := make(map[string]any, len(base)+len(over))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range over {
-		if bm, ok := out[k].(map[string]any); ok {
-			if om, ok := v.(map[string]any); ok {
-				out[k] = merge(bm, om)
-				continue
-			}
-		}
-		out[k] = v
-	}
-	return out
-}
-
 // decodeFeature decodes an action call's effective params: the task's `with:` layered over the feature's
-// `actions:` defaults (with: wins). Both maps may be nil.
+// `actions:` defaults (with: wins, whoosh.MergeParams is the layering primitive). Both maps may be nil.
 func decodeFeature(defaults, with map[string]any, out any) error {
-	return whoosh.DecodeParams(merge(defaults, with), out)
+	return whoosh.DecodeParams(whoosh.MergeParams(defaults, with), out)
 }
