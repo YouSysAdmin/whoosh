@@ -313,21 +313,12 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 		return d.ex.RunOn(ctx, hosts, command)
 	}
 
-	for _, r := range d.ex.RunOnReport(ctx, hosts, command) {
-		if r.Err == nil {
-			continue
-		}
-		if errors.Is(r.Err, context.Canceled) || errors.Is(r.Err, context.DeadlineExceeded) {
-			return fmt.Errorf("%s: %w", r.Host, r.Err) // an operator cancel, not a verdict on the host
-		}
-		if !errors.IsUnreachable(r.Err) {
-			return fmt.Errorf("%s: %w", r.Host, r.Err) // command failure -> always fatal
-		}
-		if d.isRequired(r.Host) {
-			return fmt.Errorf("required host %s unreachable: %w", r.Host, r.Err)
-		}
-		slog.Warn("host unreachable, skipping", "host", r.Host, "error", r.Err)
-		d.ex.MarkUnreachable(r.Host)
+	results := d.ex.RunOnReport(ctx, hosts, command)
+	if _, err := executor.SkipUnreachable(hosts, results, d.isRequired, func(host string, err error) {
+		slog.Warn("host unreachable, skipping", "host", host, "error", err)
+		d.ex.MarkUnreachable(host)
+	}); err != nil {
+		return err
 	}
 	if len(d.ex.Hosts()) == 0 {
 		return fmt.Errorf("all hosts became unreachable")
@@ -364,16 +355,8 @@ func (d *Deployer) captureLive(ctx context.Context, cmd string) (string, error) 
 }
 
 // onFailure runs the deploy:failed hook tasks (best-effort) so a failed deploy can notify.
-// The failure message is exposed to those tasks as {{.error}} / $DEPLOY_ERROR.
-// A fresh context is used because the deploy's may be cancelled.
 func (d *Deployer) onFailure(err error) {
-	if len(d.cfg.Hooks.After[ast.PhaseFailed]) == 0 && len(d.cfg.HookFuncsAfter[ast.PhaseFailed]) == 0 {
-		return
-	}
-	d.ex.SetError(err.Error())
-	if hookErr := d.hooks.After(context.Background(), ast.PhaseFailed); hookErr != nil {
-		slog.Warn("deploy:failed hook error", "error", hookErr)
-	}
+	d.hooks.NotifyFailed(d.ex.SetError, err)
 }
 
 // Check validates connectivity and ensures the directory tree exists.

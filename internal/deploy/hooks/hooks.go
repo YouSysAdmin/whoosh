@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 )
@@ -45,6 +46,20 @@ func (r *Runner) After(ctx context.Context, phase string) error {
 		return err
 	}
 	return r.runFuncs(ctx, "after", phase, r.afterF[phase])
+}
+
+// NotifyFailed fires the after deploy:failed hooks best-effort - the shared failure tail of the deploy lifecycle and
+// a standalone task command: nothing runs when no failed hooks are registered, setError exposes the failure to the
+// hook tasks as {{.error}} / $DEPLOY_ERROR, a fresh background context is used because the caller's may be cancelled,
+// and a hook error is only logged - the caller still returns the original failure.
+func (r *Runner) NotifyFailed(setError func(string), err error) {
+	if len(r.hooks.After[ast.PhaseFailed]) == 0 && len(r.afterF[ast.PhaseFailed]) == 0 {
+		return
+	}
+	setError(err.Error())
+	if hookErr := r.After(context.Background(), ast.PhaseFailed); hookErr != nil {
+		slog.Warn("deploy:failed hook error", "error", hookErr)
+	}
 }
 
 // runFuncs runs the plugins func hooks for a phase with the console writer.

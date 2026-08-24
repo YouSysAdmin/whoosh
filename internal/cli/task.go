@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -51,12 +49,6 @@ func notifyTaskFailure(cfg *ast.DeployFile, ex *executor.Executor, name string, 
 	if t := cfg.Tasks[name]; t != nil && t.NotifyFailure != nil && !*t.NotifyFailure {
 		return
 	}
-	if len(cfg.Hooks.After[ast.PhaseFailed]) == 0 && len(cfg.HookFuncsAfter[ast.PhaseFailed]) == 0 {
-		return
-	}
-	ex.SetError(err.Error())
 	r := hooks.New(cfg.Hooks, cfg.HookFuncsBefore, cfg.HookFuncsAfter, ex.RunTaskInPhase, ex.Out())
-	if hookErr := r.After(context.Background(), ast.PhaseFailed); hookErr != nil {
-		slog.Warn("deploy:failed hook error", "error", hookErr)
-	}
+	r.NotifyFailed(ex.SetError, err)
 }

@@ -50,28 +50,49 @@ func (e *Executor) applyUnreachablePolicy(task string, hosts []ast.Host, results
 	if !e.skipUnreachable() {
 		return hosts, firstError(results)
 	}
+	return SkipUnreachable(hosts, results, func(h string) bool { return e.requiredHosts[h] }, func(host string, err error) {
+		slog.Warn("host unreachable, skipping", "task", task, "host", host, "error", err)
+		e.MarkUnreachable(host)
+	})
+}
+
+// SkipUnreachable is the on_unreachable: skip verdict for one step's per-host results, shared by task execution and
+// the deploy lifecycle so the policy cannot drift between them. An unreachable, non-required host is handed to drop
+// (the caller warns and marks it) and removed from hosts. Everything else is fatal: a command that ran and failed, a
+// required host lost, or a context cancellation - and like firstError, a real failure is preferred over a cancelled
+// bystander when picking the returned error.
+func SkipUnreachable(hosts []ast.Host, results []runner.Result, required func(string) bool, drop func(host string, err error)) ([]ast.Host, error) {
+	var canceled error
 	for _, r := range results {
 		if r.Err == nil {
 			continue
 		}
 		if werrors.Is(r.Err, context.Canceled) || werrors.Is(r.Err, context.DeadlineExceeded) {
-			return hosts, firstError(results)
+			if canceled == nil {
+				canceled = fmt.Errorf("%s: %w", r.Host, r.Err)
+			}
+			continue
 		}
 		if !werrors.IsUnreachable(r.Err) {
-			return hosts, firstError(results)
+			return hosts, fmt.Errorf("%s: %w", r.Host, r.Err)
 		}
-		if e.requiredHosts[r.Host] {
+		if required(r.Host) {
 			return hosts, fmt.Errorf("required host %s unreachable: %w", r.Host, r.Err)
 		}
+	}
+	if canceled != nil {
+		return hosts, canceled
 	}
 	dropped := map[string]bool{}
 	for _, r := range results {
 		if r.Err == nil {
 			continue
 		}
-		slog.Warn("host unreachable, skipping", "task", task, "host", r.Host, "error", r.Err)
-		e.MarkUnreachable(r.Host)
+		drop(r.Host, r.Err)
 		dropped[r.Host] = true
+	}
+	if len(dropped) == 0 {
+		return hosts, nil
 	}
 	live := make([]ast.Host, 0, len(hosts))
 	for _, h := range hosts {
