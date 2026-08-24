@@ -43,6 +43,18 @@ func Code(err error) int {
 	return CodeUnknown
 }
 
+// RootCause returns the innermost error of err's Unwrap chain (err itself when it wraps nothing) - the actual cause
+// with the wrapping layers' location noise stripped.
+func RootCause(err error) error {
+	for {
+		inner := stderrors.Unwrap(err)
+		if inner == nil {
+			return err
+		}
+		err = inner
+	}
+}
+
 func New(text string) error         { return stderrors.New(text) }
 func Is(err, target error) bool     { return stderrors.Is(err, target) }
 func As(err error, target any) bool { return stderrors.As(err, target) }
