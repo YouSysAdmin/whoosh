@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -13,10 +14,7 @@ import (
 // newTaskCmd builds the command that runs a single named Deployfile task.
 // A hidden task is still registered (so it can be run directly, or as a dep/hook) but omitted from the CLI listing.
 func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.Command {
-	short := desc
-	if short == "" {
-		short = fmt.Sprintf("Run the %q task", name)
-	}
+	short := cmp.Or(desc, fmt.Sprintf("Run the %q task", name))
 	return &cobra.Command{
 		Use:    name,
 		Short:  short,

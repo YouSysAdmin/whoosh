@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +107,7 @@ func (f *fixture) deploy(t *testing.T) {
 	t.Helper()
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	if err := d.Deploy(context.Background()); err != nil {
+	if err := d.Deploy(t.Context()); err != nil {
 		t.Fatalf("deploy: %v\noutput:\n%s", err, buf.String())
 	}
 }
@@ -131,7 +131,7 @@ func (f *fixture) releaseNames(t *testing.T) []string {
 	for _, e := range entries {
 		names = append(names, e.Name())
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
@@ -209,7 +209,7 @@ func TestDeploy_CommitHashInContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy.New: %v", err)
 	}
-	if err := d.Deploy(context.Background()); err != nil {
+	if err := d.Deploy(t.Context()); err != nil {
 		ex.Close()
 		t.Fatalf("deploy: %v\n%s", err, buf.String())
 	}
@@ -247,7 +247,7 @@ func TestDeploy_PreviousCommitHashInContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("deploy.New: %v", err)
 		}
-		if err := d.Deploy(context.Background()); err != nil {
+		if err := d.Deploy(t.Context()); err != nil {
 			ex.Close()
 			t.Fatalf("deploy: %v\n%s", err, buf.String())
 		}
@@ -310,7 +310,7 @@ func TestDeploy_ChangelogInContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("deploy.New: %v", err)
 		}
-		if err := d.Deploy(context.Background()); err != nil {
+		if err := d.Deploy(t.Context()); err != nil {
 			ex.Close()
 			t.Fatalf("deploy: %v\n%s", err, buf.String())
 		}
@@ -351,7 +351,7 @@ func TestDeploy_FailureHookNotifies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy.New: %v", err)
 	}
-	err = d.Deploy(context.Background())
+	err = d.Deploy(t.Context())
 	ex.Close()
 
 	if err == nil {
@@ -386,7 +386,7 @@ func TestDeploy_FailureFuncHookRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy.New: %v", err)
 	}
-	err = d.Deploy(context.Background())
+	err = d.Deploy(t.Context())
 	ex.Close()
 
 	if err == nil {
@@ -431,7 +431,7 @@ func (f *fixture) runDeploy(t *testing.T) error {
 	if err != nil {
 		t.Fatalf("deploy.New: %v", err)
 	}
-	err = d.Deploy(context.Background())
+	err = d.Deploy(t.Context())
 	ex.Close()
 	if err != nil {
 		t.Logf("deploy output:\n%s", buf.String())
@@ -540,7 +540,7 @@ func TestDeploy_LocalMode(t *testing.T) {
 	}
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	if err := d.Rollback(context.Background(), false); err != nil {
+	if err := d.Rollback(t.Context(), false); err != nil {
 		t.Fatalf("local rollback: %v\n%s", err, buf.String())
 	}
 	if f.currentTarget(t) != names[0] {
@@ -566,7 +566,7 @@ func TestDeploy_Rollback(t *testing.T) {
 	// Roll back to the older release.
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	if err := d.Rollback(context.Background(), false); err != nil {
+	if err := d.Rollback(t.Context(), false); err != nil {
 		t.Fatalf("rollback: %v\n%s", err, buf.String())
 	}
 	if f.currentTarget(t) != older {
@@ -580,7 +580,7 @@ func TestDeploy_Rollback(t *testing.T) {
 	// Rolling back from the oldest release must fail.
 	d2, _, closeFn2 := f.deployer(t)
 	defer closeFn2()
-	if err := d2.Rollback(context.Background(), false); err == nil {
+	if err := d2.Rollback(t.Context(), false); err == nil {
 		t.Fatal("expected error rolling back past the oldest release")
 	}
 }
@@ -631,7 +631,7 @@ func TestDeploy_RollbackHooks(t *testing.T) {
 
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	if err := d.Rollback(context.Background(), false); err != nil {
+	if err := d.Rollback(t.Context(), false); err != nil {
 		t.Fatalf("rollback: %v\n%s", err, buf.String())
 	}
 	if f.currentTarget(t) != older {
@@ -663,7 +663,7 @@ func TestDeploy_RollbackReplace(t *testing.T) {
 
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	if err := d.Rollback(context.Background(), false); err != nil {
+	if err := d.Rollback(t.Context(), false); err != nil {
 		t.Fatalf("rollback: %v\n%s", err, buf.String())
 	}
 
@@ -767,7 +767,7 @@ func TestDeploy_Releases(t *testing.T) {
 
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	if err := d.Releases(context.Background()); err != nil {
+	if err := d.Releases(t.Context()); err != nil {
 		t.Fatalf("releases: %v", err)
 	}
 	out := buf.String()
@@ -808,7 +808,7 @@ func TestDeploy_LockContention(t *testing.T) {
 
 	d, buf, closeFn := f.deployer(t)
 	defer closeFn()
-	err := d.Deploy(context.Background())
+	err := d.Deploy(t.Context())
 	if err == nil {
 		t.Fatalf("expected deploy to fail on held lock\n%s", buf.String())
 	}
@@ -831,7 +831,7 @@ func TestDeploy_PhaseFuncHookRuns(t *testing.T) {
 	})
 
 	d, buf, closeFn := f.deployer(t)
-	err := d.Deploy(context.Background())
+	err := d.Deploy(t.Context())
 	closeFn() // flush the captured output
 	if err != nil {
 		t.Fatalf("deploy: %v\n%s", err, buf.String())

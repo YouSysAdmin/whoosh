@@ -1,7 +1,6 @@
 package runner_test
 
 import (
-	"context"
 	"io"
 	"strings"
 	"testing"
@@ -29,14 +28,14 @@ func TestCluster_Bastion(t *testing.T) {
 	c := runner.NewCluster(runner.Options{Bastion: b}, io.Discard)
 
 	targets := []runner.Target{{Host: targetSrv.Host, Port: targetSrv.Port, User: "deploy", IdentityFile: targetSrv.IdentityFile}}
-	if res := c.Run(context.Background(), targets, func(string) string { return "true" }, 0, true); runner.Failed(res) {
+	if res := c.Run(t.Context(), targets, func(string) string { return "true" }, 0, true); runner.Failed(res) {
 		t.Fatalf("run through bastion failed: %+v", res)
 	}
 
 	c.Close()
 
 	// The cluster closed the shared bastion: a later dial through it must fail instead of reopening it.
-	_, err = ssh.Dial(context.Background(),
+	_, err = ssh.Dial(t.Context(),
 		ssh.Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile},
 		ssh.Options{Bastion: b})
 	if err == nil || !strings.Contains(err.Error(), "connection closed") {

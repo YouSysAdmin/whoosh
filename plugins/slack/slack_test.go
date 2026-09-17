@@ -1,7 +1,6 @@
 package slack
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -114,7 +113,7 @@ func TestStartup_WiresTasksAndHooks(t *testing.T) {
 	srv := newWebhookServer(t)
 	reg, _ := loadSlack(t, map[string]any{"webhook_url": srv.URL})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 
@@ -159,7 +158,7 @@ func TestStartup_Toggles(t *testing.T) {
 		"notify_rollback": true,
 	})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	if _, ok := cfg.Tasks[taskNotifyStart]; ok {
@@ -185,7 +184,7 @@ func TestStartup_ColorOverride(t *testing.T) {
 		"color_success": "#00ff00",
 	})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	if got := cfg.Tasks[taskNotifySuccess].With["color"]; got != "#00ff00" {
@@ -204,7 +203,7 @@ func TestStartup_MessageOverride(t *testing.T) {
 		"message_fail": "custom fail text",
 	})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	if got := cfg.Tasks[taskNotifyFail].With["message"]; got != "custom fail text" {
@@ -220,7 +219,7 @@ func TestStartup_RichFieldsInjectsContext(t *testing.T) {
 	srv := newWebhookServer(t)
 	reg, _ := loadSlack(t, map[string]any{"webhook_url": srv.URL, "rich_fields": true})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	for _, name := range []string{taskNotifySuccess, taskNotifyFail} {
@@ -247,10 +246,10 @@ func TestSend_RichFields(t *testing.T) {
 	clock := base
 	n := &notifier{cfg: params{WebhookURL: srv.URL, RichFields: true}, client: srv.Client(), now: func() time.Time { return clock }}
 	subCfg := &whoosh.DeployFile{}
-	if err := n.install(context.Background(), subCfg); err != nil {
+	if err := n.install(t.Context(), subCfg); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](context.Background(), io.Discard); err != nil {
+	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](t.Context(), io.Discard); err != nil {
 		t.Fatalf("timer hook: %v", err)
 	}
 	clock = base.Add(42 * time.Second)
@@ -260,7 +259,7 @@ func TestSend_RichFields(t *testing.T) {
 		"stage": "production", "branch": "main", "release_path": "/srv/app/releases/20260707180339",
 		"commit_hash": "0123456789abcdef", "deployer": "alice",
 	}
-	if err := n.send(context.Background(), with, io.Discard); err != nil {
+	if err := n.send(t.Context(), with, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	att := srv.received()[0].Attachments[0]
@@ -290,7 +289,7 @@ func TestSend_RichFields(t *testing.T) {
 		"stage": "production", "branch": "main", "release_path": "/srv/app/releases/20260707180339",
 		"commit_hash": "", "deployer": "alice",
 	}
-	if err := n.send(context.Background(), failWith, io.Discard); err != nil {
+	if err := n.send(t.Context(), failWith, io.Discard); err != nil {
 		t.Fatalf("send fail: %v", err)
 	}
 	got := srv.received()
@@ -310,7 +309,7 @@ func TestSend_PostsPayload(t *testing.T) {
 		"icon_emoji":  ":package:",
 	})
 
-	err := send(context.Background(), map[string]any{"message": "hello *world*", "color": "warning"}, io.Discard)
+	err := send(t.Context(), map[string]any{"message": "hello *world*", "color": "warning"}, io.Discard)
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -339,7 +338,7 @@ func TestSend_WithOverridesBeatPluginParams(t *testing.T) {
 	srv := newWebhookServer(t)
 	_, send := loadSlack(t, map[string]any{"webhook_url": srv.URL, "channel": "#deploys"})
 
-	if err := send(context.Background(), map[string]any{"message": "m", "channel": "#ops"}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "channel": "#ops"}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if got := srv.received()[0].Channel; got != "#ops" {
@@ -350,7 +349,7 @@ func TestSend_WithOverridesBeatPluginParams(t *testing.T) {
 func TestSend_MessageRequired(t *testing.T) {
 	srv := newWebhookServer(t)
 	_, send := loadSlack(t, map[string]any{"webhook_url": srv.URL})
-	err := send(context.Background(), map[string]any{}, io.Discard)
+	err := send(t.Context(), map[string]any{}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "'message' is required") {
 		t.Fatalf("send error = %v, want message-required", err)
 	}
@@ -367,14 +366,14 @@ func TestSend_FailurePolicy(t *testing.T) {
 	srv.body = "rollup_error"
 	_, send := loadSlack(t, map[string]any{"webhook_url": srv.URL})
 
-	err := send(context.Background(), map[string]any{"message": "m"}, io.Discard)
+	err := send(t.Context(), map[string]any{"message": "m"}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "500") || !strings.Contains(err.Error(), "rollup_error") {
 		t.Fatalf("plain send error = %v, want the 500 + body", err)
 	}
-	if err := send(context.Background(), map[string]any{"message": "m", "optional": true}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "optional": true}, io.Discard); err != nil {
 		t.Fatalf("optional send error = %v, want nil", err)
 	}
-	if err := send(context.Background(), map[string]any{"message": "m", "event": eventFinished}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("event send error = %v, want nil (best-effort)", err)
 	}
 
@@ -382,10 +381,10 @@ func TestSend_FailurePolicy(t *testing.T) {
 	dead := newWebhookServer(t)
 	dead.Close()
 	_, sendDead := loadSlack(t, map[string]any{"webhook_url": dead.URL})
-	if err := sendDead(context.Background(), map[string]any{"message": "m"}, io.Discard); err == nil {
+	if err := sendDead(t.Context(), map[string]any{"message": "m"}, io.Discard); err == nil {
 		t.Fatal("plain send to dead endpoint = nil, want error")
 	}
-	if err := sendDead(context.Background(), map[string]any{"message": "m", "event": eventFailed}, io.Discard); err != nil {
+	if err := sendDead(t.Context(), map[string]any{"message": "m", "event": eventFailed}, io.Discard); err != nil {
 		t.Fatalf("event send to dead endpoint = %v, want nil (best-effort)", err)
 	}
 }
@@ -395,12 +394,12 @@ func TestSend_EventDuration(t *testing.T) {
 	srv := newWebhookServer(t)
 	reg, send := loadSlack(t, map[string]any{"webhook_url": srv.URL})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 
 	// No timer fired yet: no duration suffix.
-	if err := send(context.Background(), map[string]any{"message": "done", "event": eventFinished}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "done", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if got := srv.received()[0].Attachments[0].Text; got != "done" {
@@ -415,14 +414,14 @@ func TestSend_EventDuration(t *testing.T) {
 	// (in-package test: find the notifier through the action's receiver is not possible, so rebuild one directly)
 	n := &notifier{cfg: params{WebhookURL: srv.URL}, client: srv.Client(), now: func() time.Time { return clock }}
 	subCfg := &whoosh.DeployFile{}
-	if err := n.install(context.Background(), subCfg); err != nil {
+	if err := n.install(t.Context(), subCfg); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](context.Background(), io.Discard); err != nil {
+	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](t.Context(), io.Discard); err != nil {
 		t.Fatalf("timer hook: %v", err)
 	}
 	clock = base.Add(5 * time.Second)
-	if err := n.send(context.Background(), map[string]any{"message": "done", "event": eventFinished}, io.Discard); err != nil {
+	if err := n.send(t.Context(), map[string]any{"message": "done", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got := srv.received()
@@ -431,7 +430,7 @@ func TestSend_EventDuration(t *testing.T) {
 	}
 
 	// The start event never carries a duration.
-	if err := n.send(context.Background(), map[string]any{"message": "go", "event": eventStarted}, io.Discard); err != nil {
+	if err := n.send(t.Context(), map[string]any{"message": "go", "event": eventStarted}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got = srv.received()
@@ -445,14 +444,14 @@ func TestSend_WebhookOverride(t *testing.T) {
 	other := newWebhookServer(t)
 	_, send := loadSlack(t, map[string]any{"webhook_url": main.URL})
 
-	if err := send(context.Background(), map[string]any{"message": "m", "webhook_url": other.URL}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "webhook_url": other.URL}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if len(main.received()) != 0 || len(other.received()) != 1 {
 		t.Errorf("main got %d, override got %d; want 0/1", len(main.received()), len(other.received()))
 	}
 
-	if err := send(context.Background(), map[string]any{"message": "m", "webhook_url": "::bad::"}, io.Discard); err == nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "webhook_url": "::bad::"}, io.Discard); err == nil {
 		t.Fatal("invalid webhook_url override accepted")
 	}
 }
@@ -468,13 +467,13 @@ func TestSend_PerEventWebhook(t *testing.T) {
 		"webhook_fail": alerts.URL,
 	})
 
-	if err := send(context.Background(), map[string]any{"message": "m", "event": eventFailed}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFailed}, io.Discard); err != nil {
 		t.Fatalf("send failed event: %v", err)
 	}
-	if err := send(context.Background(), map[string]any{"message": "m", "event": eventFinished}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("send finished event: %v", err)
 	}
-	if err := send(context.Background(), map[string]any{"message": "m"}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m"}, io.Discard); err != nil {
 		t.Fatalf("send plain: %v", err)
 	}
 	if got := len(alerts.received()); got != 1 {
@@ -485,7 +484,7 @@ func TestSend_PerEventWebhook(t *testing.T) {
 	}
 
 	// with: webhook_url beats the per-event param.
-	if err := send(context.Background(), map[string]any{"message": "m", "event": eventFailed, "webhook_url": other.URL}, io.Discard); err != nil {
+	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFailed, "webhook_url": other.URL}, io.Discard); err != nil {
 		t.Fatalf("send with override: %v", err)
 	}
 	if got := len(other.received()); got != 1 {
@@ -548,7 +547,7 @@ func TestStartup_MasksTaskLevelWebhook(t *testing.T) {
 		"message":     "m",
 		"webhook_url": taskHook,
 	}})
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	if masked := whoosh.Masking("action slack:send with " + taskHook); strings.Contains(masked, "task-level-secret-token") {

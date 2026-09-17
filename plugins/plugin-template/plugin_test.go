@@ -28,7 +28,7 @@ func load(t *testing.T, spec whoosh.PluginSpec) *whoosh.Registry {
 func startup(t *testing.T, reg *whoosh.Registry) *whoosh.DeployFile {
 	t.Helper()
 	cfg := &whoosh.DeployFile{Stage: "test"}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	return cfg
@@ -53,8 +53,8 @@ func (f *fakeWriter) WriteFile(_ context.Context, path string, content []byte) e
 }
 
 // bridgedCtx returns a ctx carrying both fakes, like the executor does for a real action task.
-func bridgedCtx(r *fakeRunner, w *fakeWriter) context.Context {
-	ctx := whoosh.WithHostCommandRunner(context.Background(), r)
+func bridgedCtx(t *testing.T, r *fakeRunner, w *fakeWriter) context.Context {
+	ctx := whoosh.WithHostCommandRunner(t.Context(), r)
 	return whoosh.WithHostFileWriter(ctx, w)
 }
 
@@ -143,7 +143,7 @@ func TestAction_Render(t *testing.T) {
 
 	w := &fakeWriter{}
 	var out bytes.Buffer
-	if err := fn(bridgedCtx(&fakeRunner{}, w), map[string]any{"key": "db_url"}, &out); err != nil {
+	if err := fn(bridgedCtx(t, &fakeRunner{}, w), map[string]any{"key": "db_url"}, &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	content, ok := w.files[".env.generated"] // path came from the actions: defaults
@@ -155,11 +155,11 @@ func TestAction_Render(t *testing.T) {
 	}
 
 	// Required params and the missing-bridge case fail with clear errors.
-	if err := fn(bridgedCtx(&fakeRunner{}, w), nil, io.Discard); err == nil ||
+	if err := fn(bridgedCtx(t, &fakeRunner{}, w), nil, io.Discard); err == nil ||
 		!strings.Contains(err.Error(), "required") {
 		t.Errorf("missing key: err = %v", err)
 	}
-	if err := fn(context.Background(), map[string]any{"key": "k", "path": "p"}, io.Discard); err == nil ||
+	if err := fn(t.Context(), map[string]any{"key": "k", "path": "p"}, io.Discard); err == nil ||
 		!strings.Contains(err.Error(), "no host file writer") {
 		t.Errorf("no writer: err = %v", err)
 	}
@@ -174,18 +174,18 @@ func TestAction_Exec(t *testing.T) {
 	}
 
 	r := &fakeRunner{}
-	if err := fn(bridgedCtx(r, &fakeWriter{}), map[string]any{"cmd": "uname -a"}, io.Discard); err != nil {
+	if err := fn(bridgedCtx(t, r, &fakeWriter{}), map[string]any{"cmd": "uname -a"}, io.Discard); err != nil {
 		t.Fatalf("exec: %v", err)
 	}
 	if len(r.cmds) != 1 || r.cmds[0] != "uname -a" {
 		t.Fatalf("runner cmds = %v", r.cmds)
 	}
 
-	if err := fn(bridgedCtx(r, &fakeWriter{}), nil, io.Discard); err == nil ||
+	if err := fn(bridgedCtx(t, r, &fakeWriter{}), nil, io.Discard); err == nil ||
 		!strings.Contains(err.Error(), "'cmd' is required") {
 		t.Errorf("missing cmd: err = %v", err)
 	}
-	if err := fn(context.Background(), map[string]any{"cmd": "true"}, io.Discard); err == nil ||
+	if err := fn(t.Context(), map[string]any{"cmd": "true"}, io.Discard); err == nil ||
 		!strings.Contains(err.Error(), "no host command runner") {
 		t.Errorf("no runner: err = %v", err)
 	}
@@ -224,7 +224,7 @@ func TestStartup_Inventory(t *testing.T) {
 		Name:    pluginName,
 		Actions: []whoosh.PluginActionSpec{{Name: FeatureInventory}},
 	})
-	if err := reg.RunStartup(context.Background(), &whoosh.DeployFile{}); err == nil ||
+	if err := reg.RunStartup(t.Context(), &whoosh.DeployFile{}); err == nil ||
 		!strings.Contains(err.Error(), "endpoint is not configured") {
 		t.Errorf("no endpoint: err = %v", err)
 	}
@@ -313,7 +313,7 @@ func TestCommands_Status(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	if err := cmds[0].Run(context.Background(), cfg, nil, &out, nil); err != nil {
+	if err := cmds[0].Run(t.Context(), cfg, nil, &out, nil); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if !strings.Contains(out.String(), "stage prod") || !strings.Contains(out.String(), "1 discovered") {

@@ -12,8 +12,8 @@ func (e *UnreachableError) Code() int     { return CodeUnreachable }
 
 // IsUnreachable reports whether err is, or wraps, an UnreachableError.
 func IsUnreachable(err error) bool {
-	var u *UnreachableError
-	return As(err, &u)
+	_, ok := AsType[*UnreachableError](err)
+	return ok
 }
 
 // CommandError wraps an error from a command that ran and exited non-zero (a remote SSH exit or a local shell failure),

@@ -44,7 +44,7 @@ func TestDialThroughBastion(t *testing.T) {
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
 	defer b.Close()
 
-	c, err := Dial(context.Background(),
+	c, err := Dial(t.Context(),
 		Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile},
 		Options{Bastion: b})
 	if err != nil {
@@ -53,7 +53,7 @@ func TestDialThroughBastion(t *testing.T) {
 	defer c.Close()
 
 	var out, errOut bytes.Buffer
-	if err := c.Run(context.Background(), "echo tunneled", &out, &errOut); err != nil {
+	if err := c.Run(t.Context(), "echo tunneled", &out, &errOut); err != nil {
 		t.Fatalf("run through bastion: %v", err)
 	}
 	if got := strings.TrimSpace(out.String()); got != "tunneled" {
@@ -83,7 +83,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 	errs := make([]error, len(targets))
 	for i, srv := range targets {
 		wg.Go(func() {
-			c, err := Dial(context.Background(),
+			c, err := Dial(t.Context(),
 				Target{Host: srv.Host, Port: srv.Port, IdentityFile: srv.IdentityFile},
 				Options{Bastion: b})
 			if err != nil {
@@ -92,7 +92,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 			}
 			defer c.Close()
 			var out, errOut bytes.Buffer
-			if err := c.Run(context.Background(), fmt.Sprintf("echo host-%d", i), &out, &errOut); err != nil {
+			if err := c.Run(t.Context(), fmt.Sprintf("echo host-%d", i), &out, &errOut); err != nil {
 				errs[i] = err
 				return
 			}
@@ -123,7 +123,7 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 	b := NewBastion(Target{Host: "127.0.0.1", Port: port, IdentityFile: writeTestKey(t)})
 	defer b.Close()
 
-	_, err = Dial(context.Background(), Target{Host: "192.0.2.1", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
+	_, err = Dial(t.Context(), Target{Host: "192.0.2.1", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
 	if err == nil {
 		t.Fatal("dial through a dead bastion succeeded")
 	}
@@ -131,7 +131,7 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 		t.Errorf("error does not name the bastion: %v", err)
 	}
 
-	_, err2 := Dial(context.Background(), Target{Host: "192.0.2.2", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
+	_, err2 := Dial(t.Context(), Target{Host: "192.0.2.2", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
 	if err2 == nil {
 		t.Fatal("second dial through a dead bastion succeeded")
 	}
@@ -163,7 +163,7 @@ func TestDialThroughBastion_AuthRejected(t *testing.T) {
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: writeTestKey(t)})
 	defer b.Close()
 
-	_, err = Dial(context.Background(), Target{Host: "192.0.2.1", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
+	_, err = Dial(t.Context(), Target{Host: "192.0.2.1", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
 	if err == nil {
 		t.Fatal("dial through an auth-rejecting bastion succeeded")
 	}
@@ -186,7 +186,7 @@ func TestBastionClose(t *testing.T) {
 
 	bastionSrv, targetSrv := startPair(t)
 	b = NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
-	c, err := Dial(context.Background(),
+	c, err := Dial(t.Context(),
 		Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile},
 		Options{Bastion: b})
 	if err != nil {
@@ -210,7 +210,7 @@ func TestDialThroughBastion_HostKeys(t *testing.T) {
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
 	defer b.Close()
 
-	c, err := Dial(context.Background(),
+	c, err := Dial(t.Context(),
 		Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile},
 		Options{Bastion: b, StrictHostKey: true, AcceptNew: true, KnownHostsFile: khFile})
 	if err != nil {
@@ -239,13 +239,13 @@ func TestBastionCancelledDialRetries(t *testing.T) {
 	defer b.Close()
 	target := Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := Dial(ctx, target, Options{Bastion: b}); err == nil {
 		t.Fatal("dial with a cancelled context should fail")
 	}
 
-	c, err := Dial(context.Background(), target, Options{Bastion: b})
+	c, err := Dial(t.Context(), target, Options{Bastion: b})
 	if err != nil {
 		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
 	}

@@ -62,25 +62,24 @@ func parseCommits(out string, max int) []commit {
 func deriveCommitURL(repo string) string {
 	repo = strings.TrimSuffix(strings.TrimSpace(repo), ".git")
 	var hostPath string
-	switch {
-	case strings.HasPrefix(repo, "https://") || strings.HasPrefix(repo, "http://"):
-		hostPath = strings.SplitN(repo, "://", 2)[1]
-	case strings.HasPrefix(repo, "ssh://"):
-		hostPath = strings.TrimPrefix(repo, "ssh://")
-		if at := strings.Index(hostPath, "@"); at >= 0 {
-			hostPath = hostPath[at+1:]
+	if strings.HasPrefix(repo, "https://") || strings.HasPrefix(repo, "http://") {
+		_, hostPath, _ = strings.Cut(repo, "://")
+	} else if rest, ok := strings.CutPrefix(repo, "ssh://"); ok {
+		hostPath = rest
+		if _, after, ok := strings.Cut(hostPath, "@"); ok {
+			hostPath = after
 		}
 		// Drop an ssh port (host:22/org/repo).
-		if slash := strings.Index(hostPath, "/"); slash > 0 {
-			if colon := strings.Index(hostPath[:slash], ":"); colon >= 0 {
-				hostPath = hostPath[:colon] + hostPath[slash:]
+		if host, path, ok := strings.Cut(hostPath, "/"); ok && host != "" {
+			if name, _, ok := strings.Cut(host, ":"); ok {
+				hostPath = name + "/" + path
 			}
 		}
-	case strings.Contains(repo, "@") && strings.Contains(repo, ":") && !strings.Contains(repo, "://"):
+	} else if strings.Contains(repo, "@") && strings.Contains(repo, ":") && !strings.Contains(repo, "://") {
 		// scp-like: git@host:org/repo
-		rest := repo[strings.Index(repo, "@")+1:]
+		_, rest, _ := strings.Cut(repo, "@")
 		hostPath = strings.Replace(rest, ":", "/", 1)
-	default:
+	} else {
 		return ""
 	}
 	hostPath = strings.Trim(hostPath, "/")

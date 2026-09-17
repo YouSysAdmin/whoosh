@@ -1,7 +1,6 @@
 package slack
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,11 +35,11 @@ func TestDisplayDeployer(t *testing.T) {
 	t.Run("name from github", func(t *testing.T) {
 		gh, calls := githubStub(t, http.StatusOK, `{"name": "Andrii K"}`)
 		n := lookupNotifier(gh, true)
-		if got := n.displayDeployer(context.Background(), "andriy2152"); got != "Andrii K" {
+		if got := n.displayDeployer(t.Context(), "andriy2152"); got != "Andrii K" {
 			t.Errorf("displayDeployer = %q, want the GitHub name", got)
 		}
 		// Cached: a second display does not re-dial.
-		if got := n.displayDeployer(context.Background(), "andriy2152"); got != "Andrii K" {
+		if got := n.displayDeployer(t.Context(), "andriy2152"); got != "Andrii K" {
 			t.Errorf("second displayDeployer = %q", got)
 		}
 		if calls.Load() != 1 {
@@ -50,14 +49,14 @@ func TestDisplayDeployer(t *testing.T) {
 
 	t.Run("empty name falls back", func(t *testing.T) {
 		gh, _ := githubStub(t, http.StatusOK, `{"name": null}`)
-		if got := lookupNotifier(gh, true).displayDeployer(context.Background(), "ghost"); got != "ghost" {
+		if got := lookupNotifier(gh, true).displayDeployer(t.Context(), "ghost"); got != "ghost" {
 			t.Errorf("displayDeployer = %q, want the login", got)
 		}
 	})
 
 	t.Run("404 falls back", func(t *testing.T) {
 		gh, _ := githubStub(t, http.StatusNotFound, `{"message":"Not Found"}`)
-		if got := lookupNotifier(gh, true).displayDeployer(context.Background(), "nobody"); got != "nobody" {
+		if got := lookupNotifier(gh, true).displayDeployer(t.Context(), "nobody"); got != "nobody" {
 			t.Errorf("displayDeployer = %q, want the login", got)
 		}
 	})
@@ -65,14 +64,14 @@ func TestDisplayDeployer(t *testing.T) {
 	t.Run("network error falls back", func(t *testing.T) {
 		gh, _ := githubStub(t, http.StatusOK, `{}`)
 		gh.Close()
-		if got := lookupNotifier(gh, true).displayDeployer(context.Background(), "nobody"); got != "nobody" {
+		if got := lookupNotifier(gh, true).displayDeployer(t.Context(), "nobody"); got != "nobody" {
 			t.Errorf("displayDeployer = %q, want the login", got)
 		}
 	})
 
 	t.Run("disabled never dials", func(t *testing.T) {
 		gh, calls := githubStub(t, http.StatusOK, `{"name": "X"}`)
-		if got := lookupNotifier(gh, false).displayDeployer(context.Background(), "login"); got != "login" {
+		if got := lookupNotifier(gh, false).displayDeployer(t.Context(), "login"); got != "login" {
 			t.Errorf("displayDeployer = %q, want the login untouched", got)
 		}
 		if calls.Load() != 0 {
@@ -82,7 +81,7 @@ func TestDisplayDeployer(t *testing.T) {
 
 	t.Run("full name skips the lookup", func(t *testing.T) {
 		gh, calls := githubStub(t, http.StatusOK, `{"name": "X"}`)
-		if got := lookupNotifier(gh, true).displayDeployer(context.Background(), "Jane Doe"); got != "Jane Doe" {
+		if got := lookupNotifier(gh, true).displayDeployer(t.Context(), "Jane Doe"); got != "Jane Doe" {
 			t.Errorf("displayDeployer = %q, want the name untouched", got)
 		}
 		if calls.Load() != 0 {

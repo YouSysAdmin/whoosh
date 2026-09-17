@@ -123,7 +123,7 @@ func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 	p := &amiPlugin{ec2: fe, asg: fa}
 
 	var buf bytes.Buffer
-	err := p.runCreate(context.Background(), map[string]any{
+	err := p.runCreate(t.Context(), map[string]any{
 		"name_prefix":     "managebac",
 		"source_tags":     map[string]any{"Role": "web"},
 		"launch_template": map[string]any{"asg": "managebac-asg"},
@@ -185,7 +185,7 @@ func TestAMICreate_FromASGInServiceInstanceNamePrefixFallback(t *testing.T) {
 	p := &amiPlugin{ec2: fe, asg: fa}
 
 	var buf bytes.Buffer
-	if err := p.runCreate(context.Background(), map[string]any{"asg": "workers"}, &buf); err != nil {
+	if err := p.runCreate(t.Context(), map[string]any{"asg": "workers"}, &buf); err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, buf.String())
 	}
 	// No name_prefix -> falls back to the source instance's Name tag.
@@ -207,7 +207,7 @@ func TestAMICreate_FromExplicitInstanceID(t *testing.T) {
 	p := &amiPlugin{ec2: fe, asg: nil}
 
 	var buf bytes.Buffer
-	if err := p.runCreate(context.Background(), map[string]any{"instance_id": "i-explicit"}, &buf); err != nil {
+	if err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-explicit"}, &buf); err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, buf.String())
 	}
 	if name := awssdk.ToString(fe.createImage.Name); !strings.HasPrefix(name, "chosen-1-") {
@@ -232,7 +232,7 @@ func TestAMICreate_PollsImageStateUntilAvailable(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logbuf, nil)))
 	defer slog.SetDefault(prev)
 
-	if err := p.runCreate(context.Background(), map[string]any{"instance_id": "i-poll", "name_prefix": "poll"}, &bytes.Buffer{}); err != nil {
+	if err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-poll", "name_prefix": "poll"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, logbuf.String())
 	}
 	if fe.imagesCalls != 3 {
@@ -254,7 +254,7 @@ func TestAMICreate_FailsOnImageFailureState(t *testing.T) {
 		images:    []ec2types.Image{{ImageId: awssdk.String("ami-new"), State: ec2types.ImageStateFailed}},
 	}
 	p := &amiPlugin{ec2: fe, asg: &fakeAMIASG{}, pollInterval: time.Millisecond}
-	if err := p.runCreate(context.Background(), map[string]any{"instance_id": "i-bad", "name_prefix": "bad"}, &bytes.Buffer{}); err == nil {
+	if err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-bad", "name_prefix": "bad"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when the image enters a failed state")
 	}
 }
@@ -269,7 +269,7 @@ func TestAMICreate_FailsWhenImageDeletedMidBuild(t *testing.T) {
 	}
 	p := &amiPlugin{ec2: fe, asg: &fakeAMIASG{}, pollInterval: time.Millisecond}
 
-	err := p.runCreate(context.Background(), map[string]any{"instance_id": "i-gone", "name_prefix": "gone"}, &bytes.Buffer{})
+	err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-gone", "name_prefix": "gone"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected an error when the AMI is deleted mid-build, not an endless wait")
 	}
@@ -287,7 +287,7 @@ func TestAMICreate_FailsWhenImageNotFound(t *testing.T) {
 	}
 	p := &amiPlugin{ec2: fe, asg: &fakeAMIASG{}, pollInterval: time.Millisecond}
 
-	err := p.runCreate(context.Background(), map[string]any{"instance_id": "i-nf", "name_prefix": "nf"}, &bytes.Buffer{})
+	err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-nf", "name_prefix": "nf"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected an error when DescribeImages returns InvalidAMIID.NotFound")
 	}
@@ -299,7 +299,7 @@ func TestAMICreate_FailsWhenImageNotFound(t *testing.T) {
 func TestWaitForImage_CancelReportsCancellation(t *testing.T) {
 	fe := &fakeAMIEC2{images: []ec2types.Image{{ImageId: awssdk.String("ami-x"), State: ec2types.ImageStatePending}}}
 	p := &amiPlugin{ec2: fe, pollInterval: time.Hour} // long interval: it blocks until ctx ends
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // simulate Ctrl-C before the next poll
 
 	err := p.waitForImage(ctx, "ami-x")
@@ -314,7 +314,7 @@ func TestWaitForImage_CancelReportsCancellation(t *testing.T) {
 
 func TestAMICreate_RequiresSource(t *testing.T) {
 	p := &amiPlugin{ec2: &fakeAMIEC2{}, asg: &fakeAMIASG{}}
-	if err := p.runCreate(context.Background(), map[string]any{"name_prefix": "x"}, &bytes.Buffer{}); err == nil {
+	if err := p.runCreate(t.Context(), map[string]any{"name_prefix": "x"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when neither source_tags nor asg is set")
 	}
 }
@@ -340,7 +340,7 @@ func TestAMICleanup_KeepsNewestAndDeletesSnapshots(t *testing.T) {
 	p := &amiPlugin{ec2: fe, asg: &fakeAMIASG{}}
 
 	var buf bytes.Buffer
-	if err := p.runCleanup(context.Background(), map[string]any{"name_prefix": "app", "keep_last": 2}, &buf); err != nil {
+	if err := p.runCleanup(t.Context(), map[string]any{"name_prefix": "app", "keep_last": 2}, &buf); err != nil {
 		t.Fatalf("runCleanup: %v\n%s", err, buf.String())
 	}
 	// Keep the 2 newest matching (ami-4, ami-3); remove the 2 oldest (ami-2, ami-1).
@@ -371,7 +371,7 @@ func TestAMICleanup_FiltersByTags(t *testing.T) {
 	p := &amiPlugin{ec2: fe, asg: &fakeAMIASG{}}
 
 	var buf bytes.Buffer
-	err := p.runCleanup(context.Background(), map[string]any{
+	err := p.runCleanup(t.Context(), map[string]any{
 		"name_prefix": "api",
 		"tags":        map[string]any{"Application": "api", "Environment": []any{"uat", "prod"}},
 		"keep_last":   1,
@@ -407,7 +407,7 @@ func TestAMICleanup_FiltersByTags(t *testing.T) {
 
 func TestAMICleanup_RequiresFilter(t *testing.T) {
 	p := &amiPlugin{ec2: &fakeAMIEC2{}, asg: &fakeAMIASG{}}
-	if err := p.runCleanup(context.Background(), map[string]any{"keep_last": 3}, &bytes.Buffer{}); err == nil {
+	if err := p.runCleanup(t.Context(), map[string]any{"keep_last": 3}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when neither name_prefix nor tags is set")
 	}
 }

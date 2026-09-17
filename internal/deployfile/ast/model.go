@@ -398,17 +398,17 @@ type Host struct {
 	Address      string   `yaml:"address,omitempty" json:"address,omitempty"`             // Host address (IP or DNS name)
 	Roles        []string `yaml:"roles,omitempty" json:"roles,omitempty"`                 // Roles this host fills; tasks target hosts by role
 	User         string   `yaml:"user,omitempty" json:"user,omitempty"`                   // Overrides ssh.user for this host
-	Port         int      `yaml:"port,omitempty" json:"port,omitempty"`                   // Overrides ssh.port for this host
+	Port         int      `yaml:"port,omitempty" json:"port,omitzero"`                    // Overrides ssh.port for this host
 	IdentityFile string   `yaml:"identity_file,omitempty" json:"identity_file,omitempty"` // Overrides ssh.identity_file for this host
 	// IdentityFilePassphrase decrypts this host's encrypted identity_file. Inherited from ssh.identity_file_passphrase
 	// only together with ssh.identity_file - a host with its own identity_file sets its own passphrase. Rendered as a
 	// Go template at load time and redacted everywhere (excluded from JSON so log records never carry it).
 	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty" json:"-"`
-	Local                  bool   `yaml:"local,omitempty" json:"local,omitempty"` // Run on the operator's machine via the local shell (SSH fields ignored)
+	Local                  bool   `yaml:"local,omitempty" json:"local,omitzero"` // Run on the operator's machine via the local shell (SSH fields ignored)
 	// Primary marks the preferred host for single-host work: a `once:` task and the deploy lock (plus the
 	// previous-revision read) pick the first primary-marked host among their candidates, falling back to the first
 	// candidate when none is marked. Multiple marked hosts are allowed, the first one wins.
-	Primary bool `yaml:"primary,omitempty" json:"primary,omitempty"`
+	Primary bool `yaml:"primary,omitempty" json:"primary,omitzero"`
 	// Deploy gates whether the release lifecycle, tasks, hooks, and ad-hoc run target this host. nil means the default
 	// (true).
 	// Set false to keep a host in inventory - listed by `config` and the `deploy:hosts` command - without deploying the

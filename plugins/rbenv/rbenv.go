@@ -38,13 +38,15 @@
 package rbenv
 
 import (
+	"cmp"
 	"context"
-	_ "embed"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"strings"
+
+	_ "embed"
 
 	"github.com/yousysadmin/whoosh"
 )
@@ -167,10 +169,7 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 			cfg.Envs = map[string]string{}
 		}
 		cfg.Envs["RBENV_ROOT"] = root
-		path := cfg.Envs["PATH"]
-		if path == "" {
-			path = "$PATH"
-		}
+		path := cmp.Or(cfg.Envs["PATH"], "$PATH")
 		cfg.Envs["PATH"] = root + "/bin:" + root + "/shims:" + path
 	}
 	// Also expose it to templates as {{ .rbenv.root }}.

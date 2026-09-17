@@ -81,11 +81,11 @@ func (r *ctxTestRunner) RunCommand(_ context.Context, cmd string) error {
 // The HostCommandRunner rides the action's ctx like the HostFileWriter: nil when absent (an action invoked outside the
 // executor), the carried value otherwise.
 func TestHostCommandRunnerCtx(t *testing.T) {
-	if got := HostCommandRunnerFrom(context.Background()); got != nil {
+	if got := HostCommandRunnerFrom(t.Context()); got != nil {
 		t.Fatalf("bare ctx: got %v, want nil", got)
 	}
 	r := &ctxTestRunner{}
-	ctx := WithHostCommandRunner(context.Background(), r)
+	ctx := WithHostCommandRunner(t.Context(), r)
 	got := HostCommandRunnerFrom(ctx)
 	if got == nil {
 		t.Fatal("runner not carried by ctx")

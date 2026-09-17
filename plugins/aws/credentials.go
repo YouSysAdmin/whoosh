@@ -2,6 +2,7 @@ package aws
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -68,9 +69,7 @@ func loadAWS(ctx context.Context, c awsConfig) (awssdk.Config, error) {
 	}
 
 	var opts []func(*config.LoadOptions) error
-	if region == "" {
-		region = c.Region
-	}
+	region = cmp.Or(region, c.Region)
 	if region != "" {
 		opts = append(opts, config.WithRegion(region))
 	}

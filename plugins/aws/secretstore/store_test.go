@@ -91,7 +91,7 @@ func TestSecretsEnvironmentFile(t *testing.T) {
 		"prefixes": []any{"myapp/prod/", "shared/github-auth-key"}, // trailing slash = set, none = single secret
 		"path":     path,
 	}
-	if err := s.runEnvironmentFile(context.Background(), with, &bytes.Buffer{}); err != nil {
+	if err := s.runEnvironmentFile(t.Context(), with, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runEnvironmentFile: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestSecretsEnvironmentFile_JSONOverride(t *testing.T) {
 	s := &secretsPlugin{api: fake}
 	path := filepath.Join(t.TempDir(), ".env")
 	with := map[string]any{"prefixes": []any{"myapp/prod/config"}, "path": path, "json": false}
-	if err := s.runEnvironmentFile(context.Background(), with, &bytes.Buffer{}); err != nil {
+	if err := s.runEnvironmentFile(t.Context(), with, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runEnvironmentFile: %v", err)
 	}
 	got, _ := os.ReadFile(path)
@@ -150,17 +150,17 @@ func TestSecretsEnvironmentFile_JSONOverride(t *testing.T) {
 	fake2 := &fakeSecrets{values: map[string]string{"myapp/prod/plain": "just-a-string"}}
 	s2 := &secretsPlugin{api: fake2}
 	with2 := map[string]any{"prefixes": []any{"myapp/prod/plain"}, "path": filepath.Join(t.TempDir(), ".env"), "json": true}
-	if err := s2.runEnvironmentFile(context.Background(), with2, &bytes.Buffer{}); err == nil {
+	if err := s2.runEnvironmentFile(t.Context(), with2, &bytes.Buffer{}); err == nil {
 		t.Error("json:true on a non-object secret should error")
 	}
 }
 
 func TestSecretsEnvironmentFile_Validation(t *testing.T) {
 	s := &secretsPlugin{api: &fakeSecrets{}}
-	if err := s.runEnvironmentFile(context.Background(), map[string]any{"path": "x"}, &bytes.Buffer{}); err == nil {
+	if err := s.runEnvironmentFile(t.Context(), map[string]any{"path": "x"}, &bytes.Buffer{}); err == nil {
 		t.Error("missing prefixes should error")
 	}
-	if err := s.runEnvironmentFile(context.Background(), map[string]any{"prefixes": []any{"/a"}}, &bytes.Buffer{}); err == nil {
+	if err := s.runEnvironmentFile(t.Context(), map[string]any{"prefixes": []any{"/a"}}, &bytes.Buffer{}); err == nil {
 		t.Error("missing path should error")
 	}
 }
@@ -174,7 +174,7 @@ func TestSecretsEnvironmentFile_RendersOnHosts(t *testing.T) {
 	}
 	s := &secretsPlugin{api: fake}
 	hw := &fakeHostWriter{}
-	ctx := whoosh.WithHostFileWriter(context.Background(), hw)
+	ctx := whoosh.WithHostFileWriter(t.Context(), hw)
 
 	with := map[string]any{"prefixes": []any{"myapp/prod/"}, "path": "config/app.env"}
 	if err := s.runEnvironmentFile(ctx, with, &bytes.Buffer{}); err != nil {
@@ -202,7 +202,7 @@ func TestSecretsStartup_LoadsContext(t *testing.T) {
 	s := &secretsPlugin{api: fake}
 	cfg := &whoosh.DeployFile{}
 
-	if err := s.startup(secretsContextParams{Prefixes: []string{"myapp/prod/"}})(context.Background(), cfg); err != nil {
+	if err := s.startup(secretsContextParams{Prefixes: []string{"myapp/prod/"}})(t.Context(), cfg); err != nil {
 		t.Fatalf("startup: %v", err)
 	}
 	if got := cfg.Imports["secrets"]["DB_URL"]; got != "postgres://h/db" {

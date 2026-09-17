@@ -2,7 +2,6 @@ package runner_test
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -20,7 +19,7 @@ func TestRunCommand_Remote(t *testing.T) {
 	targets := []runner.Target{{Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile}}
 
 	var buf bytes.Buffer
-	results := runner.RunCommand(context.Background(), targets, runner.Options{StrictHostKey: false},
+	results := runner.RunCommand(t.Context(), targets, runner.Options{StrictHostKey: false},
 		"echo hello-from-ssh", &buf, false, 0, false)
 
 	if runner.Failed(results) {
@@ -35,7 +34,7 @@ func TestRunCommand_Local(t *testing.T) {
 	targets := []runner.Target{{Host: "localhost", Local: true}}
 
 	var buf bytes.Buffer
-	results := runner.RunCommand(context.Background(), targets, runner.Options{},
+	results := runner.RunCommand(t.Context(), targets, runner.Options{},
 		"echo hello-from-local", &buf, false, 0, false)
 
 	if runner.Failed(results) {
@@ -49,7 +48,7 @@ func TestRunCommand_Local(t *testing.T) {
 func TestRunCommand_LocalNonZeroExitIsError(t *testing.T) {
 	targets := []runner.Target{{Host: "localhost", Local: true}}
 	var buf bytes.Buffer
-	results := runner.RunCommand(context.Background(), targets, runner.Options{}, "exit 4", &buf, false, 0, false)
+	results := runner.RunCommand(t.Context(), targets, runner.Options{}, "exit 4", &buf, false, 0, false)
 	if !runner.Failed(results) {
 		t.Fatal("expected failure for non-zero exit")
 	}
@@ -68,7 +67,7 @@ func TestRunCommand_ColorizesPrefix(t *testing.T) {
 	targets := []runner.Target{{Host: "localhost", Local: true}}
 	var buf bytes.Buffer
 	// The host prefix is green on both streams - it marks the host, not severity (stderr is not "error").
-	runner.RunCommand(context.Background(), targets, runner.Options{}, "echo out; echo err >&2", &buf, true, 0, false)
+	runner.RunCommand(t.Context(), targets, runner.Options{}, "echo out; echo err >&2", &buf, true, 0, false)
 	out := buf.String()
 	if !strings.Contains(out, "\033[32m[localhost]\033[0m out") {
 		t.Fatalf("stdout prefix not green:\n%q", out)

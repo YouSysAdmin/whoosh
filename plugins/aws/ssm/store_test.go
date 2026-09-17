@@ -85,7 +85,7 @@ func TestSSMEnvironmentFile(t *testing.T) {
 		"prefixes": []any{"/app/prod/", "/shared/github-auth-key"}, // trailing slash = tree; none = single param
 		"path":     path,
 	}
-	if err := s.runEnvironmentFile(context.Background(), with, &buf); err != nil {
+	if err := s.runEnvironmentFile(t.Context(), with, &buf); err != nil {
 		t.Fatalf("runEnvironmentFile: %v", err)
 	}
 
@@ -126,10 +126,10 @@ func TestSSMEnvironmentFile(t *testing.T) {
 
 func TestSSMEnvironmentFile_Validation(t *testing.T) {
 	s := &ssmPlugin{api: &fakeSSM{}}
-	if err := s.runEnvironmentFile(context.Background(), map[string]any{"path": "x"}, &bytes.Buffer{}); err == nil {
+	if err := s.runEnvironmentFile(t.Context(), map[string]any{"path": "x"}, &bytes.Buffer{}); err == nil {
 		t.Error("missing prefixes should error")
 	}
-	if err := s.runEnvironmentFile(context.Background(), map[string]any{"prefixes": []any{"/a"}}, &bytes.Buffer{}); err == nil {
+	if err := s.runEnvironmentFile(t.Context(), map[string]any{"prefixes": []any{"/a"}}, &bytes.Buffer{}); err == nil {
 		t.Error("missing path should error")
 	}
 }
@@ -145,7 +145,7 @@ func TestSSMStartup_LoadsContext(t *testing.T) {
 	s := &ssmPlugin{api: fake}
 	cfg := &whoosh.DeployFile{}
 
-	if err := s.startup(ssmContextParams{Prefixes: []string{"/app/prod/"}})(context.Background(), cfg); err != nil {
+	if err := s.startup(ssmContextParams{Prefixes: []string{"/app/prod/"}})(t.Context(), cfg); err != nil {
 		t.Fatalf("startup: %v", err)
 	}
 	if got := cfg.Imports["ssm"]["secret"]; got != "topsecretval" {
@@ -168,7 +168,7 @@ func TestSSMEnvironmentFile_RendersOnHosts(t *testing.T) {
 	}}
 	s := &ssmPlugin{api: fake}
 	hw := &fakeHostWriter{}
-	ctx := whoosh.WithHostFileWriter(context.Background(), hw)
+	ctx := whoosh.WithHostFileWriter(t.Context(), hw)
 
 	with := map[string]any{"prefixes": []any{"/app/prod/"}, "path": "config/app.env"}
 	if err := s.runEnvironmentFile(ctx, with, &bytes.Buffer{}); err != nil {

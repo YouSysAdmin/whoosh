@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -29,7 +28,7 @@ func TestNotifyTaskFailure(t *testing.T) {
 		var buf bytes.Buffer
 		ex := executor.New(cfg, executor.Options{Out: &buf})
 		defer ex.Close()
-		err := ex.RunTask(context.Background(), "boom")
+		err := ex.RunTask(t.Context(), "boom")
 		if err != nil {
 			notifyTaskFailure(cfg, ex, "boom", err)
 		}
@@ -51,8 +50,7 @@ func TestNotifyTaskFailure(t *testing.T) {
 	})
 
 	t.Run("notify_failure false opts out", func(t *testing.T) {
-		off := false
-		out, err := run(newCfg(&off))
+		out, err := run(newCfg(new(false)))
 		if err == nil {
 			t.Fatal("boom should fail")
 		}

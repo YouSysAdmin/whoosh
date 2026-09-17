@@ -1,7 +1,6 @@
 package slack
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -119,7 +118,7 @@ func TestSend_Changelog(t *testing.T) {
 		},
 	})
 
-	if err := send(context.Background(), changelogSendWith(changelogLines(25)), io.Discard); err != nil {
+	if err := send(t.Context(), changelogSendWith(changelogLines(25)), io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 
@@ -156,7 +155,7 @@ func TestSend_ChangelogMaxCommits(t *testing.T) {
 		"webhook_url": srv.URL,
 		"changelog":   map[string]any{"enabled": true, "max_commits": 3},
 	})
-	if err := send(context.Background(), changelogSendWith(changelogLines(10)), io.Discard); err != nil {
+	if err := send(t.Context(), changelogSendWith(changelogLines(10)), io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got := srv.received()
@@ -177,7 +176,7 @@ func TestSend_ChangelogDegradesToPlain(t *testing.T) {
 				"webhook_url": srv.URL,
 				"changelog":   map[string]any{"enabled": true},
 			})
-			if err := send(context.Background(), changelogSendWith(changelog), io.Discard); err != nil {
+			if err := send(t.Context(), changelogSendWith(changelog), io.Discard); err != nil {
 				t.Fatalf("send: %v", err)
 			}
 			got := srv.received()
@@ -201,7 +200,7 @@ func TestSend_ChangelogNoChangesNote(t *testing.T) {
 
 	same := changelogSendWith("")
 	same["previous_commit_hash"] = same["commit_hash"]
-	if err := send(context.Background(), same, io.Discard); err != nil {
+	if err := send(t.Context(), same, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got := srv.received()
@@ -214,7 +213,7 @@ func TestSend_ChangelogNoChangesNote(t *testing.T) {
 
 	fresh := changelogSendWith("")
 	fresh["previous_commit_hash"] = ""
-	if err := send(context.Background(), fresh, io.Discard); err != nil {
+	if err := send(t.Context(), fresh, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got = srv.received()
@@ -225,7 +224,7 @@ func TestSend_ChangelogNoChangesNote(t *testing.T) {
 	// Changelog disabled: an unchanged redeploy stays a plain summary too.
 	srvOff := newWebhookServer(t)
 	_, sendOff := loadSlack(t, map[string]any{"webhook_url": srvOff.URL})
-	if err := sendOff(context.Background(), same, io.Discard); err != nil {
+	if err := sendOff(t.Context(), same, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if text := srvOff.received()[0].Attachments[0].Text; strings.Contains(text, note) {
@@ -241,7 +240,7 @@ func TestStartup_ChangelogInjectsContext(t *testing.T) {
 		"changelog":   map[string]any{"enabled": true},
 	})
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	w := cfg.Tasks[taskNotifySuccess].With

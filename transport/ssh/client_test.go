@@ -170,7 +170,7 @@ func TestDial_HandshakeTimeout(t *testing.T) {
 	addr := ln.Addr().(*net.TCPAddr)
 
 	start := time.Now()
-	_, err := Dial(context.Background(),
+	_, err := Dial(t.Context(),
 		Target{Host: addr.IP.String(), Port: addr.Port, User: "test", IdentityFile: writeTestKey(t)},
 		Options{ConnectTimeout: 200 * time.Millisecond, KeepaliveInterval: -1})
 	if err == nil {
@@ -189,7 +189,7 @@ func TestDial_HandshakeCtxCancel(t *testing.T) {
 	ln := stalledListener(t)
 	addr := ln.Addr().(*net.TCPAddr)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		cancel()

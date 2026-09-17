@@ -1,7 +1,6 @@
 package runner_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -40,7 +39,7 @@ func TestRun_DialFailureIsUnreachable(t *testing.T) {
 
 	c := runner.NewCluster(runner.Options{StrictHostKey: false}, io.Discard)
 	defer c.Close()
-	results := c.Run(context.Background(),
+	results := c.Run(t.Context(),
 		[]runner.Target{{Host: "127.0.0.1", Port: port}},
 		func(string) string { return "echo hi" }, 0, false)
 
@@ -63,7 +62,7 @@ func TestRun_CommandExitIsNotUnreachable(t *testing.T) {
 
 	c := runner.NewCluster(runner.Options{StrictHostKey: false}, io.Discard)
 	defer c.Close()
-	results := c.Run(context.Background(),
+	results := c.Run(t.Context(),
 		[]runner.Target{{Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile}},
 		func(string) string { return "exit 7" }, 0, false)
 

@@ -1,12 +1,13 @@
 package ec2
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -292,7 +293,7 @@ func (a *asgPlugin) previousLTVersion(ctx context.Context, ltID string) (int64, 
 	if len(nums) < 2 {
 		return 0, fmt.Errorf("launch template %s has %d version(s), need at least 2 to roll back", ltID, len(nums))
 	}
-	sort.Slice(nums, func(i, j int) bool { return nums[i] > nums[j] })
+	slices.SortFunc(nums, func(a, b int64) int { return cmp.Compare(b, a) })
 	return nums[1], nil
 }
 

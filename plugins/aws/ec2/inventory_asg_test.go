@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -145,7 +145,7 @@ func TestEC2Inventory_AppendsHostsAndRoles(t *testing.T) {
 	}}
 
 	cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "static1", Roles: []string{"lb"}}}}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 
@@ -164,7 +164,7 @@ func TestEC2Inventory_AppendsHostsAndRoles(t *testing.T) {
 	for _, f := range fe.input.Filters {
 		names = append(names, *f.Name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	if strings.Join(names, ",") != "instance-state-name,tag:Environment" {
 		t.Errorf("unexpected filters: %v", names)
 	}
@@ -177,7 +177,7 @@ func TestEC2Inventory_FallbackRoles(t *testing.T) {
 	inv := &ec2Inventory{api: fe, params: ec2InventoryParams{Roles: []string{"app"}}}
 
 	cfg := &whoosh.DeployFile{}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 	if len(cfg.Hosts) != 1 || strings.Join(cfg.Hosts[0].Roles, ",") != "app" {
@@ -205,7 +205,7 @@ func TestEC2Inventory_TagsScalarOrList(t *testing.T) {
 	// The values flow into the EC2 filter (multiple = match any).
 	fe := &fakeEC2{out: &awsec2.DescribeInstancesOutput{}}
 	inv := &ec2Inventory{api: fe, params: p}
-	if err := inv.appendHosts(context.Background(), &whoosh.DeployFile{}); err != nil {
+	if err := inv.appendHosts(t.Context(), &whoosh.DeployFile{}); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 	var appValues []string
@@ -232,7 +232,7 @@ func TestEC2Inventory_DeployTag(t *testing.T) {
 	}}
 
 	cfg := &whoosh.DeployFile{}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 	if len(cfg.Hosts) != 3 {
@@ -263,7 +263,7 @@ func TestEC2Inventory_RequiredTag(t *testing.T) {
 	}}
 
 	cfg := &whoosh.DeployFile{}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 	want := map[string]bool{"10.0.0.1": true, "10.0.0.2": false}
@@ -281,7 +281,7 @@ func TestEC2Inventory_NoDeployTagDefaultsTrue(t *testing.T) {
 	inv := &ec2Inventory{api: fe, params: ec2InventoryParams{}}
 
 	cfg := &whoosh.DeployFile{}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 	if len(cfg.Hosts) != 1 {
@@ -298,7 +298,6 @@ func TestEC2Inventory_NoDeployTagDefaultsTrue(t *testing.T) {
 func TestEC2Inventory_StaticHostTakesPriority(t *testing.T) {
 	// A discovered instance whose address is already a static host must be dropped
 	// (no duplicate), and the static entry must keep its own deploy flag and roles.
-	deployTrue := true
 	fe := &fakeEC2{out: &awsec2.DescribeInstancesOutput{
 		Reservations: []ec2types.Reservation{{Instances: []ec2types.Instance{
 			instance("10.0.0.1", map[string]string{"Deploy": "no"}),  // same as the static host below
@@ -310,9 +309,9 @@ func TestEC2Inventory_StaticHostTakesPriority(t *testing.T) {
 	}}
 
 	cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{
-		{Address: "10.0.0.1", Roles: []string{"app", "db"}, Deploy: &deployTrue},
+		{Address: "10.0.0.1", Roles: []string{"app", "db"}, Deploy: new(true)},
 	}}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 
@@ -365,7 +364,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 	t.Run("resolved duplicate is skipped", func(t *testing.T) {
 		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{ResolveConfigHosts: true}, lookupHost: lookup}
 		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "worker.example.com", Roles: []string{"db"}}}}
-		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts: %v", err)
 		}
 		if len(cfg.Hosts) != 2 {
@@ -381,7 +380,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 	t.Run("off by default", func(t *testing.T) {
 		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{}, lookupHost: lookup}
 		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "worker.example.com", Roles: []string{"db"}}}}
-		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts: %v", err)
 		}
 		if len(cfg.Hosts) != 3 {
@@ -392,7 +391,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 	t.Run("lookup failure warns and keeps going", func(t *testing.T) {
 		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{ResolveConfigHosts: true}, lookupHost: lookup}
 		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "gone.example.com", Roles: []string{"db"}}}}
-		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts should not fail on a lookup error: %v", err)
 		}
 		if len(cfg.Hosts) != 3 {
@@ -408,7 +407,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 				return lookup(ctx, host)
 			}}
 		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "10.0.0.4", Roles: []string{"db"}}}}
-		if err := inv.appendHosts(context.Background(), cfg); err != nil {
+		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts: %v", err)
 		}
 		if called {
@@ -432,7 +431,7 @@ func TestEC2Inventory_Paginates(t *testing.T) {
 	inv := &ec2Inventory{api: fe, params: ec2InventoryParams{Roles: []string{"app"}}}
 
 	cfg := &whoosh.DeployFile{}
-	if err := inv.appendHosts(context.Background(), cfg); err != nil {
+	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
 	if len(cfg.Hosts) != 2 {
@@ -462,7 +461,7 @@ func TestASGRefresh_StartsRefresh(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logbuf, nil)))
 	defer slog.SetDefault(prev)
 
-	if err := a.runRefresh(context.Background(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
+	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if fa.input == nil || fa.input.AutoScalingGroupName == nil || *fa.input.AutoScalingGroupName != "my-asg" {
@@ -491,7 +490,7 @@ func TestASGRefresh_StartsRefresh(t *testing.T) {
 func TestASGRefresh_OverridesPreferences(t *testing.T) {
 	fa := &fakeASG{}
 	a := &asgPlugin{api: fa, pollInterval: time.Millisecond}
-	err := a.runRefresh(context.Background(), map[string]any{
+	err := a.runRefresh(t.Context(), map[string]any{
 		"name":                   "my-asg",
 		"min_healthy_percentage": 90,
 		"max_healthy_percentage": 150,
@@ -522,7 +521,7 @@ func TestASGRefresh_PollsUntilComplete(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logbuf, nil)))
 	defer slog.SetDefault(prev)
 
-	if err := a.runRefresh(context.Background(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
+	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("run: %v\n%s", err, logbuf.String())
 	}
 	if fa.describeN != 3 {
@@ -536,7 +535,7 @@ func TestASGRefresh_PollsUntilComplete(t *testing.T) {
 func TestASGRefresh_FailsOnFailedStatus(t *testing.T) {
 	fa := &fakeASG{statuses: []astypes.InstanceRefreshStatus{astypes.InstanceRefreshStatusFailed}}
 	a := &asgPlugin{api: fa, pollInterval: time.Millisecond}
-	if err := a.runRefresh(context.Background(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err == nil {
+	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when the refresh ends in a Failed state")
 	}
 }
@@ -544,7 +543,7 @@ func TestASGRefresh_FailsOnFailedStatus(t *testing.T) {
 func TestASGRefresh_SkipsWhenAlreadyInProgress(t *testing.T) {
 	fa := &fakeASG{startErr: &astypes.InstanceRefreshInProgressFault{}}
 	a := &asgPlugin{api: fa, pollInterval: time.Millisecond}
-	if err := a.runRefresh(context.Background(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
+	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("an already-running refresh should be skipped, not fail: %v", err)
 	}
 	if fa.describeN != 0 {
@@ -554,7 +553,7 @@ func TestASGRefresh_SkipsWhenAlreadyInProgress(t *testing.T) {
 
 func TestASGRefresh_RequiresName(t *testing.T) {
 	a := &asgPlugin{api: &fakeASG{}}
-	if err := a.runRefresh(context.Background(), map[string]any{}, &bytes.Buffer{}); err == nil {
+	if err := a.runRefresh(t.Context(), map[string]any{}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when ASG name is missing")
 	}
 }
@@ -563,7 +562,7 @@ func TestASGRefresh_FailsOnCancelledStatus(t *testing.T) {
 	// The refresh was cancelled out-of-band (e.g. in the console) - the wait must end with an error, not hang.
 	fa := &fakeASG{statuses: []astypes.InstanceRefreshStatus{astypes.InstanceRefreshStatusCancelled}}
 	a := &asgPlugin{api: fa, pollInterval: time.Millisecond}
-	err := a.runRefresh(context.Background(), map[string]any{"name": "my-asg"}, &bytes.Buffer{})
+	err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected an error when the refresh ends in a Cancelled state")
 	}
@@ -576,7 +575,7 @@ func TestASGRefresh_FailsWhenRefreshDisappears(t *testing.T) {
 	// DescribeInstanceRefreshes returns nothing for the id - the refresh vanished.
 	fa := &fakeASG{emptyDescribe: true}
 	a := &asgPlugin{api: fa, pollInterval: time.Millisecond}
-	err := a.runRefresh(context.Background(), map[string]any{"name": "my-asg"}, &bytes.Buffer{})
+	err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected an error when the refresh can't be found")
 	}
@@ -590,7 +589,7 @@ func TestASGRefresh_CancelStopsWaiting(t *testing.T) {
 	// would block forever otherwise).
 	fa := &fakeASG{statuses: []astypes.InstanceRefreshStatus{astypes.InstanceRefreshStatusInProgress}}
 	a := &asgPlugin{api: fa, pollInterval: time.Hour}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err := a.waitForRefresh(ctx, "my-asg", "ir-123")
@@ -610,7 +609,7 @@ func TestASGRollback_CopiesPreviousVersionThenRefreshes(t *testing.T) {
 	fe := &fakeLTEC2{versions: []int64{1, 2, 3}, newVersion: 4}
 	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
 
-	err := a.runRollback(context.Background(), map[string]any{
+	err := a.runRollback(t.Context(), map[string]any{
 		"name":            "web-asg",
 		"launch_template": map[string]any{"id": "lt-1"},
 	}, &bytes.Buffer{})
@@ -645,7 +644,7 @@ func TestASGRollback_ResolvesLaunchTemplateFromASG(t *testing.T) {
 	fe := &fakeLTEC2{versions: []int64{5, 7}, newVersion: 8} // non-contiguous, previous = 5
 	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
 
-	if err := a.runRollback(context.Background(), map[string]any{"name": "web-asg"}, &bytes.Buffer{}); err != nil {
+	if err := a.runRollback(t.Context(), map[string]any{"name": "web-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runRollback: %v", err)
 	}
 	if awssdk.ToString(fe.created.LaunchTemplateId) != "lt-from-asg" {
@@ -661,7 +660,7 @@ func TestASGRollback_SetDefaultFalseSkipsModify(t *testing.T) {
 	fe := &fakeLTEC2{versions: []int64{1, 2}, newVersion: 3}
 	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
 
-	err := a.runRollback(context.Background(), map[string]any{
+	err := a.runRollback(t.Context(), map[string]any{
 		"name":            "web-asg",
 		"launch_template": map[string]any{"id": "lt-1"},
 		"set_default":     false,
@@ -678,7 +677,7 @@ func TestASGRollback_FailsWithSingleVersion(t *testing.T) {
 	fe := &fakeLTEC2{versions: []int64{1}, newVersion: 2}
 	a := &asgPlugin{api: &fakeASG{}, ec2: fe, pollInterval: time.Millisecond}
 
-	err := a.runRollback(context.Background(), map[string]any{
+	err := a.runRollback(t.Context(), map[string]any{
 		"name":            "web-asg",
 		"launch_template": map[string]any{"id": "lt-1"},
 	}, &bytes.Buffer{})
@@ -692,7 +691,7 @@ func TestASGRollback_FailsWithSingleVersion(t *testing.T) {
 
 func TestASGRollback_RequiresName(t *testing.T) {
 	a := &asgPlugin{api: &fakeASG{}, ec2: &fakeLTEC2{}}
-	if err := a.runRollback(context.Background(), map[string]any{}, &bytes.Buffer{}); err == nil {
+	if err := a.runRollback(t.Context(), map[string]any{}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error when ASG name is missing")
 	}
 }
@@ -711,7 +710,7 @@ func TestASGRollback_CancelsInFlightRefresh(t *testing.T) {
 	fe := &fakeLTEC2{versions: []int64{1, 2, 3}, newVersion: 4}
 	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
 
-	err := a.runRollback(context.Background(), map[string]any{
+	err := a.runRollback(t.Context(), map[string]any{
 		"name":            "web-asg",
 		"launch_template": map[string]any{"id": "lt-1"},
 	}, &bytes.Buffer{})
@@ -738,7 +737,7 @@ func TestASGRollback_CancelRaceTolerated(t *testing.T) {
 	fe := &fakeLTEC2{versions: []int64{1, 2, 3}, newVersion: 4}
 	a := &asgPlugin{api: fa, ec2: fe, pollInterval: time.Millisecond}
 
-	err := a.runRollback(context.Background(), map[string]any{
+	err := a.runRollback(t.Context(), map[string]any{
 		"name":            "web-asg",
 		"launch_template": map[string]any{"id": "lt-1"},
 	}, &bytes.Buffer{})

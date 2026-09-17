@@ -18,7 +18,7 @@ func TestCluster_Capture(t *testing.T) {
 	c := runner.NewCluster(runner.Options{}, io.Discard)
 	defer c.Close()
 
-	got, err := c.Capture(context.Background(), runner.Target{Host: "local", Local: true}, "echo '  deadbeef  '")
+	got, err := c.Capture(t.Context(), runner.Target{Host: "local", Local: true}, "echo '  deadbeef  '")
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestCluster_CloseAfterFailedDial(t *testing.T) {
 	c := runner.NewCluster(runner.Options{StrictHostKey: false}, io.Discard)
 	targets := []runner.Target{{Host: "127.0.0.1", Port: port}}
 
-	results := c.Run(context.Background(), targets, func(string) string { return "echo hi" }, 0, false)
+	results := c.Run(t.Context(), targets, func(string) string { return "echo hi" }, 0, false)
 	if !runner.Failed(results) {
 		t.Fatalf("expected a dial failure, got %+v", results)
 	}
@@ -70,7 +70,7 @@ func TestCluster_PerTargetHostKeyOverride(t *testing.T) {
 	// Strict (target inherits the cluster setting): host unknown -> handshake fails.
 	strict := runner.NewCluster(opts, io.Discard)
 	defer strict.Close()
-	if res := strict.Run(context.Background(), []runner.Target{base}, func(string) string { return "true" }, 0, true); !runner.Failed(res) {
+	if res := strict.Run(t.Context(), []runner.Target{base}, func(string) string { return "true" }, 0, true); !runner.Failed(res) {
 		t.Fatal("strict dial against empty known_hosts should fail")
 	}
 
@@ -79,7 +79,7 @@ func TestCluster_PerTargetHostKeyOverride(t *testing.T) {
 	skip.StrictHostKey = new(false)
 	override := runner.NewCluster(opts, io.Discard)
 	defer override.Close()
-	if res := override.Run(context.Background(), []runner.Target{skip}, func(string) string { return "true" }, 0, true); runner.Failed(res) {
+	if res := override.Run(t.Context(), []runner.Target{skip}, func(string) string { return "true" }, 0, true); runner.Failed(res) {
 		t.Fatalf("per-target StrictHostKey:false should connect, got: %+v", res)
 	}
 }
@@ -107,12 +107,12 @@ func TestCluster_StrictDoesNotReuseInsecureConn(t *testing.T) {
 	// First task skips verification and connects.
 	skip := base
 	skip.StrictHostKey = new(false)
-	if res := c.Run(context.Background(), []runner.Target{skip}, func(string) string { return "true" }, 0, true); runner.Failed(res) {
+	if res := c.Run(t.Context(), []runner.Target{skip}, func(string) string { return "true" }, 0, true); runner.Failed(res) {
 		t.Fatalf("insecure dial should connect, got: %+v", res)
 	}
 
 	// A later strict task on the same host must dial (and verify) itself - against an empty known_hosts that fails.
-	if res := c.Run(context.Background(), []runner.Target{base}, func(string) string { return "true" }, 0, true); !runner.Failed(res) {
+	if res := c.Run(t.Context(), []runner.Target{base}, func(string) string { return "true" }, 0, true); !runner.Failed(res) {
 		t.Fatal("strict target reused the unverified pooled connection")
 	}
 }
@@ -130,13 +130,13 @@ func TestCluster_CancelledDialIsNotCached(t *testing.T) {
 	defer c.Close()
 	target := runner.Target{Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := c.Capture(ctx, target, "echo hi"); err == nil {
 		t.Fatal("dial with a cancelled context should fail")
 	}
 
-	got, err := c.Capture(context.Background(), target, "echo hi")
+	got, err := c.Capture(t.Context(), target, "echo hi")
 	if err != nil {
 		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
 	}

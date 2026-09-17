@@ -1,6 +1,7 @@
 package secretstore
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -128,10 +129,7 @@ type secretsContextParams struct {
 // keyed by its last name segment (so /my-app/prod/secret -> {{ .secrets.secret }} / $SECRETS_SECRET).
 // Each value is registered with redact so it's masked wherever whoosh prints it.
 func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
-	namespace := p.Namespace
-	if namespace == "" {
-		namespace = "secrets"
-	}
+	namespace := cmp.Or(p.Namespace, "secrets")
 	return func(ctx context.Context, cfg *whoosh.DeployFile) error {
 		count := 0
 		for _, prefix := range p.Prefixes {

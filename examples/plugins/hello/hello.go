@@ -32,6 +32,7 @@
 package hello
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -88,10 +89,7 @@ func (h *helloPlugin) greet(_ context.Context, raw map[string]any, out io.Writer
 	if err := whoosh.DecodeParams(raw, &p); err != nil {
 		return fmt.Errorf("hello:greet params: %w", err)
 	}
-	name := p.Name
-	if name == "" {
-		name = "world"
-	}
+	name := cmp.Or(p.Name, "world")
 	fmt.Fprintf(out, "%s, %s!\n", h.greeting, name)
 	return nil
 }

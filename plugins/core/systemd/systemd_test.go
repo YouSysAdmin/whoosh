@@ -30,7 +30,7 @@ func runAction(t *testing.T, spec whoosh.PluginSpec, action string, with map[str
 		t.Fatalf("action %q not registered", action)
 	}
 	f := &fakeRunner{}
-	err = fn(whoosh.WithHostCommandRunner(context.Background(), f), with, io.Discard)
+	err = fn(whoosh.WithHostCommandRunner(t.Context(), f), with, io.Discard)
 	return f.cmds, err
 }
 
@@ -186,8 +186,7 @@ func TestCommands_Errors(t *testing.T) {
 	if _, err := (params{}).commands("start"); err == nil || !strings.Contains(err.Error(), "no units configured") {
 		t.Errorf("empty units: err = %v, want no units configured", err)
 	}
-	off := false
-	if _, err := (params{System: &off}).commands("daemon-reload"); err == nil || !strings.Contains(err.Error(), "nothing to do") {
+	if _, err := (params{System: new(false)}).commands("daemon-reload"); err == nil || !strings.Contains(err.Error(), "nothing to do") {
 		t.Errorf("daemon-reload with both scopes off: err = %v, want nothing to do", err)
 	}
 }
@@ -256,7 +255,7 @@ func TestAction_NoRunnerInCtx(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	fn, _ := reg.Action(actionStart)
-	err = fn(context.Background(), map[string]any{"system_unit_files": []string{"app"}}, io.Discard)
+	err = fn(t.Context(), map[string]any{"system_unit_files": []string{"app"}}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "no host command runner") {
 		t.Fatalf("err = %v, want no host command runner", err)
 	}
@@ -281,7 +280,7 @@ func TestStartup_HooksWiring(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 
@@ -325,7 +324,7 @@ func TestStartup_NoPhaseNoHook(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	if len(cfg.Tasks) != 0 {
@@ -349,7 +348,7 @@ func TestStartup_DuplicateEntriesGetUniqueTaskNames(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	cfg := &whoosh.DeployFile{}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 	if len(cfg.Tasks) != 2 {

@@ -12,6 +12,7 @@
 package builder
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"os"
@@ -48,8 +49,7 @@ func parseModVer(s string) (modVer, error) {
 	if s == "" {
 		return modVer{}, fmt.Errorf("empty module")
 	}
-	if i := strings.Index(s, "@"); i >= 0 {
-		path, ver := s[:i], s[i+1:]
+	if path, ver, ok := strings.Cut(s, "@"); ok {
 		if path == "" || ver == "" {
 			return modVer{}, fmt.Errorf("invalid module@version %q", s)
 		}
@@ -65,10 +65,7 @@ func replaceOldPath(spec string) string {
 	if before, _, ok := strings.Cut(spec, "="); ok {
 		left = before
 	}
-	left = strings.TrimSpace(left)
-	if i := strings.Index(left, "@"); i >= 0 {
-		left = left[:i]
-	}
+	left, _, _ = strings.Cut(strings.TrimSpace(left), "@")
 	return left
 }
 
@@ -90,10 +87,7 @@ func replaceIsFilesystem(spec string) bool {
 // runBuild composes a throwaway module in a temp dir that imports whoosh plus the requested plugins, then `go build's
 // it.
 func runBuild(opts buildOptions) error {
-	output := opts.output
-	if output == "" {
-		output = "whoosh"
-	}
+	output := cmp.Or(opts.output, "whoosh")
 	// Resolve the output path now (relative to the caller cwd): the build runs from a temp dir, where a relative -o would
 	// land in the wrong place.
 	absOutput, err := filepath.Abs(output)
@@ -132,10 +126,7 @@ func runBuild(opts buildOptions) error {
 		return fmt.Errorf("write main.go: %w", err)
 	}
 
-	goBin := opts.goBin
-	if goBin == "" {
-		goBin = "go"
-	}
+	goBin := cmp.Or(opts.goBin, "go")
 	run := func(args ...string) error { return runGo(goBin, dir, opts.verbose, args...) }
 
 	if err := run("mod", "init", "whoosh.custom"); err != nil {
@@ -190,10 +181,7 @@ func versionOrLatest(v string) string {
 // The version stamp is skipped for the unhelpful "latest" value, leaving Go's build-info version to surface instead.
 func ldflags(opts buildOptions) string {
 	flags := "-s -w"
-	ver := opts.appVersion
-	if ver == "" {
-		ver = opts.whooshVersion
-	}
+	ver := cmp.Or(opts.appVersion, opts.whooshVersion)
 	if ver != "" && ver != "latest" {
 		flags += " -X " + whooshModule + "/internal/version.Version=" + ver
 	}

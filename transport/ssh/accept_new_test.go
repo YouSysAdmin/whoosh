@@ -1,7 +1,6 @@
 package ssh
 
 import (
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"net"
@@ -29,7 +28,7 @@ func TestDialAcceptNew(t *testing.T) {
 	target := Target{Host: srv.Host, Port: srv.Port, IdentityFile: srv.IdentityFile}
 	khFile := filepath.Join(t.TempDir(), "fresh", "known_hosts")
 
-	c, err := Dial(context.Background(), target, Options{StrictHostKey: true, AcceptNew: true, KnownHostsFile: khFile})
+	c, err := Dial(t.Context(), target, Options{StrictHostKey: true, AcceptNew: true, KnownHostsFile: khFile})
 	if err != nil {
 		t.Fatalf("first dial with accept_new: %v", err)
 	}
@@ -45,7 +44,7 @@ func TestDialAcceptNew(t *testing.T) {
 	}
 
 	// The recorded entry verifies the host in plain strict mode.
-	c2, err := Dial(context.Background(), target, Options{StrictHostKey: true, KnownHostsFile: khFile})
+	c2, err := Dial(t.Context(), target, Options{StrictHostKey: true, KnownHostsFile: khFile})
 	if err != nil {
 		t.Fatalf("strict re-dial against recorded key: %v", err)
 	}
@@ -77,7 +76,7 @@ func TestDialAcceptNew_ChangedKeyFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = Dial(context.Background(), target, Options{StrictHostKey: true, AcceptNew: true, KnownHostsFile: khFile})
+	_, err = Dial(t.Context(), target, Options{StrictHostKey: true, AcceptNew: true, KnownHostsFile: khFile})
 	if err == nil {
 		t.Fatal("dial succeeded against a conflicting recorded host key")
 	}
@@ -148,7 +147,7 @@ func TestDialStrict_MissingKnownHostsStillFails(t *testing.T) {
 	target := Target{Host: srv.Host, Port: srv.Port, IdentityFile: srv.IdentityFile}
 	khFile := filepath.Join(t.TempDir(), "known_hosts")
 
-	_, err = Dial(context.Background(), target, Options{StrictHostKey: true, KnownHostsFile: khFile})
+	_, err = Dial(t.Context(), target, Options{StrictHostKey: true, KnownHostsFile: khFile})
 	if err == nil {
 		t.Fatal("dial succeeded with a missing known_hosts and accept_new off")
 	}

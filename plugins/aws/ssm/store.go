@@ -1,6 +1,7 @@
 package ssm
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -117,10 +118,7 @@ type ssmContextParams struct {
 // cfg.Imports[namespace], keyed by each parameter's last path segment (so /my-app/prod/secret -> {{ .ssm.secret }} /
 // $SSM_SECRET). Each value is registered with redact so it's masked wherever whoosh prints it.
 func (s *ssmPlugin) startup(p ssmContextParams) whoosh.StartupFunc {
-	namespace := p.Namespace
-	if namespace == "" {
-		namespace = "ssm"
-	}
+	namespace := cmp.Or(p.Namespace, "ssm")
 	recursive := params.Or(p.Recursive, true)
 	decrypt := params.Or(p.Decrypt, true)
 

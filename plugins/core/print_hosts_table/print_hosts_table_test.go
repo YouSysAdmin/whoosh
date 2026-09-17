@@ -2,7 +2,6 @@ package print_hosts_table
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -41,7 +40,7 @@ func TestInstall_RegistersPrintFuncHook(t *testing.T) {
 		{Address: "web1.example.com", Roles: []string{"app"}},
 		{Address: "db1.example.com", Roles: []string{"db"}},
 	}}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
 
@@ -56,7 +55,7 @@ func TestInstall_RegistersPrintFuncHook(t *testing.T) {
 
 	// Invoking it prints the resolved inventory table.
 	var buf bytes.Buffer
-	if err := fns[0](context.Background(), &buf); err != nil {
+	if err := fns[0](t.Context(), &buf); err != nil {
 		t.Fatalf("hook func: %v", err)
 	}
 	for _, want := range []string{"web1.example.com", "db1.example.com", "app", "db"} {
@@ -79,7 +78,7 @@ func TestCommands_DeployHosts(t *testing.T) {
 		{Address: "db1.example.com", Roles: []string{"db"}},
 	}}
 	var buf bytes.Buffer
-	if err := cmds[0].Run(context.Background(), cfg, nil, &buf, nil); err != nil {
+	if err := cmds[0].Run(t.Context(), cfg, nil, &buf, nil); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	for _, want := range []string{"web1.example.com", "db1.example.com", "app", "db"} {

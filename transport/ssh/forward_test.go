@@ -2,7 +2,6 @@ package ssh_test
 
 import (
 	"bytes"
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
@@ -45,7 +44,7 @@ func TestForwarding_CommandRunsWhenHostIgnoresRequest(t *testing.T) {
 	}
 	defer srv.Close()
 
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile,
 	}, ssh.Options{StrictHostKey: false, ForwardKey: writeKey(t)})
 	if err != nil {
@@ -54,7 +53,7 @@ func TestForwarding_CommandRunsWhenHostIgnoresRequest(t *testing.T) {
 	defer conn.Close()
 
 	var stdout, stderr bytes.Buffer
-	if err := conn.Run(context.Background(), "echo hi", &stdout, &stderr); err != nil {
+	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run with forwarding enabled should succeed even if host ignores it: %v", err)
 	}
 	if !strings.Contains(stdout.String(), "hi") {

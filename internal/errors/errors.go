@@ -55,8 +55,9 @@ func RootCause(err error) error {
 	}
 }
 
-func New(text string) error         { return stderrors.New(text) }
-func Is(err, target error) bool     { return stderrors.Is(err, target) }
-func As(err error, target any) bool { return stderrors.As(err, target) }
-func Join(errs ...error) error      { return stderrors.Join(errs...) }
-func Unwrap(err error) error        { return stderrors.Unwrap(err) }
+func New(text string) error               { return stderrors.New(text) }
+func Is(err, target error) bool           { return stderrors.Is(err, target) }
+func As(err error, target any) bool       { return stderrors.As(err, target) }
+func AsType[E error](err error) (E, bool) { return stderrors.AsType[E](err) }
+func Join(errs ...error) error            { return stderrors.Join(errs...) }
+func Unwrap(err error) error              { return stderrors.Unwrap(err) }

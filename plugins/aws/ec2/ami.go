@@ -1,12 +1,13 @@
 package ec2
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -119,10 +120,7 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 		return fmt.Errorf("%s: %w", actionAMICreate, err)
 	}
 
-	base := ap.NamePrefix
-	if base == "" {
-		base = tagValue(inst.Tags, "Name")
-	}
+	base := cmp.Or(ap.NamePrefix, tagValue(inst.Tags, "Name"))
 	if base == "" {
 		return fmt.Errorf("%s: set 'name_prefix' (source instance %s has no Name tag)", actionAMICreate, instanceID)
 	}
@@ -240,8 +238,8 @@ func waitStopped(ctx context.Context, amiID, lastState string) error {
 
 // imageNotFound reports whether err is the EC2 InvalidAMIID.NotFound API error (the image was deregistered/deleted).
 func imageNotFound(err error) bool {
-	var apiErr smithy.APIError
-	return errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidAMIID.NotFound"
+	apiErr, ok := errors.AsType[smithy.APIError](err)
+	return ok && apiErr.ErrorCode() == "InvalidAMIID.NotFound"
 }
 
 // sourceInstanceID resolves the instance to image, in precedence order: an explicit instance_id, else the first running
@@ -422,8 +420,8 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 		in.NextToken = resp.NextToken
 	}
 	// Timestamp-formatted ISO dates sort chronologically as strings, newest first.
-	sort.Slice(images, func(i, j int) bool {
-		return awssdk.ToString(images[i].CreationDate) > awssdk.ToString(images[j].CreationDate)
+	slices.SortFunc(images, func(a, b ec2types.Image) int {
+		return cmp.Compare(awssdk.ToString(b.CreationDate), awssdk.ToString(a.CreationDate))
 	})
 	if len(images) <= keep {
 		slog.Info("AMI cleanup: nothing to remove", "matching", len(images), "keep_last", keep)

@@ -13,7 +13,7 @@ import (
 // A canceled context surfaces as context.Canceled (not the raw "signal: killed" from CommandContext's kill), and Run
 // returns promptly instead of waiting for the command to finish - so the CLI can recognize an operator interrupt.
 func TestRun_CancelReturnsContextError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	// The trailing "; true" makes this a compound command, forcing every shell to fork sleep as a child (a lone
 	// command is exec'd in-place by macOS bash, which would mask the orphaned-grandchild hang this test guards).
@@ -34,7 +34,7 @@ func TestRun_CancelReturnsContextError(t *testing.T) {
 
 // A normal command still returns its real result (no false cancellation).
 func TestRun_Success(t *testing.T) {
-	if err := local.New().Run(context.Background(), "true", io.Discard, io.Discard); err != nil {
+	if err := local.New().Run(t.Context(), "true", io.Discard, io.Discard); err != nil {
 		t.Fatalf("true should succeed, got %v", err)
 	}
 }

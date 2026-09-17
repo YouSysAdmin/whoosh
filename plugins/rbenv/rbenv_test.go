@@ -1,9 +1,10 @@
 package rbenv
 
 import (
-	"context"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ func load(t *testing.T, cfg *ast.DeployFile, params map[string]any) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if err := reg.RunStartup(context.Background(), cfg); err != nil {
+	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("startup: %v", err)
 	}
 }
@@ -195,7 +196,7 @@ func TestStartup_ExtraPluginsValidation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
-			if err := reg.RunStartup(context.Background(), &ast.DeployFile{}); err == nil {
+			if err := reg.RunStartup(t.Context(), &ast.DeployFile{}); err == nil {
 				t.Fatalf("expected an error for %s", tc.name)
 			}
 		})
@@ -282,11 +283,7 @@ func assertEnv(t *testing.T, env map[string]string, key, want string) {
 }
 
 func keys(m map[string]*ast.Task) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
+	return slices.Collect(maps.Keys(m))
 }
 
 func equalSet(a, b []string) bool {

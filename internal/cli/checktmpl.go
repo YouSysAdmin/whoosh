@@ -3,10 +3,11 @@ package cli
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile"
@@ -170,10 +171,5 @@ func scriptRef(sc ast.Script) string {
 }
 
 func sortedKeys[M ~map[string]V, V any](m M) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }

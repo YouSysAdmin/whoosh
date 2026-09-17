@@ -3,6 +3,7 @@
 package deploy
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -83,10 +84,7 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 			return nil, fmt.Errorf("custom phase %q: set exactly one of before/after", p.Name)
 		}
 		seenPhase[p.Name] = true
-		anchor := p.Before
-		if anchor == "" {
-			anchor = p.After
-		}
+		anchor := cmp.Or(p.Before, p.After)
 		if !ast.IsBuiltinPhase(anchor) {
 			return nil, fmt.Errorf("custom phase %q: anchor %q is not a built-in phase", p.Name, anchor)
 		}

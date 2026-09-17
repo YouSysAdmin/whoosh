@@ -42,8 +42,7 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 	if err := fn(ctx, with, e.out); err != nil {
 		// Keep a more specific code (command failed, host unreachable) when the action surfaced one, otherwise the
 		// failure is the plugin's own and maps to the plugin exit code.
-		var typed werrors.Error
-		if werrors.As(err, &typed) {
+		if _, ok := werrors.AsType[werrors.Error](err); ok {
 			return err
 		}
 		return &werrors.PluginError{Msg: fmt.Sprintf("action %q", task.Action), Err: err}

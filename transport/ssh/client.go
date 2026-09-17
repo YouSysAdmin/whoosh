@@ -3,6 +3,7 @@
 package ssh
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -104,10 +105,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 		return nil, err
 	}
 
-	user := t.User
-	if user == "" {
-		user = os.Getenv("USER")
-	}
+	user := cmp.Or(t.User, os.Getenv("USER"))
 
 	timeout := opts.ConnectTimeout
 	if timeout == 0 {
@@ -192,14 +190,13 @@ func (c *Client) startKeepalive(opts Options) {
 // keepalive pings the host every interval and closes the connection after maxFails consecutive misses, so a vanished
 // host surfaces as an error on the in-flight command rather than a hang.
 func (c *Client) keepalive(interval time.Duration, maxFails int) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
+	tick := time.Tick(interval)
 	fails := 0
 	for {
 		select {
 		case <-c.done:
 			return
-		case <-t.C:
+		case <-tick:
 			if c.ping(interval) {
 				fails = 0
 				continue
@@ -288,8 +285,8 @@ func localAgentSocket() (string, error) {
 // opposed to a connection/transport failure (a dropped or never-established connection).
 // Callers use it to tell a genuine command failure apart from an unreachable host.
 func IsExitError(err error) bool {
-	var ee *ssh.ExitError
-	return errors.As(err, &ee)
+	_, ok := errors.AsType[*ssh.ExitError](err)
+	return ok
 }
 
 // handshakeWatchdog bounds the SSH handshake by closing netConn when ctx is cancelled or timeout elapses first.
@@ -518,8 +515,8 @@ var acceptNewMu struct {
 func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback {
 	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		err := cb(hostname, remote, key)
-		var kerr *knownhosts.KeyError
-		if !errors.As(err, &kerr) || len(kerr.Want) > 0 {
+		kerr, ok := errors.AsType[*knownhosts.KeyError](err)
+		if !ok || len(kerr.Want) > 0 {
 			return err // nil (host already known), a conflicting key, or an unrelated failure
 		}
 		host := knownhosts.Normalize(hostname)

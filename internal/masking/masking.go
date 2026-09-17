@@ -8,9 +8,10 @@ package masking
 
 import (
 	"bytes"
+	"cmp"
 	"io"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -58,7 +59,7 @@ func AddSecret(s string) {
 	secretSet[s] = true
 	secrets = append(secrets, s)
 	// Longest-first, so a secret that contains a shorter registered one is masked whole rather than leaving a tail behind.
-	sort.SliceStable(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
+	slices.SortStableFunc(secrets, func(a, b string) int { return cmp.Compare(len(b), len(a)) })
 }
 
 // replaceSecrets masks every registered literal secret in s.

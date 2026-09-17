@@ -14,11 +14,13 @@ package plugins
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	werrors "github.com/yousysadmin/whoosh/internal/errors"
@@ -169,12 +171,7 @@ func IsRegistered(name string) bool {
 // Registered returns the names of every plugin compiled into this binary, sorted.
 // Lets a custom build report what it contains (see the `plugins` command).
 func Registered() []string {
-	names := make([]string, 0, len(factories))
-	for name := range factories {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(factories))
 }
 
 // PluginInfo is a compiled-in plugin's name and version (version empty when the plugin doesn't implement Versioner).
@@ -194,7 +191,7 @@ func RegisteredInfo() []PluginInfo {
 		}
 		out = append(out, info)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	slices.SortFunc(out, func(a, b PluginInfo) int { return cmp.Compare(a.Name, b.Name) })
 	return out
 }
 
@@ -229,8 +226,7 @@ func (r *Registry) Action(name string) (ActionFunc, bool) {
 func (r *Registry) RunStartup(ctx context.Context, cfg *ast.DeployFile) error {
 	for _, fn := range r.startups {
 		if err := fn(ctx, cfg); err != nil {
-			var typed werrors.Error
-			if werrors.As(err, &typed) {
+			if _, ok := werrors.AsType[werrors.Error](err); ok {
 				return err
 			}
 			return &werrors.PluginError{Msg: "startup hook", Err: err}

@@ -1,7 +1,6 @@
 package ssh_test
 
 import (
-	"context"
 	"io"
 	"net"
 	"strconv"
@@ -82,7 +81,7 @@ func TestKeepalive_DropsVanishedHost(t *testing.T) {
 
 	proxy := newFrozenProxy(t, net.JoinHostPort(srv.Host, strconv.Itoa(srv.Port)))
 
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: "127.0.0.1", Port: proxy.port(), User: "deploy", IdentityFile: srv.IdentityFile,
 	}, ssh.Options{
 		StrictHostKey:     false,
@@ -97,7 +96,7 @@ func TestKeepalive_DropsVanishedHost(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() {
 		// Separate sinks: SSH writes stdout/stderr concurrently. io.Discard is safe.
-		runErr <- conn.Run(context.Background(), "sleep 5", io.Discard, io.Discard)
+		runErr <- conn.Run(t.Context(), "sleep 5", io.Discard, io.Discard)
 	}()
 
 	time.Sleep(150 * time.Millisecond) // let the command get going
@@ -122,7 +121,7 @@ func TestKeepalive_HealthyConnectionSurvives(t *testing.T) {
 	}
 	defer srv.Close()
 
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile,
 	}, ssh.Options{
 		StrictHostKey:     false,
@@ -135,7 +134,7 @@ func TestKeepalive_HealthyConnectionSurvives(t *testing.T) {
 	defer conn.Close()
 
 	// A drop from a false-positive keepalive would surface as a Run error.
-	if err := conn.Run(context.Background(), "sleep 1", io.Discard, io.Discard); err != nil {
+	if err := conn.Run(t.Context(), "sleep 1", io.Discard, io.Discard); err != nil {
 		t.Fatalf("healthy connection should not be dropped by keepalive: %v", err)
 	}
 }

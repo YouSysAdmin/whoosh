@@ -56,7 +56,7 @@ func run(t *testing.T, srv *sshtest.Server, task string) string {
 	var buf bytes.Buffer
 	ex := executor.New(newTestConfig(srv, deployTree(t)), executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), task); err != nil {
+	if err := ex.RunTask(t.Context(), task); err != nil {
 		t.Fatalf("RunTask(%q): %v\noutput:\n%s", task, err, buf.String())
 	}
 	return buf.String()
@@ -120,7 +120,7 @@ func TestRunTask_DirIsTemplated(t *testing.T) {
 
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "indir-tmpl"); err != nil {
+	if err := ex.RunTask(t.Context(), "indir-tmpl"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -146,7 +146,7 @@ func TestRunTask_OncePicksPrimaryHost(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "one-shot"); err != nil {
+	if err := ex.RunTask(t.Context(), "one-shot"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	out := buf.String()
@@ -189,7 +189,7 @@ func TestRunTask_ActionParamsAreTemplated(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &buf, Registry: reg})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "roll"); err != nil {
+	if err := ex.RunTask(t.Context(), "roll"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 
@@ -240,7 +240,7 @@ func TestRunTask_ActionCapturesHostCommand(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, Registry: reg})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "cap"); err != nil {
+	if err := ex.RunTask(t.Context(), "cap"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	if captured != "hi from host" {
@@ -273,7 +273,7 @@ func TestRunTask_SkipsInactivePluginAction(t *testing.T) {
 	ex := executor.New(cfg, executor.Options{Out: &buf, Registry: reg})
 	defer ex.Close()
 
-	if err := ex.RunTask(context.Background(), "bake"); err != nil {
+	if err := ex.RunTask(t.Context(), "bake"); err != nil {
 		t.Fatalf("a skipped action task must not error: %v", err)
 	}
 	if called {
@@ -297,7 +297,7 @@ func TestRunTask_SkipsTaskInactiveForStage(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(newCfg("staging"), executor.Options{Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "prod-only"); err != nil {
+	if err := ex.RunTask(t.Context(), "prod-only"); err != nil {
 		t.Fatalf("an inactive task must not error: %v", err)
 	}
 	if strings.Contains(buf.String(), "RAN_PROD_ONLY") {
@@ -308,7 +308,7 @@ func TestRunTask_SkipsTaskInactiveForStage(t *testing.T) {
 	var buf2 bytes.Buffer
 	ex2 := executor.New(newCfg("production"), executor.Options{Out: &buf2})
 	defer ex2.Close()
-	if err := ex2.RunTask(context.Background(), "prod-only"); err != nil {
+	if err := ex2.RunTask(t.Context(), "prod-only"); err != nil {
 		t.Fatalf("active task: %v", err)
 	}
 	if !strings.Contains(buf2.String(), "RAN_PROD_ONLY") {
@@ -333,7 +333,7 @@ func TestRunTask_ExposesHostRoles(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "roles-echo"); err != nil {
+	if err := ex.RunTask(t.Context(), "roles-echo"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	// Both the $ROLES env var and the {{.roles}} template see the host's full roles.
@@ -358,7 +358,7 @@ func TestRunTask_ResolvesDeployEnvInCmd(t *testing.T) {
 
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "done"); err != nil {
+	if err := ex.RunTask(t.Context(), "done"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -385,7 +385,7 @@ func TestRunTask_ExposesDeployer(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "who"); err != nil {
+	if err := ex.RunTask(t.Context(), "who"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	// operator.Name() is resolved once per process, so compare against it rather than pinning an env-dependent value.
@@ -411,7 +411,7 @@ func TestRunTask_ExposesKeepReleases(t *testing.T) {
 
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "keep"); err != nil {
+	if err := ex.RunTask(t.Context(), "keep"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -434,7 +434,7 @@ func TestRunTaskInPhase_ExposesPhase(t *testing.T) {
 	// Verbose so the dry-run plan shows the full built command (the env-export preamble carries $DEPLOY_PHASE).
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
 	defer ex.Close()
-	if err := ex.RunTaskInPhase(context.Background(), "note", "deploy:publishing"); err != nil {
+	if err := ex.RunTaskInPhase(t.Context(), "note", "deploy:publishing"); err != nil {
 		t.Fatalf("RunTaskInPhase: %v", err)
 	}
 	out := buf.String()
@@ -446,7 +446,7 @@ func TestRunTaskInPhase_ExposesPhase(t *testing.T) {
 	}
 	// The phase is restored after the run: a plain RunTask must not see it.
 	buf.Reset()
-	if err := ex.RunTask(context.Background(), "note"); err != nil {
+	if err := ex.RunTask(t.Context(), "note"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	if strings.Contains(buf.String(), "deploy:publishing") {
@@ -471,7 +471,7 @@ func TestRunTask_CaptureJSONState(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "use"); err != nil {
+	if err := ex.RunTask(t.Context(), "use"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -497,7 +497,7 @@ func TestRunTask_CaptureTextAndLines(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "show"); err != nil {
+	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -540,7 +540,7 @@ func TestRunTask_MissingStateIsError(t *testing.T) {
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
 	// A real run is strict: referencing unset task state is an error (typo guard).
-	if err := ex.RunTask(context.Background(), "use"); err == nil {
+	if err := ex.RunTask(t.Context(), "use"); err == nil {
 		t.Fatal("expected error referencing undefined task state")
 	}
 }
@@ -575,7 +575,7 @@ func TestRunTask_TaskHooksBracketInvocation(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "restart_sidekiq"); err != nil {
+	if err := ex.RunTask(t.Context(), "restart_sidekiq"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -601,7 +601,7 @@ func TestRunTask_TaskHookFiresWhenTaskRunsAsDep(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "deploy_app"); err != nil {
+	if err := ex.RunTask(t.Context(), "deploy_app"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -624,7 +624,7 @@ func TestRunTask_TaskHookCycleDetected(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	err := ex.RunTask(context.Background(), "loop")
+	err := ex.RunTask(t.Context(), "loop")
 	if err == nil {
 		t.Fatalf("expected a cycle error from a self-referential hook\n%s", buf.String())
 	}
@@ -663,7 +663,7 @@ func TestMarkUnreachable_ExcludesHost(t *testing.T) {
 	ex2 := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf2, DryRun: true})
 	defer ex2.Close()
 	ex2.MarkUnreachable("h1")
-	if err := ex2.RunTask(context.Background(), "t"); err != nil {
+	if err := ex2.RunTask(t.Context(), "t"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	out := buf2.String()
@@ -714,7 +714,7 @@ func TestRunTask_Scripts(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "scripted"); err != nil {
+	if err := ex.RunTask(t.Context(), "scripted"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 
@@ -770,7 +770,7 @@ func TestRunTask_TemplatedFileScript(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "info"); err != nil {
+	if err := ex.RunTask(t.Context(), "info"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 
@@ -801,7 +801,7 @@ func TestRunTask_ScriptMissingFile(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "x"); err == nil {
+	if err := ex.RunTask(t.Context(), "x"); err == nil {
 		t.Fatal("expected error for missing script file")
 	}
 }
@@ -813,7 +813,7 @@ func dryRunPlan(t *testing.T, cfg *ast.DeployFile, task string) string {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), task); err != nil {
+	if err := ex.RunTask(t.Context(), task); err != nil {
 		t.Fatalf("RunTask(%q): %v", task, err)
 	}
 	return buf.String()
@@ -864,7 +864,7 @@ func TestDryRun_DefaultPlanIsClean(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "t"); err != nil {
+	if err := ex.RunTask(t.Context(), "t"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	out := buf.String()
@@ -943,7 +943,7 @@ func TestRunTask_EnvFuncSeesGlobalEnvs(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "show"); err != nil {
+	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\noutput:\n%s", err, buf.String())
 	}
 	if !strings.Contains(buf.String(), "g-test") {
@@ -1051,7 +1051,7 @@ func TestRunTask_RedactsOutput(t *testing.T) {
 
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
-	if err := ex.RunTask(context.Background(), "leak"); err != nil {
+	if err := ex.RunTask(t.Context(), "leak"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close() // flush the redacting writer
@@ -1088,7 +1088,7 @@ func TestRunTask_LogModeRoutesRemoteOutput(t *testing.T) {
 
 	var raw bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &raw})
-	if err := ex.RunTask(context.Background(), "greet"); err != nil {
+	if err := ex.RunTask(t.Context(), "greet"); err != nil {
 		t.Fatalf("RunTask: %v\nlogs:\n%s", err, logs.String())
 	}
 	ex.Close()
@@ -1131,7 +1131,7 @@ func TestDryRun_LogModeRoutesPlan(t *testing.T) {
 	var raw bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &raw, DryRun: true})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "t"); err != nil {
+	if err := ex.RunTask(t.Context(), "t"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	if r := raw.String(); strings.Contains(r, "[dry-run]") {
@@ -1158,7 +1158,7 @@ func TestRunTask_LogModeRoutesLocalOutput(t *testing.T) {
 
 	var raw bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &raw})
-	if err := ex.RunTask(context.Background(), "build"); err != nil { // local task: echo building myapp
+	if err := ex.RunTask(t.Context(), "build"); err != nil { // local task: echo building myapp
 		t.Fatalf("RunTask: %v\nlogs:\n%s", err, logs.String())
 	}
 	ex.Close()
@@ -1188,7 +1188,7 @@ func TestRunTask_LogModeRedactsOutput(t *testing.T) {
 	}
 
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: io.Discard})
-	if err := ex.RunTask(context.Background(), "leak"); err != nil {
+	if err := ex.RunTask(t.Context(), "leak"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	ex.Close()
@@ -1214,7 +1214,7 @@ func TestRunTask_ColorizesHostPrefix(t *testing.T) {
 
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, Color: true})
-	if err := ex.RunTask(context.Background(), "noisy"); err != nil {
+	if err := ex.RunTask(t.Context(), "noisy"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -1253,7 +1253,7 @@ func TestRunTask_SilentOutputHiddenOnSuccess(t *testing.T) {
 	})
 	var raw bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &raw})
-	if err := ex.RunTask(context.Background(), "quiet"); err != nil {
+	if err := ex.RunTask(t.Context(), "quiet"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	ex.Close()
@@ -1273,7 +1273,7 @@ func TestRunTask_SilentOutputShownOnFailure(t *testing.T) {
 	})
 	var raw bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &raw})
-	err := ex.RunTask(context.Background(), "quiet-fail")
+	err := ex.RunTask(t.Context(), "quiet-fail")
 	ex.Close()
 
 	if err == nil {
@@ -1296,14 +1296,14 @@ func TestRunTask_SilentOutputLogMode(t *testing.T) {
 	defer ex.Close()
 
 	// Success: the buffered output record is discarded, not emitted.
-	if err := ex.RunTask(context.Background(), "ok"); err != nil {
+	if err := ex.RunTask(t.Context(), "ok"); err != nil {
 		t.Fatalf("RunTask ok: %v", err)
 	}
 	if strings.Contains(logs.String(), "hush-line") {
 		t.Fatalf("output emitted on success in log mode:\n%s", logs.String())
 	}
 	// Failure: the buffered records are replayed through the logger.
-	if err := ex.RunTask(context.Background(), "bad"); err == nil {
+	if err := ex.RunTask(t.Context(), "bad"); err == nil {
 		t.Fatal("expected failure")
 	}
 	if g := logs.String(); !strings.Contains(g, `"output":"doom-line"`) {
@@ -1318,7 +1318,7 @@ func TestRunTask_SilentOutputRedactsFlushedOutput(t *testing.T) {
 	})
 	var raw bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &raw})
-	if err := ex.RunTask(context.Background(), "leak"); err == nil {
+	if err := ex.RunTask(t.Context(), "leak"); err == nil {
 		t.Fatal("expected failure")
 	}
 	ex.Close()
@@ -1367,7 +1367,7 @@ func TestRunTask_SkipsNonDeployHost(t *testing.T) {
 	// dry-run so no host is dialed; we only assert which hosts are targeted.
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "greet"); err != nil {
+	if err := ex.RunTask(t.Context(), "greet"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	out := buf.String()
@@ -1389,7 +1389,7 @@ func TestRunTask_Unknown(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(newTestConfig(srv, t.TempDir()), executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "does-not-exist"); err == nil {
+	if err := ex.RunTask(t.Context(), "does-not-exist"); err == nil {
 		t.Fatal("expected error for unknown task")
 	}
 }
@@ -1407,7 +1407,7 @@ func TestRunOn_VerboseEchoesBareCommand(t *testing.T) {
 	ex := executor.New(newTestConfig(srv, deployTree(t)),
 		executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, Verbose: true})
 	defer ex.Close()
-	if err := ex.RunOn(context.Background(), ex.Hosts(), "echo built-in"); err != nil {
+	if err := ex.RunOn(t.Context(), ex.Hosts(), "echo built-in"); err != nil {
 		t.Fatalf("RunOn: %v\n%s", err, buf.String())
 	}
 	out := buf.String()
@@ -1431,7 +1431,7 @@ func TestDryRun_LocalAndRunOnFormats(t *testing.T) {
 	// Non-verbose: the local task's plan line is the clean rendered command with the [local] prefix.
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true})
-	if err := ex.RunTask(context.Background(), "b"); err != nil {
+	if err := ex.RunTask(t.Context(), "b"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
 	ex.Close()
@@ -1443,7 +1443,7 @@ func TestDryRun_LocalAndRunOnFormats(t *testing.T) {
 	buf.Reset()
 	ex = executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
 	defer ex.Close()
-	if err := ex.RunOn(context.Background(), ex.Hosts(), "mkdir -p /srv/app"); err != nil {
+	if err := ex.RunOn(t.Context(), ex.Hosts(), "mkdir -p /srv/app"); err != nil {
 		t.Fatalf("RunOn: %v", err)
 	}
 	if out := buf.String(); !strings.Contains(out, "[dry-run] h1: mkdir -p /srv/app") {
@@ -1497,7 +1497,7 @@ func TestRunTask_VerboseEchoesBuiltCommand(t *testing.T) {
 
 	var verbose bytes.Buffer
 	ex := executor.New(newCfg(), executor.Options{Out: &verbose, Verbose: true})
-	if err := ex.RunTask(context.Background(), "env-echo"); err != nil {
+	if err := ex.RunTask(t.Context(), "env-echo"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, verbose.String())
 	}
 	ex.Close()
@@ -1510,7 +1510,7 @@ func TestRunTask_VerboseEchoesBuiltCommand(t *testing.T) {
 
 	var quiet bytes.Buffer
 	ex = executor.New(newCfg(), executor.Options{Out: &quiet})
-	if err := ex.RunTask(context.Background(), "env-echo"); err != nil {
+	if err := ex.RunTask(t.Context(), "env-echo"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, quiet.String())
 	}
 	ex.Close()
@@ -1546,7 +1546,7 @@ func TestRunTask_LocalPrefixColorized(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &buf, Color: true})
-	if err := ex.RunTask(context.Background(), "hc"); err != nil {
+	if err := ex.RunTask(t.Context(), "hc"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	ex.Close()
@@ -1576,7 +1576,7 @@ func TestRunTask_EchoRedactsSensitiveValue(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "login"); err != nil {
+	if err := ex.RunTask(t.Context(), "login"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	if strings.Contains(buf.String(), "supersecret_value_1234") {
@@ -1609,7 +1609,7 @@ func TestRunTask_NonDeployTargetsInventoryHosts(t *testing.T) {
 		var buf bytes.Buffer
 		ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 		defer ex.Close()
-		if err := ex.RunTask(context.Background(), task); err != nil {
+		if err := ex.RunTask(t.Context(), task); err != nil {
 			t.Fatalf("RunTask(%q): %v\n%s", task, err, buf.String())
 		}
 		return buf.String()
@@ -1667,7 +1667,7 @@ func TestRunTask_StrictHostKeyOverride(t *testing.T) {
 		var buf bytes.Buffer
 		ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: true, KnownHostsFile: kh}, Out: &buf})
 		defer ex.Close()
-		return ex.RunTask(context.Background(), task)
+		return ex.RunTask(t.Context(), task)
 	}
 
 	if err := run("strict"); err == nil {
@@ -1694,7 +1694,7 @@ func TestRunTask_ExposesImports(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "show"); err != nil {
+	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	if !strings.Contains(buf.String(), "tmpl=topsecretval env=topsecretval db=postgres://h/db") {
@@ -1725,7 +1725,7 @@ func TestRunAction_HostFileWriter(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &buf, Registry: reg, Color: true})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "wf"); err != nil {
+	if err := ex.RunTask(t.Context(), "wf"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 
@@ -1775,7 +1775,7 @@ func TestRunAction_HostCommandRunner(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{Out: &buf, Registry: reg})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "rc"); err != nil {
+	if err := ex.RunTask(t.Context(), "rc"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 
@@ -1788,7 +1788,7 @@ func TestRunAction_HostCommandRunner(t *testing.T) {
 	}
 
 	// A failing command fails the action task.
-	if err := ex.RunTask(context.Background(), "boom"); err == nil {
+	if err := ex.RunTask(t.Context(), "boom"); err == nil {
 		t.Fatal("failing RunCommand did not error")
 	}
 }
@@ -1809,7 +1809,7 @@ func TestRunTask_ContinueOnError(t *testing.T) {
 		var buf bytes.Buffer
 		ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 		defer ex.Close()
-		return ex.RunTask(context.Background(), task)
+		return ex.RunTask(t.Context(), task)
 	}
 	if err := run("boom"); err == nil {
 		t.Error("a failing command should abort without continue_on_error")
@@ -1834,7 +1834,7 @@ func TestRunTask_EnvTemplateFuncSeesEnvFiles(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "show"); err != nil {
+	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\noutput:\n%s", err, buf.String())
 	}
 	if !strings.Contains(buf.String(), "exec-from-file") {
@@ -1857,7 +1857,7 @@ func TestRunTask_CaptureNoHostsStoresZeroState(t *testing.T) {
 	var buf bytes.Buffer
 	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 	defer ex.Close()
-	if err := ex.RunTask(context.Background(), "use"); err != nil {
+	if err := ex.RunTask(t.Context(), "use"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
 	if out := buf.String(); !strings.Contains(out, "n=0") {

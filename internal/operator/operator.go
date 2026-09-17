@@ -11,17 +11,9 @@ import (
 	"time"
 )
 
-var (
-	once sync.Once
-	name string
-)
-
 // Name returns the deploy operator identity, resolved once per process:
 // DEPLOYER env var, then git config user.name, then USER env var, else "unknown".
-func Name() string {
-	once.Do(func() { name = resolve(gitUserName) })
-	return name
-}
+var Name = sync.OnceValue(func() string { return resolve(gitUserName) })
 
 // resolve implements the precedence with an injectable git lookup so tests do not depend on the machine's gitconfig.
 func resolve(gitLookup func() string) string {

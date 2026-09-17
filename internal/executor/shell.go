@@ -1,11 +1,13 @@
 package executor
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
-	pathpkg "path"
 	"strings"
+
+	pathpkg "path"
 
 	"github.com/yousysadmin/whoosh/internal/shtmpl"
 	"github.com/yousysadmin/whoosh/internal/transport/local"
@@ -57,9 +59,7 @@ func wrapRemote(command, dir string, env map[string]string) string {
 // script content to the interpreter via a quoted heredoc (content passed verbatim, env inherited at run time).
 // This works identically over SSH and locally, for file and inline scripts.
 func buildScriptCommand(interpreter, content, dir string, env map[string]string) string {
-	if interpreter == "" {
-		interpreter = DefaultInterpreter
-	}
+	interpreter = cmp.Or(interpreter, DefaultInterpreter)
 	if !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}

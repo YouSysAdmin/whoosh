@@ -16,6 +16,7 @@
 package print_hosts_table
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -105,16 +106,10 @@ func hostsTable(hosts []whoosh.Host) (string, error) {
 		if h.Local {
 			transport = "local"
 		}
-		roles := strings.Join(h.Roles, ",")
-		if roles == "" {
-			roles = "-"
-		}
+		roles := cmp.Or(strings.Join(h.Roles, ","), "-")
 		// Where the host came from: "config" (Deployfile) or a plugin feature (e.g. "aws:ec2:inventory").
 		// Defaulted here in case the table is rendered before ApplyDefaults stamped it.
-		source := h.Source
-		if source == "" {
-			source = whoosh.HostSourceConfig
-		}
+		source := cmp.Or(h.Source, whoosh.HostSourceConfig)
 		rows = append(rows, []string{h.Address, roles, deploy, primary, transport, source})
 	}
 

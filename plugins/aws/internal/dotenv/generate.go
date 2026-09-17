@@ -2,8 +2,9 @@ package dotenv
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -22,7 +23,10 @@ func NormalizeKey(k string) string {
 // LastSegment returns the part of name after the final '/' (the whole name when it has none) - the default env key
 // for a path-shaped parameter or secret name (/app/prod/DB_URL -> DB_URL).
 func LastSegment(name string) string {
-	return name[strings.LastIndex(name, "/")+1:]
+	if _, after, ok := strings.CutLast(name, "/"); ok {
+		return after
+	}
+	return name
 }
 
 // Render formats env as a sorted dotenv file.
@@ -32,14 +36,8 @@ func LastSegment(name string) string {
 // With multiline set, real newlines are kept inside the quotes (the form dotenv/Rails need for PEM keys, certs, ...),
 // otherwise they collapse to a literal \n (one line per entry).
 func Render(env map[string]string, multiline bool) string {
-	keys := make([]string, 0, len(env))
-	for k := range env {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
 	var b strings.Builder
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(env)) {
 		v := env[k]
 		if v == "" {
 			fmt.Fprintf(&b, "%s=\n", k)

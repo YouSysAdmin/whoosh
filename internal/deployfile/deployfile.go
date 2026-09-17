@@ -3,10 +3,11 @@
 package deployfile
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -112,7 +113,7 @@ func ListStages(deployfileDir string) ([]StageInfo, error) {
 			}
 		}
 	}
-	sort.Slice(stages, func(i, j int) bool { return stages[i].Name < stages[j].Name })
+	slices.SortFunc(stages, func(a, b StageInfo) int { return cmp.Compare(a.Name, b.Name) })
 	return stages, nil
 }
 

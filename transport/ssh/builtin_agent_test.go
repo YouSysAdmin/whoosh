@@ -2,7 +2,6 @@ package ssh_test
 
 import (
 	"bytes"
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
@@ -50,7 +49,7 @@ func TestDialBuiltinAgent(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy",
 	}, ssh.Options{StrictHostKey: false, Agent: ag})
 	if err != nil {
@@ -59,7 +58,7 @@ func TestDialBuiltinAgent(t *testing.T) {
 	defer conn.Close()
 
 	var stdout, stderr bytes.Buffer
-	if err := conn.Run(context.Background(), "echo hi", &stdout, &stderr); err != nil {
+	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if !strings.Contains(stdout.String(), "hi") {
@@ -84,7 +83,7 @@ func TestDialBuiltinAgent_WrongKeyRejected(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy",
 	}, ssh.Options{StrictHostKey: false, Agent: ag})
 	if err == nil {
@@ -109,7 +108,7 @@ func TestForwarding_BuiltinAgentWithoutSystemSocket(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy",
 	}, ssh.Options{StrictHostKey: false, Agent: ag, ForwardAgent: true})
 	if err != nil {
@@ -118,7 +117,7 @@ func TestForwarding_BuiltinAgentWithoutSystemSocket(t *testing.T) {
 	defer conn.Close()
 
 	var stdout, stderr bytes.Buffer
-	if err := conn.Run(context.Background(), "echo hi", &stdout, &stderr); err != nil {
+	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run with forwarding enabled: %v", err)
 	}
 }
@@ -150,7 +149,7 @@ func TestDialEncryptedIdentityFile(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: keyPath, Passphrase: "sesame",
 	}, ssh.Options{StrictHostKey: false})
 	if err != nil {
@@ -158,18 +157,18 @@ func TestDialEncryptedIdentityFile(t *testing.T) {
 	}
 	defer conn.Close()
 	var stdout, stderr bytes.Buffer
-	if err := conn.Run(context.Background(), "echo hi", &stdout, &stderr); err != nil {
+	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
-	_, err = ssh.Dial(context.Background(), ssh.Target{
+	_, err = ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: keyPath,
 	}, ssh.Options{StrictHostKey: false})
 	if err == nil || !strings.Contains(err.Error(), "set passphrase") {
 		t.Errorf("missing passphrase error = %v, want it to say 'set passphrase'", err)
 	}
 
-	_, err = ssh.Dial(context.Background(), ssh.Target{
+	_, err = ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: keyPath, Passphrase: "wrong",
 	}, ssh.Options{StrictHostKey: false})
 	if err == nil || !strings.Contains(err.Error(), "decrypt failed") {
@@ -185,7 +184,7 @@ func TestDialUnencryptedIdentityWithStrayPassphrase(t *testing.T) {
 	}
 	defer srv.Close()
 
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile, Passphrase: "stray",
 	}, ssh.Options{StrictHostKey: false})
 	if err != nil {
@@ -209,7 +208,7 @@ func TestForwarding_ForwardKeyBeatsBuiltinAgent(t *testing.T) {
 	}
 	defer srv.Close()
 
-	conn, err := ssh.Dial(context.Background(), ssh.Target{
+	conn, err := ssh.Dial(t.Context(), ssh.Target{
 		Host: srv.Host, Port: srv.Port, User: "deploy",
 	}, ssh.Options{StrictHostKey: false, Agent: ag, ForwardKey: "/nonexistent/forward_key"})
 	if err == nil {

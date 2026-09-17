@@ -6,6 +6,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -333,10 +334,7 @@ func renderAppBranch(cfg *ast.DeployFile) error {
 	if err != nil {
 		return fmt.Errorf("app.branch: %w", err)
 	}
-	if rendered == "" {
-		rendered = ast.DefaultBranch
-	}
-	cfg.App.Branch = rendered
+	cfg.App.Branch = cmp.Or(rendered, ast.DefaultBranch)
 	return nil
 }
 

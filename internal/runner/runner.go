@@ -61,10 +61,8 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 	var wg sync.WaitGroup
 
 	for i, t := range targets {
-		wg.Add(1)
 		sem <- struct{}{}
-		go func(i int, t Target) {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() { <-sem }()
 
 			results[i] = Result{Host: t.Host}
@@ -78,7 +76,7 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 					cancel()
 				}
 			}
-		}(i, t)
+		})
 	}
 	wg.Wait()
 	return results

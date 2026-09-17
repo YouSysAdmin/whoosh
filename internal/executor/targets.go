@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
@@ -23,12 +24,7 @@ func (e *Executor) MarkUnreachable(host string) {
 func (e *Executor) UnreachableHosts() []string {
 	e.unreachableMu.Lock()
 	defer e.unreachableMu.Unlock()
-	hosts := make([]string, 0, len(e.unreachable))
-	for h := range e.unreachable {
-		hosts = append(hosts, h)
-	}
-	slices.Sort(hosts)
-	return hosts
+	return slices.Sorted(maps.Keys(e.unreachable))
 }
 
 // SetUnreachablePolicy installs the deploy lifecycle's on_unreachable policy for task runs, so hook and custom-phase

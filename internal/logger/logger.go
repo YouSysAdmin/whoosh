@@ -7,6 +7,7 @@ package logger
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -81,10 +82,7 @@ func buildHandler(s Sink) (slog.Handler, error) {
 	}
 	opts := &slog.HandlerOptions{Level: level}
 
-	format := s.Format
-	if format == "" {
-		format = "text"
-	}
+	format := cmp.Or(s.Format, "text")
 	switch strings.ToLower(format) {
 	case "json":
 		return maskingHandler{slog.NewJSONHandler(out, opts)}, nil
