@@ -1,0 +1,27 @@
+# The default linter set (errcheck, govet, ineffassign, staticcheck,
+# unused) plus the small linters that catch regressions cheaply.
+version: "2"
+
+linters:
+  default: standard
+
+  enable:
+    # errorlint keeps an error in the chain where errors.Is and errors.As
+    # can reach it.
+    - errorlint
+    - copyloopvar
+    - durationcheck
+    - intrange
+    - misspell
+    - nolintlint
+    - unconvert
+    - wastedassign
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+        # QF1001 rewrites `!(r >= 'a' && r <= 'z')` into
+        # `r < 'a' || r > 'z'`, which makes the reader rebuild "not in
+        # this range".
+        - -QF1001

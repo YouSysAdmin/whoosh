@@ -9,7 +9,10 @@ BIN_NAME := whoosh
 BIN  := $(DIST_DIR)/$(BIN_NAME)
 
 # Separate go modules in this repo: `go test ./...` stops at go.mod boundaries, so each needs its own run.
-PLUGIN_MODULES := plugins/aws plugins/rbenv plugins/slack
+PLUGIN_MODULES := plugins/aws plugins/rbenv plugins/slack plugins/plugin-template
+
+# Go sources owned by this repo, vendor/ is skipped by the formatter.
+GO_DIRS := *.go cmd entrypoint examples hack internal plugins transport
 
 .PHONY: all build build-core run test test-v vet fmt lint schema clean help
 
@@ -46,13 +49,17 @@ vet:
 	go vet ./...
 	@for m in $(PLUGIN_MODULES); do echo "== $$m"; (cd $$m && go vet ./...) || exit 1; done
 
-## fmt: Run gofmt on all Go files
+## fmt: Format the Go code, blank lines included
 fmt:
-	gofmt -w .
+	gofmt -w $(GO_DIRS)
+	go run ./hack/blanklines $(GO_DIRS)
 
-## lint: Run vet and check formatting
+## lint: Run vet, check formatting and blank lines, run golangci-lint (root + plugin modules)
 lint: vet
-	@test -z "$$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
+	@test -z "$$(gofmt -l $(GO_DIRS))" || (echo "Files need formatting:" && gofmt -l $(GO_DIRS) && exit 1)
+	go run ./hack/blanklines -l $(GO_DIRS)
+	golangci-lint run ./...
+	@for m in $(PLUGIN_MODULES) cmd/whoosh; do echo "== $$m"; (cd $$m && golangci-lint run --config $(CURDIR)/.golangci.yml ./...) || exit 1; done
 
 ## schema: Generate the Deployfile JSON Schema (deployfile.schema.json) for editor validation
 schema:
