@@ -34,6 +34,7 @@ const defaultNamespace = "template"
 type contextParams struct {
 	// Keys are the values to fetch from the external system, one import per key.
 	Keys []string `yaml:"keys"`
+
 	// Namespace is the import namespace ({{ .<ns>.<key> }} / $<NS>_<KEY>). Default "template".
 	Namespace string `yaml:"namespace"`
 }
@@ -44,12 +45,15 @@ func decodeContextParams(raw map[string]any) (contextParams, error) {
 	if err := whoosh.DecodeParams(raw, &fp); err != nil {
 		return fp, fmt.Errorf("%s params: %w", FeatureContext, err)
 	}
+
 	if len(fp.Keys) == 0 {
 		return fp, fmt.Errorf("%s: 'keys' is required (nothing to fetch)", FeatureContext)
 	}
+
 	if fp.Namespace == "" {
 		fp.Namespace = defaultNamespace
 	}
+
 	return fp, nil
 }
 
@@ -59,15 +63,18 @@ func (p *plugin) contextStartup(fp contextParams) whoosh.StartupFunc {
 		if err := p.client.requireEndpoint(FeatureContext); err != nil {
 			return err
 		}
+
 		for _, key := range fp.Keys {
 			value, err := p.client.fetch(ctx, key)
 			if err != nil {
 				return fmt.Errorf("%s: fetch %q: %w", FeatureContext, key, err)
 			}
+
 			// Mask first, then expose: the value is a secret the moment it exists.
 			whoosh.AddSecret(value)
 			cfg.AddImport(fp.Namespace, key, value)
 		}
+
 		return nil
 	}
 }

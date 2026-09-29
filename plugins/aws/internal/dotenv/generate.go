@@ -17,6 +17,7 @@ func NormalizeKey(k string) string {
 	if k = strings.Trim(k, "_"); k == "" {
 		return "_"
 	}
+
 	return k
 }
 
@@ -26,6 +27,7 @@ func LastSegment(name string) string {
 	if _, after, ok := strings.CutLast(name, "/"); ok {
 		return after
 	}
+
 	return name
 }
 
@@ -43,6 +45,7 @@ func Render(env map[string]string, multiline bool) string {
 			fmt.Fprintf(&b, "%s=\n", k)
 			continue
 		}
+
 		v = strings.ReplaceAll(v, "\r\n", "\n")
 		v = strings.ReplaceAll(v, `\`, `\\`)
 		v = strings.ReplaceAll(v, `"`, `\"`)
@@ -50,7 +53,9 @@ func Render(env map[string]string, multiline bool) string {
 		if !multiline {
 			v = strings.ReplaceAll(v, "\n", `\n`)
 		}
+
 		fmt.Fprintf(&b, "%s=\"%s\"\n", k, v)
 	}
+
 	return b.String()
 }

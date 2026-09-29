@@ -30,6 +30,7 @@ const (
 type sendParams struct {
 	// Message is the text to post. Required. Slack mrkdwn (*bold*, :emoji:, <links>) is honored.
 	Message string `yaml:"message"`
+
 	// Color is the attachment bar: "good", "warning", "danger", or "#rrggbb". Empty posts without a color bar.
 	Color string `yaml:"color"`
 
@@ -101,6 +102,7 @@ func (n *notifier) send(ctx context.Context, raw map[string]any, _ io.Writer) er
 	if err := whoosh.DecodeParams(raw, &sp); err != nil {
 		return fmt.Errorf("slack:send params: %w", err)
 	}
+
 	if strings.TrimSpace(sp.Message) == "" {
 		return fmt.Errorf("slack:send: 'message' is required")
 	}
@@ -110,6 +112,7 @@ func (n *notifier) send(ctx context.Context, raw map[string]any, _ io.Writer) er
 		if err := validateWebhookURL("with: webhook_url", sp.WebhookURL); err != nil {
 			return err
 		}
+
 		whoosh.AddSecret(sp.WebhookURL)
 		webhook = sp.WebhookURL
 	}
@@ -174,15 +177,20 @@ func (n *notifier) send(ctx context.Context, raw map[string]any, _ io.Writer) er
 				break
 			}
 		}
+
 		slog.Info("slack: notification sent", "event", sp.Event)
+
 		return nil
 	}
+
 	// Best-effort paths: the plugin's own notifications must never fail a deploy (a failing after-deploy:finished
 	// hook would cascade into a false deploy:failed), and optional: true extends that to user tasks.
 	if sp.Event != "" || sp.Optional {
 		slog.Warn("slack: notification failed", "event", sp.Event, "error", err)
+
 		return nil
 	}
+
 	return fmt.Errorf("slack:send: %w", err)
 }
 
@@ -202,11 +210,14 @@ func (n *notifier) richFields(ctx context.Context, sp sendParams) []attachField 
 	if len(rev) > 7 {
 		rev = rev[:7]
 	}
+
 	add("Revision", rev)
 	if !n.startedAt.IsZero() {
 		add("Duration", n.now().Sub(n.startedAt).Round(time.Second).String())
 	}
+
 	add("Release", sp.ReleasePath)
+
 	return fields
 }
 
@@ -219,6 +230,7 @@ func (n *notifier) webhookFor(event string) string {
 		eventFailed:   n.cfg.WebhookFail,
 		eventRollback: n.cfg.WebhookRollback,
 	}
+
 	return whoosh.OrZero(byEvent[event], n.cfg.WebhookURL)
 }
 
@@ -229,10 +241,12 @@ func (n *notifier) post(ctx context.Context, webhook string, pl payload) error {
 	if err != nil {
 		return fmt.Errorf("encode payload: %w", err)
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhook, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build webhook request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := n.client.Do(req)
 	if err != nil {
@@ -240,13 +254,17 @@ func (n *notifier) post(ctx context.Context, webhook string, pl payload) error {
 		if uerr, ok := errors.AsType[*url.Error](err); ok {
 			err = uerr.Err
 		}
+
 		return fmt.Errorf("post to webhook: %w", err)
 	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		// Slack replies with short plain-text reasons ("invalid_payload", "no_service", ...).
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+
 		return fmt.Errorf("webhook returned %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
+
 	return nil
 }

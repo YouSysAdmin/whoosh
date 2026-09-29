@@ -25,10 +25,12 @@ func TestGitCommands(t *testing.T) {
 			"fi"; got != want {
 		t.Errorf("EnsureMirror:\n got: %q\nwant: %q", got, want)
 	}
+
 	if got, want := g.CreateRelease("/srv/app/repo", "/srv/app/releases/123"),
 		`mkdir -p '/srv/app/releases/123' && git -C '/srv/app/repo' archive 'main' | tar -x -f - -C '/srv/app/releases/123'`; got != want {
 		t.Errorf("CreateRelease:\n got: %q\nwant: %q", got, want)
 	}
+
 	if got, want := g.Revision("/srv/app/repo"), `git -C '/srv/app/repo' rev-parse 'main'`; got != want {
 		t.Errorf("Revision = %q, want %q", got, want)
 	}
@@ -42,6 +44,7 @@ func TestEnsureMirror_StaleConfigLock(t *testing.T) {
 	if err != nil {
 		t.Skip("git not installed")
 	}
+
 	dir := t.TempDir()
 	// Isolate from the test machine's global/system git config; supply an identity so commits work without one.
 	env := append(os.Environ(),
@@ -61,12 +64,15 @@ func TestEnsureMirror_StaleConfigLock(t *testing.T) {
 		if e := os.MkdirAll(p, 0o755); e != nil {
 			t.Fatal(e)
 		}
+
 		run(p, gitBin, "init", "-q")
 		if e := os.WriteFile(filepath.Join(p, "f"), []byte(name), 0o644); e != nil {
 			t.Fatal(e)
 		}
+
 		run(p, gitBin, "add", "f")
 		run(p, gitBin, "commit", "-q", "-m", "c")
+
 		return p
 	}
 
@@ -97,6 +103,7 @@ func TestEnsureMirror_StaleConfigLock(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+
 	if got := strings.TrimSpace(string(out)); got != src2 {
 		t.Errorf("origin url = %q, want %q (set-url should have run)", got, src2)
 	}

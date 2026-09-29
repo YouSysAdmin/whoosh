@@ -40,6 +40,7 @@ func (f *fakeAMIEC2) DescribeInstances(_ context.Context, _ *awsec2.DescribeInst
 
 func (f *fakeAMIEC2) CreateImage(_ context.Context, in *awsec2.CreateImageInput, _ ...func(*awsec2.Options)) (*awsec2.CreateImageOutput, error) {
 	f.createImage = in
+
 	return &awsec2.CreateImageOutput{ImageId: awssdk.String("ami-new")}, nil
 }
 
@@ -49,28 +50,34 @@ func (f *fakeAMIEC2) DescribeImages(_ context.Context, in *awsec2.DescribeImages
 	if f.describeErr != nil {
 		return nil, f.describeErr
 	}
+
 	if len(f.imagesByCall) > 0 {
 		idx := f.imagesCalls - 1
 		if idx >= len(f.imagesByCall) {
 			idx = len(f.imagesByCall) - 1
 		}
+
 		return &awsec2.DescribeImagesOutput{Images: f.imagesByCall[idx]}, nil
 	}
+
 	return &awsec2.DescribeImagesOutput{Images: f.images}, nil
 }
 
 func (f *fakeAMIEC2) DeregisterImage(_ context.Context, in *awsec2.DeregisterImageInput, _ ...func(*awsec2.Options)) (*awsec2.DeregisterImageOutput, error) {
 	f.deregistered = append(f.deregistered, awssdk.ToString(in.ImageId))
+
 	return &awsec2.DeregisterImageOutput{}, nil
 }
 
 func (f *fakeAMIEC2) DeleteSnapshot(_ context.Context, in *awsec2.DeleteSnapshotInput, _ ...func(*awsec2.Options)) (*awsec2.DeleteSnapshotOutput, error) {
 	f.deletedSnaps = append(f.deletedSnaps, awssdk.ToString(in.SnapshotId))
+
 	return &awsec2.DeleteSnapshotOutput{}, nil
 }
 
 func (f *fakeAMIEC2) CreateLaunchTemplateVersion(_ context.Context, in *awsec2.CreateLaunchTemplateVersionInput, _ ...func(*awsec2.Options)) (*awsec2.CreateLaunchTemplateVersionOutput, error) {
 	f.createLTV = in
+
 	return &awsec2.CreateLaunchTemplateVersionOutput{
 		LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{VersionNumber: awssdk.Int64(f.ltVersion)},
 	}, nil
@@ -78,6 +85,7 @@ func (f *fakeAMIEC2) CreateLaunchTemplateVersion(_ context.Context, in *awsec2.C
 
 func (f *fakeAMIEC2) ModifyLaunchTemplate(_ context.Context, in *awsec2.ModifyLaunchTemplateInput, _ ...func(*awsec2.Options)) (*awsec2.ModifyLaunchTemplateOutput, error) {
 	f.modifyLT = in
+
 	return &awsec2.ModifyLaunchTemplateOutput{}, nil
 }
 
@@ -101,10 +109,12 @@ func imageTags(spec []ec2types.TagSpecification) map[string]string {
 		if ts.ResourceType != ec2types.ResourceTypeImage {
 			continue
 		}
+
 		for _, t := range ts.Tags {
 			out[awssdk.ToString(t.Key)] = awssdk.ToString(t.Value)
 		}
 	}
+
 	return out
 }
 
@@ -136,9 +146,11 @@ func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 	if fe.createImage == nil {
 		t.Fatal("CreateImage not called")
 	}
+
 	if fe.createImage.NoReboot == nil || !*fe.createImage.NoReboot {
 		t.Errorf("NoReboot = %v, want true (default)", fe.createImage.NoReboot)
 	}
+
 	name := awssdk.ToString(fe.createImage.Name)
 	if !strings.HasPrefix(name, "managebac-") {
 		t.Errorf("AMI name = %q, want managebac-<timestamp>", name)
@@ -149,9 +161,11 @@ func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 	if tags["Application"] != "managebac" {
 		t.Errorf("Application tag = %q, want managebac", tags["Application"])
 	}
+
 	if tags["Name"] != name {
 		t.Errorf("Name tag = %q, want %q", tags["Name"], name)
 	}
+
 	if _, ok := tags["aws:autoscaling:groupName"]; ok {
 		t.Error("aws: tag should be dropped from the AMI")
 	}
@@ -160,12 +174,15 @@ func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 	if fe.createLTV == nil || awssdk.ToString(fe.createLTV.LaunchTemplateId) != "lt-123" {
 		t.Fatalf("CreateLaunchTemplateVersion not called for lt-123: %+v", fe.createLTV)
 	}
+
 	if awssdk.ToString(fe.createLTV.SourceVersion) != "$Default" {
 		t.Errorf("SourceVersion = %q, want $Default", awssdk.ToString(fe.createLTV.SourceVersion))
 	}
+
 	if fe.createLTV.LaunchTemplateData == nil || awssdk.ToString(fe.createLTV.LaunchTemplateData.ImageId) != "ami-new" {
 		t.Errorf("new LT version image = %+v, want ami-new", fe.createLTV.LaunchTemplateData)
 	}
+
 	if fe.modifyLT == nil || awssdk.ToString(fe.modifyLT.DefaultVersion) != "7" {
 		t.Fatalf("ModifyLaunchTemplate default = %+v, want version 7", fe.modifyLT)
 	}
@@ -188,10 +205,12 @@ func TestAMICreate_FromASGInServiceInstanceNamePrefixFallback(t *testing.T) {
 	if err := p.runCreate(t.Context(), map[string]any{"asg": "workers"}, &buf); err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, buf.String())
 	}
+
 	// No name_prefix -> falls back to the source instance's Name tag.
 	if name := awssdk.ToString(fe.createImage.Name); !strings.HasPrefix(name, "worker-1-") {
 		t.Errorf("AMI name = %q, want worker-1-<timestamp>", name)
 	}
+
 	// No launch_template -> no patch.
 	if fe.createLTV != nil {
 		t.Error("launch template should not be patched when not requested")
@@ -210,6 +229,7 @@ func TestAMICreate_FromExplicitInstanceID(t *testing.T) {
 	if err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-explicit"}, &buf); err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, buf.String())
 	}
+
 	if name := awssdk.ToString(fe.createImage.Name); !strings.HasPrefix(name, "chosen-1-") {
 		t.Errorf("AMI name = %q, want chosen-1-<timestamp>", name)
 	}
@@ -235,12 +255,15 @@ func TestAMICreate_PollsImageStateUntilAvailable(t *testing.T) {
 	if err := p.runCreate(t.Context(), map[string]any{"instance_id": "i-poll", "name_prefix": "poll"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, logbuf.String())
 	}
+
 	if fe.imagesCalls != 3 {
 		t.Errorf("polled DescribeImages %d times, want 3 (pending, pending, available)", fe.imagesCalls)
 	}
+
 	if !strings.Contains(logbuf.String(), "state=pending") {
 		t.Errorf("expected periodic pending-state progress in log:\n%s", logbuf.String())
 	}
+
 	if !strings.Contains(logbuf.String(), "AMI is available") {
 		t.Errorf("expected final available log:\n%s", logbuf.String())
 	}
@@ -273,6 +296,7 @@ func TestAMICreate_FailsWhenImageDeletedMidBuild(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when the AMI is deleted mid-build, not an endless wait")
 	}
+
 	if !strings.Contains(err.Error(), "disappeared") {
 		t.Errorf("error = %v, want it to report the image disappeared", err)
 	}
@@ -291,6 +315,7 @@ func TestAMICreate_FailsWhenImageNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when DescribeImages returns InvalidAMIID.NotFound")
 	}
+
 	if !strings.Contains(err.Error(), "no longer exists") {
 		t.Errorf("error = %v, want a clear 'no longer exists' message", err)
 	}
@@ -306,6 +331,7 @@ func TestWaitForImage_CancelReportsCancellation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error after cancellation")
 	}
+
 	// The message must reflect the cancel, NOT claim the 30-minute timeout elapsed.
 	if !strings.Contains(err.Error(), "cancelled") || strings.Contains(err.Error(), amiMaxWait.String()) {
 		t.Errorf("error = %v, want a cancellation message (not the %s timeout)", err, amiMaxWait)
@@ -343,13 +369,16 @@ func TestAMICleanup_KeepsNewestAndDeletesSnapshots(t *testing.T) {
 	if err := p.runCleanup(t.Context(), map[string]any{"name_prefix": "app", "keep_last": 2}, &buf); err != nil {
 		t.Fatalf("runCleanup: %v\n%s", err, buf.String())
 	}
+
 	// Keep the 2 newest matching (ami-4, ami-3); remove the 2 oldest (ami-2, ami-1).
 	if strings.Join(fe.deregistered, ",") != "ami-2,ami-1" {
 		t.Errorf("deregistered = %v, want [ami-2 ami-1]", fe.deregistered)
 	}
+
 	if strings.Join(fe.deletedSnaps, ",") != "snap-2,snap-1" {
 		t.Errorf("deleted snapshots = %v, want [snap-2 snap-1]", fe.deletedSnaps)
 	}
+
 	// The non-matching image is untouched.
 	for _, id := range fe.deregistered {
 		if id == "ami-x" {
@@ -384,16 +413,20 @@ func TestAMICleanup_FiltersByTags(t *testing.T) {
 	if fe.describeImages == nil {
 		t.Fatal("DescribeImages not called")
 	}
+
 	if strings.Join(fe.describeImages.Owners, ",") != "self" {
 		t.Errorf("Owners = %v, want [self]", fe.describeImages.Owners)
 	}
+
 	got := map[string]string{}
 	for _, f := range fe.describeImages.Filters {
 		got[awssdk.ToString(f.Name)] = strings.Join(f.Values, ",")
 	}
+
 	if got["tag:Application"] != "api" {
 		t.Errorf("tag:Application filter = %q, want api", got["tag:Application"])
 	}
+
 	if got["tag:Environment"] != "uat,prod" {
 		t.Errorf("tag:Environment filter = %q, want uat,prod", got["tag:Environment"])
 	}

@@ -30,6 +30,7 @@ type inventoryParams struct {
 	Roles []string `yaml:"roles"`
 	User  string   `yaml:"user"`
 	Port  int      `yaml:"port"`
+
 	// Deploy / Required map to the host flags: deploy:false = inventory-only (excluded from execution),
 	// required:true = an unreachable host aborts even under on_unreachable: skip. Nil leaves the defaults.
 	Deploy   *bool `yaml:"deploy"`
@@ -42,6 +43,7 @@ func decodeInventoryParams(raw map[string]any) (inventoryParams, error) {
 	if err := whoosh.DecodeParams(raw, &fp); err != nil {
 		return fp, fmt.Errorf("%s params: %w", FeatureInventory, err)
 	}
+
 	return fp, nil
 }
 
@@ -51,10 +53,12 @@ func (p *plugin) inventoryStartup(fp inventoryParams) whoosh.StartupFunc {
 		if err := p.client.requireEndpoint(FeatureInventory); err != nil {
 			return err
 		}
+
 		addrs, err := p.client.discover(ctx)
 		if err != nil {
 			return fmt.Errorf("%s: %w", FeatureInventory, err)
 		}
+
 		for _, addr := range addrs {
 			cfg.Hosts = append(cfg.Hosts, whoosh.Host{
 				Address:  addr,
@@ -68,8 +72,10 @@ func (p *plugin) inventoryStartup(fp inventoryParams) whoosh.StartupFunc {
 				Source: FeatureInventory,
 			})
 		}
+
 		// Plugin narrative goes through slog, only command output goes to the console writer.
 		slog.Info("inventory discovered hosts", "plugin", pluginName, "count", len(addrs))
+
 		return nil
 	}
 }

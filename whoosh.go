@@ -41,40 +41,55 @@ func Registered() []string { return plugins.Registered() }
 type (
 	// Plugin is the single contract every plugin satisfies, implement Configure.
 	Plugin = plugins.Plugin
+
 	// Factory builds an unconfigured plugin instance (what you pass to Register).
 	Factory = plugins.Factory
+
 	// Registry is the shared space a plugin registers its actions/startup into.
 	Registry = plugins.Registry
+
 	// ActionFunc is a named action invoked by a task's `action:`/`with:`.
 	ActionFunc = plugins.ActionFunc
+
 	// StartupFunc runs once at load and may mutate the resolved config.
 	StartupFunc = plugins.StartupFunc
+
 	// HostFileWriter renders a generated file onto an action task's hosts.
 	HostFileWriter = plugins.HostFileWriter
+
 	// HostCommandRunner runs a shell command on an action task's hosts.
 	HostCommandRunner = plugins.HostCommandRunner
+
 	// HostCommandCapturer runs a shell command on the first host an action task targets and returns its trimmed stdout.
 	HostCommandCapturer = plugins.HostCommandCapturer
 
 	// PluginSpec is the plugin's Deployfile entry (params + per-action config).
 	PluginSpec = ast.PluginSpec
+
 	// PluginActionSpec is one entry of PluginSpec.Actions.
 	PluginActionSpec = ast.PluginActionSpec
+
 	// DeployFile is the resolved config a StartupFunc receives (and may mutate, e.g. cfg.AddTask / cfg.AddHookAfter /
 	// cfg.AddPhase / cfg.AddImport).
 	DeployFile = ast.DeployFile
+
 	// Host is an inventory host, an inventory plugin appends these in startup.
 	Host = ast.Host
+
 	// Task is a pipeline task a plugin can contribute via DeployFile.AddTask: it runs cmds and/or scripts on the targets
 	// (or locally), or invokes an action.
 	Task = ast.Task
+
 	// Script is one script entry of a Task (inline content or a file path).
 	Script = ast.Script
+
 	// Hooks maps a phase name to the task names run before/after it.
 	Hooks = ast.Hooks
+
 	// CustomPhase is a named phase a plugin can splice into the deployment lifecycle before/after a built-in phase via
 	// DeployFile.AddPhase.
 	CustomPhase = ast.CustomPhase
+
 	// HookFunc is a plugin function run before/after a deployment phase with the deploy's console writer, registered via
 	// DeployFile.AddHookFuncBefore/After.
 	// It lets a plugin emit operator-side output (or run code) at a phase without contributing a task.
@@ -83,12 +98,15 @@ type (
 
 	// Command is a CLI subcommand a plugin contributes (`whoosh <stage> <Name>`), declared via the Commander interface.
 	Command = plugins.Command
+
 	// CommandFunc runs a plugin Command with the resolved config, the registry, the console writer, and the command's
 	// positional args.
 	CommandFunc = plugins.CommandFunc
+
 	// Commander is the optional interface a plugin implements to contribute CLI commands, Commands() is queried (on a
 	// bare instance) to register them.
 	Commander = plugins.Commander
+
 	// Versioner is the optional interface a plugin implements to report its version, shown by `whoosh plugins` /
 	// `whoosh version`. Implement `Version() string`.
 	Versioner = plugins.Versioner
@@ -155,6 +173,7 @@ func MergeParams(base, over map[string]any) map[string]any {
 	for k, v := range base {
 		out[k] = copyParamValue(v)
 	}
+
 	for k, v := range over {
 		if bm, ok := out[k].(map[string]any); ok {
 			if om, ok := v.(map[string]any); ok {
@@ -162,8 +181,10 @@ func MergeParams(base, over map[string]any) map[string]any {
 				continue
 			}
 		}
+
 		out[k] = copyParamValue(v)
 	}
+
 	return out
 }
 
@@ -174,10 +195,12 @@ func copyParamValue(v any) any {
 	if !ok {
 		return v
 	}
+
 	out := make(map[string]any, len(m))
 	for k, mv := range m {
 		out[k] = copyParamValue(mv)
 	}
+
 	return out
 }
 
@@ -186,6 +209,7 @@ func Or[T any](p *T, fallback T) T {
 	if p != nil {
 		return *p
 	}
+
 	return fallback
 }
 
@@ -196,6 +220,7 @@ func OrZero[T comparable](v, fallback T) T {
 	if v != zero {
 		return v
 	}
+
 	return fallback
 }
 

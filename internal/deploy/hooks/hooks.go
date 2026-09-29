@@ -37,6 +37,7 @@ func (r *Runner) Before(ctx context.Context, phase string) error {
 	if err := r.runAll(ctx, "before", phase, r.hooks.Before[phase]); err != nil {
 		return err
 	}
+
 	return r.runFuncs(ctx, "before", phase, r.beforeF[phase])
 }
 
@@ -45,6 +46,7 @@ func (r *Runner) After(ctx context.Context, phase string) error {
 	if err := r.runAll(ctx, "after", phase, r.hooks.After[phase]); err != nil {
 		return err
 	}
+
 	return r.runFuncs(ctx, "after", phase, r.afterF[phase])
 }
 
@@ -56,6 +58,7 @@ func (r *Runner) NotifyFailed(setError func(string), err error) {
 	if len(r.hooks.After[ast.PhaseFailed]) == 0 && len(r.afterF[ast.PhaseFailed]) == 0 {
 		return
 	}
+
 	setError(err.Error())
 	if hookErr := r.After(context.Background(), ast.PhaseFailed); hookErr != nil {
 		slog.Warn("deploy:failed hook error", "error", hookErr)
@@ -70,6 +73,7 @@ func (r *Runner) runFuncs(ctx context.Context, when, phase string, fns []ast.Hoo
 			return fmt.Errorf("%s %s hook (func): %w", when, phase, err)
 		}
 	}
+
 	return nil
 }
 
@@ -79,5 +83,6 @@ func (r *Runner) runAll(ctx context.Context, when, phase string, tasks []string)
 			return fmt.Errorf("%s %s hook %q: %w", when, phase, name, err)
 		}
 	}
+
 	return nil
 }

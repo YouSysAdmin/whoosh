@@ -10,6 +10,7 @@ import (
 // Empty role/host filters match everything, deploy:false hosts are inventory-only and never selected here.
 func selectHosts(cfg *ast.DeployFile, roles, limit []string) []ast.Host {
 	hosts := ast.FilterDeployable(cfg.Hosts)
+
 	return ast.FilterByAddresses(ast.FilterByRoles(hosts, roles), limit)
 }
 
@@ -25,6 +26,7 @@ func sshOptions(cfg *ast.DeployFile) (ssh.Options, error) {
 	if err != nil {
 		return ssh.Options{}, err
 	}
+
 	opts := ssh.Options{
 		StrictHostKey:  strict,
 		KnownHostsFile: cfg.SSH.KnownHostsFile,
@@ -42,6 +44,7 @@ func sshOptions(cfg *ast.DeployFile) (ssh.Options, error) {
 			Passphrase:   b.IdentityFilePassphrase,
 		})
 	}
+
 	return opts, nil
 }
 
@@ -51,10 +54,12 @@ func builtinAgent(cfg *ast.DeployFile) (ssh.Agent, error) {
 	if cfg.SSH.IdentityFile == "" && len(cfg.SSH.Identities) == 0 {
 		return nil, nil
 	}
+
 	ids := make([]ssh.Identity, 0, len(cfg.SSH.Identities)+1)
 	if cfg.SSH.IdentityFile != "" {
 		ids = append(ids, ssh.Identity{Name: "identity_file", Path: cfg.SSH.IdentityFile, Passphrase: cfg.SSH.IdentityFilePassphrase})
 	}
+
 	for _, name := range sortedKeys(cfg.SSH.Identities) {
 		id := cfg.SSH.Identities[name]
 		ids = append(ids, ssh.Identity{
@@ -65,9 +70,11 @@ func builtinAgent(cfg *ast.DeployFile) (ssh.Agent, error) {
 			Recursive:  id.Recursive,
 		})
 	}
+
 	ag, err := ssh.NewAgent(ids)
 	if err != nil {
 		return nil, errors.Config("%s", err)
 	}
+
 	return ag, nil
 }

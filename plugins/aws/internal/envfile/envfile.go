@@ -20,12 +20,17 @@ func Write(ctx context.Context, path string, content []byte, hostMsg, localMsg s
 		if err := w.WriteFile(ctx, path, content); err != nil {
 			return err
 		}
+
 		slog.Info(hostMsg, attrs...)
+
 		return nil
 	}
+
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
+
 	slog.Info(localMsg, attrs...)
+
 	return nil
 }

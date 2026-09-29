@@ -16,12 +16,15 @@ func TestIsUnreachable(t *testing.T) {
 	if !errors.IsUnreachable(u) {
 		t.Error("direct UnreachableError not detected")
 	}
+
 	if !errors.IsUnreachable(fmt.Errorf("context: %w", u)) {
 		t.Error("wrapped UnreachableError not detected")
 	}
+
 	if errors.IsUnreachable(errors.New("plain")) {
 		t.Error("plain error wrongly classified unreachable")
 	}
+
 	if errors.IsUnreachable(nil) {
 		t.Error("nil wrongly classified unreachable")
 	}
@@ -34,6 +37,7 @@ func TestRun_DialFailureIsUnreachable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close() // nothing listening now -> connection refused
 
@@ -46,6 +50,7 @@ func TestRun_DialFailureIsUnreachable(t *testing.T) {
 	if len(results) != 1 || results[0].Err == nil {
 		t.Fatalf("expected a dial failure, got %+v", results)
 	}
+
 	if !errors.IsUnreachable(results[0].Err) {
 		t.Errorf("dial failure should be unreachable, got %v", results[0].Err)
 	}
@@ -58,6 +63,7 @@ func TestRun_CommandExitIsNotUnreachable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer srv.Close()
 
 	c := runner.NewCluster(runner.Options{StrictHostKey: false}, io.Discard)
@@ -69,6 +75,7 @@ func TestRun_CommandExitIsNotUnreachable(t *testing.T) {
 	if len(results) != 1 || results[0].Err == nil {
 		t.Fatalf("expected a non-zero exit, got %+v", results)
 	}
+
 	if errors.IsUnreachable(results[0].Err) {
 		t.Errorf("a command exit must not be classified unreachable, got %v", results[0].Err)
 	}

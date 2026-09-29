@@ -48,6 +48,7 @@ func deployTree(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(dir, "current"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	return dir
 }
 
@@ -59,6 +60,7 @@ func run(t *testing.T, srv *sshtest.Server, task string) string {
 	if err := ex.RunTask(t.Context(), task); err != nil {
 		t.Fatalf("RunTask(%q): %v\noutput:\n%s", task, err, buf.String())
 	}
+
 	return buf.String()
 }
 
@@ -67,6 +69,7 @@ func TestRunTask_Remote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	out := run(t, srv, "greet")
@@ -80,6 +83,7 @@ func TestRunTask_Local(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	out := run(t, srv, "build")
@@ -93,6 +97,7 @@ func TestRunTask_DirAndEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	out := run(t, srv, "indir")
@@ -106,6 +111,7 @@ func TestRunTask_DirIsTemplated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	deployTo := deployTree(t)
@@ -123,6 +129,7 @@ func TestRunTask_DirIsTemplated(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "indir-tmpl"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 
 	if !strings.Contains(buf.String(), deployTo) {
@@ -149,10 +156,12 @@ func TestRunTask_OncePicksPrimaryHost(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "one-shot"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	out := buf.String()
 	if !strings.Contains(out, "second.local") {
 		t.Errorf("once task should run on the primary host, output:\n%s", out)
 	}
+
 	if strings.Contains(out, "first.local") {
 		t.Errorf("once task must not run on the non-primary host, output:\n%s", out)
 	}
@@ -163,9 +172,11 @@ func TestRunTask_ActionParamsAreTemplated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plugins.Load: %v", err)
 	}
+
 	var got map[string]any
 	if err := reg.AddAction("test:echo", func(_ context.Context, params map[string]any, _ io.Writer) error {
 		got = params
+
 		return nil
 	}); err != nil {
 		t.Fatalf("AddAction: %v", err)
@@ -196,13 +207,16 @@ func TestRunTask_ActionParamsAreTemplated(t *testing.T) {
 	if got["name"] != "my-asg" {
 		t.Errorf("name = %v, want my-asg (templated from vars)", got["name"])
 	}
+
 	if got["stage"] != "prod" {
 		t.Errorf("stage = %v, want prod (templated from deploy context)", got["stage"])
 	}
+
 	lt, _ := got["launch_template"].(map[string]any)
 	if lt == nil || lt["id"] != "my-asg-lt" {
 		t.Errorf("launch_template = %v, want id=my-asg-lt (nested templating)", got["launch_template"])
 	}
+
 	if got["keep"] != 3 || got["flag"] != false {
 		t.Errorf("non-string params changed: keep=%v flag=%v", got["keep"], got["flag"])
 	}
@@ -215,20 +229,24 @@ func TestRunTask_ActionCapturesHostCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	reg, err := plugins.Load(nil)
 	if err != nil {
 		t.Fatalf("plugins.Load: %v", err)
 	}
+
 	var captured string
 	if err := reg.AddAction("test:capture", func(ctx context.Context, _ map[string]any, _ io.Writer) error {
 		cap := plugins.HostCommandCapturerFrom(ctx)
 		if cap == nil {
 			return fmt.Errorf("no HostCommandCapturer in ctx")
 		}
+
 		out, err := cap.CaptureCommand(ctx, "echo hi from host")
 		captured = out
+
 		return err
 	}); err != nil {
 		t.Fatalf("AddAction: %v", err)
@@ -243,6 +261,7 @@ func TestRunTask_ActionCapturesHostCommand(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "cap"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	if captured != "hi from host" {
 		t.Fatalf("captured = %q, want %q", captured, "hi from host")
 	}
@@ -253,9 +272,11 @@ func TestRunTask_SkipsInactivePluginAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plugins.Load: %v", err)
 	}
+
 	called := false
 	if err := reg.AddAction("aws:ec2:ami:create", func(context.Context, map[string]any, io.Writer) error {
 		called = true
+
 		return nil
 	}); err != nil {
 		t.Fatalf("AddAction: %v", err)
@@ -276,6 +297,7 @@ func TestRunTask_SkipsInactivePluginAction(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "bake"); err != nil {
 		t.Fatalf("a skipped action task must not error: %v", err)
 	}
+
 	if called {
 		t.Error("action ran despite its plugins being inactive for the stage")
 	}
@@ -300,6 +322,7 @@ func TestRunTask_SkipsTaskInactiveForStage(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "prod-only"); err != nil {
 		t.Fatalf("an inactive task must not error: %v", err)
 	}
+
 	if strings.Contains(buf.String(), "RAN_PROD_ONLY") {
 		t.Errorf("task ran despite being inactive for stage staging:\n%s", buf.String())
 	}
@@ -311,6 +334,7 @@ func TestRunTask_SkipsTaskInactiveForStage(t *testing.T) {
 	if err := ex2.RunTask(t.Context(), "prod-only"); err != nil {
 		t.Fatalf("active task: %v", err)
 	}
+
 	if !strings.Contains(buf2.String(), "RAN_PROD_ONLY") {
 		t.Errorf("active task did not run for stage production:\n%s", buf2.String())
 	}
@@ -321,6 +345,7 @@ func TestRunTask_ExposesHostRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	cfg := newTestConfig(srv, deployTree(t))
@@ -336,6 +361,7 @@ func TestRunTask_ExposesHostRoles(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "roles-echo"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	// Both the $ROLES env var and the {{.roles}} template see the host's full roles.
 	if !strings.Contains(buf.String(), "env=app,worker tmpl=app,worker") {
 		t.Fatalf("host roles not exposed; want env=app,worker tmpl=app,worker in:\n%s", buf.String())
@@ -347,6 +373,7 @@ func TestRunTask_ResolvesDeployEnvInCmd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	deployTo := deployTree(t)
@@ -361,6 +388,7 @@ func TestRunTask_ResolvesDeployEnvInCmd(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "done"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 
 	want := "Released myapp to " + filepath.Join(deployTo, "current") + " on " + srv.Host
@@ -374,6 +402,7 @@ func TestRunTask_ExposesDeployer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	cfg := newTestConfig(srv, deployTree(t))
@@ -388,6 +417,7 @@ func TestRunTask_ExposesDeployer(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "who"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	// operator.Name() is resolved once per process, so compare against it rather than pinning an env-dependent value.
 	want := "tmpl=" + operator.Name() + " env=" + operator.Name()
 	if !strings.Contains(buf.String(), want) {
@@ -400,6 +430,7 @@ func TestRunTask_ExposesKeepReleases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	cfg := newTestConfig(srv, deployTree(t))
@@ -414,6 +445,7 @@ func TestRunTask_ExposesKeepReleases(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "keep"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 
 	if !strings.Contains(buf.String(), "tmpl=7 env=7") {
@@ -437,18 +469,22 @@ func TestRunTaskInPhase_ExposesPhase(t *testing.T) {
 	if err := ex.RunTaskInPhase(t.Context(), "note", "deploy:publishing"); err != nil {
 		t.Fatalf("RunTaskInPhase: %v", err)
 	}
+
 	out := buf.String()
 	if !strings.Contains(out, "phase=deploy:publishing") {
 		t.Errorf("template {{.phase}} not set:\n%s", out)
 	}
+
 	if !strings.Contains(out, `export DEPLOY_PHASE="deploy:publishing"`) {
 		t.Errorf("$DEPLOY_PHASE not exported:\n%s", out)
 	}
+
 	// The phase is restored after the run: a plain RunTask must not see it.
 	buf.Reset()
 	if err := ex.RunTask(t.Context(), "note"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	if strings.Contains(buf.String(), "deploy:publishing") {
 		t.Errorf("phase leaked into a standalone run:\n%s", buf.String())
 	}
@@ -474,6 +510,7 @@ func TestRunTask_CaptureJSONState(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "use"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 	if out := buf.String(); !strings.Contains(out, "account=123 role=web env=123") {
 		t.Fatalf("captured JSON state not consumed (template + env):\n%s", out)
@@ -500,6 +537,7 @@ func TestRunTask_CaptureTextAndLines(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 	if out := buf.String(); !strings.Contains(out, "ver=v1.2.3 first=a count=3") {
 		t.Fatalf("text/lines state not consumed:\n%s", out)
@@ -522,6 +560,7 @@ func TestRunTask_CaptureDryRunRenders(t *testing.T) {
 	if !strings.Contains(out, "capture local:") {
 		t.Errorf("producer capture step not shown in dry-run:\n%s", out)
 	}
+
 	if !strings.Contains(out, "acct=<no value>") {
 		t.Errorf("consumer not rendered leniently in dry-run:\n%s", out)
 	}
@@ -552,6 +591,7 @@ func orderOf(t *testing.T, path string) string {
 	if err != nil {
 		t.Fatalf("read order log: %v", err)
 	}
+
 	return strings.Join(strings.Fields(string(data)), ",")
 }
 
@@ -578,6 +618,7 @@ func TestRunTask_TaskHooksBracketInvocation(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "restart_sidekiq"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 	// Before hook, then the task's own dep, then its body, then the after hook.
 	if got, want := orderOf(t, log), "prepare,setup,restart,newrelic"; got != want {
@@ -604,6 +645,7 @@ func TestRunTask_TaskHookFiresWhenTaskRunsAsDep(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "deploy_app"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 	if got, want := orderOf(t, log), "migrate,notify,deploy"; got != want {
 		t.Fatalf("hook order = %q, want %q\n%s", got, want, buf.String())
@@ -628,6 +670,7 @@ func TestRunTask_TaskHookCycleDetected(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected a cycle error from a self-referential hook\n%s", buf.String())
 	}
+
 	if !strings.Contains(err.Error(), "cycle") {
 		t.Fatalf("want a cycle error, got: %v", err)
 	}
@@ -652,6 +695,7 @@ func TestMarkUnreachable_ExcludesHost(t *testing.T) {
 	if got := len(ex.Hosts()); got != 2 {
 		t.Fatalf("Servers() = %d, want 2", got)
 	}
+
 	ex.MarkUnreachable("h1")
 	got := ex.Hosts()
 	if len(got) != 1 || got[0].Address != "h2" {
@@ -666,6 +710,7 @@ func TestMarkUnreachable_ExcludesHost(t *testing.T) {
 	if err := ex2.RunTask(t.Context(), "t"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	out := buf2.String()
 	if strings.Contains(out, "h1") || !strings.Contains(out, "h2") {
 		t.Fatalf("excluded host still targeted by task:\n%s", out)
@@ -677,6 +722,7 @@ func TestRunTask_Scripts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	dir := t.TempDir()
@@ -684,10 +730,12 @@ func TestRunTask_Scripts(t *testing.T) {
 	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(scriptsDir, "aa.sh"),
 		[]byte("echo file-script app=$APP_NAME host=$HOST greeting=$GREETING custom=$CUSTOM tov=$template_only_var.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(filepath.Join(dir, "current"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -729,6 +777,7 @@ func TestRunTask_Scripts(t *testing.T) {
 			t.Fatalf("missing %q in output:\n%s", want, out)
 		}
 	}
+
 	// Config vars are not auto-exported to the shell environment.
 	if strings.Contains(out, "stay-out-of-env") {
 		t.Fatalf("config var leaked into the environment:\n%s", out)
@@ -740,6 +789,7 @@ func TestRunTask_TemplatedFileScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	dir := t.TempDir()
@@ -747,12 +797,14 @@ func TestRunTask_TemplatedFileScript(t *testing.T) {
 	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	// A .tmpl file is templated automatically; it reads the whole config + host.
 	body := "echo app={{.config.app.name}} host={{.host}} stage={{.stage}}\n" +
 		"{{range .config.hosts}}echo role={{index .roles 0}}\n{{end}}"
 	if err := os.WriteFile(filepath.Join(scriptsDir, "info.sh.tmpl"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(filepath.Join(dir, "current"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -787,6 +839,7 @@ func TestRunTask_ScriptMissingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	cfg := &ast.DeployFile{
@@ -816,6 +869,7 @@ func dryRunPlan(t *testing.T, cfg *ast.DeployFile, task string) string {
 	if err := ex.RunTask(t.Context(), task); err != nil {
 		t.Fatalf("RunTask(%q): %v", task, err)
 	}
+
 	return buf.String()
 }
 
@@ -834,10 +888,12 @@ func TestTask_DefaultsToReleaseDir(t *testing.T) {
 	if out := dryRunPlan(t, cfg, "def"); !strings.Contains(out, "cd '/srv/app/current' && pwd") {
 		t.Errorf("default dir plan = %q, want cd into /srv/app/current", out)
 	}
+
 	// Explicit dir wins.
 	if out := dryRunPlan(t, cfg, "fixed"); !strings.Contains(out, "cd '/custom' && pwd") {
 		t.Errorf("explicit dir plan = %q, want cd into /custom", out)
 	}
+
 	// Local task: no cd (runs in the operator's cwd).
 	if out := dryRunPlan(t, cfg, "local"); strings.Contains(out, "cd ") {
 		t.Errorf("local task should not cd, got %q", out)
@@ -867,13 +923,16 @@ func TestDryRun_DefaultPlanIsClean(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "t"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	out := buf.String()
 	if !strings.Contains(out, "[dry-run] h1: echo hi") {
 		t.Errorf("cmd not shown in its clean form:\n%s", out)
 	}
+
 	if !strings.Contains(out, "[dry-run] h1: script greet") {
 		t.Errorf("script step not listed by name:\n%s", out)
 	}
+
 	for _, leak := range []string{"export ", "cd '", "from-script-body"} {
 		if strings.Contains(out, leak) {
 			t.Errorf("non-verbose plan leaks %q:\n%s", leak, out)
@@ -896,9 +955,11 @@ func TestTask_GlobalEnvExportedAndExpands(t *testing.T) {
 	if !strings.Contains(out, `export PATH="$HOME/.rbenv/shims:$PATH"`) {
 		t.Errorf("missing expandable PATH export in:\n%s", out)
 	}
+
 	if !strings.Contains(out, `export B="$A-x"`) {
 		t.Errorf("missing expandable B export in:\n%s", out)
 	}
+
 	// Task env overrides global env.
 	if !strings.Contains(out, `export A="task"`) {
 		t.Errorf("task env should override global env (A), got:\n%s", out)
@@ -924,6 +985,7 @@ func TestTask_EnvTemplatesFromSystem(t *testing.T) {
 	if !strings.Contains(out, `export GLOBAL_TOK="s3cr3t"`) {
 		t.Errorf("global env not templated from system env:\n%s", out)
 	}
+
 	if !strings.Contains(out, `export TASK_TOK="s3cr3t-x"`) {
 		t.Errorf("task env not templated from system env:\n%s", out)
 	}
@@ -946,6 +1008,7 @@ func TestRunTask_EnvFuncSeesGlobalEnvs(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\noutput:\n%s", err, buf.String())
 	}
+
 	if !strings.Contains(buf.String(), "g-test") {
 		t.Fatalf("env func should resolve the rendered global env, got:\n%s", buf.String())
 	}
@@ -989,10 +1052,12 @@ func TestRunTask_EnvFuncPrecedence(t *testing.T) {
 	if out := dryRunPlan(t, newCfg("from-global"), "t"); !strings.Contains(out, `export OUT="from-global"`) {
 		t.Errorf("global env should beat env_files, got:\n%s", out)
 	}
+
 	// A set-but-empty global env still beats env_files.
 	if out := dryRunPlan(t, newCfg(""), "t"); !strings.Contains(out, `export OUT=""`) {
 		t.Errorf("set-but-empty global env should beat env_files, got:\n%s", out)
 	}
+
 	// A set process var beats the global env.
 	t.Setenv(name, "from-proc")
 	if out := dryRunPlan(t, newCfg("from-global"), "t"); !strings.Contains(out, `export OUT="from-proc"`) {
@@ -1041,6 +1106,7 @@ func TestRunTask_RedactsOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	cfg := newTestConfig(srv, deployTree(t))
@@ -1054,12 +1120,14 @@ func TestRunTask_RedactsOutput(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "leak"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close() // flush the redacting writer
 
 	out := buf.String()
 	if strings.Contains(out, "ghp_5zsMYN") {
 		t.Errorf("secret leaked in command output:\n%s", out)
 	}
+
 	if !strings.Contains(out, masking.Placeholder) {
 		t.Errorf("expected redaction in output:\n%s", out)
 	}
@@ -1072,6 +1140,7 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	prev := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 	t.Cleanup(func() { slog.SetDefault(prev) })
+
 	return &buf
 }
 
@@ -1080,6 +1149,7 @@ func TestRunTask_LogModeRoutesRemoteOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	logs := captureLogs(t)
@@ -1091,12 +1161,14 @@ func TestRunTask_LogModeRoutesRemoteOutput(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "greet"); err != nil {
 		t.Fatalf("RunTask: %v\nlogs:\n%s", err, logs.String())
 	}
+
 	ex.Close()
 
 	// Nothing command-related on the raw stream: neither the output line nor the echoed command.
 	if r := raw.String(); strings.Contains(r, "hello-from-") || strings.Contains(r, "$ echo") {
 		t.Fatalf("command output/echo leaked to raw stream in log mode:\n%s", r)
 	}
+
 	// The logger got a structured "output" record carrying the host, the running task, and the line.
 	got := logs.String()
 	for _, want := range []string{
@@ -1109,6 +1181,7 @@ func TestRunTask_LogModeRoutesRemoteOutput(t *testing.T) {
 			t.Fatalf("missing %s in log output:\n%s", want, got)
 		}
 	}
+
 	// The echoed command is logged too (as an "exec" record), not streamed raw.
 	if !strings.Contains(got, `"msg":"exec"`) {
 		t.Fatalf("echoed command not routed through logger:\n%s", got)
@@ -1134,9 +1207,11 @@ func TestDryRun_LogModeRoutesPlan(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "t"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	if r := raw.String(); strings.Contains(r, "[dry-run]") {
 		t.Fatalf("dry-run plan leaked to raw stream in log mode:\n%s", r)
 	}
+
 	got := logs.String()
 	for _, want := range []string{`"msg":"dry-run"`, `"host":"h1"`, `"command":"echo hi"`, `"task":"t"`} {
 		if !strings.Contains(got, want) {
@@ -1150,6 +1225,7 @@ func TestRunTask_LogModeRoutesLocalOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	logs := captureLogs(t)
@@ -1161,11 +1237,13 @@ func TestRunTask_LogModeRoutesLocalOutput(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "build"); err != nil { // local task: echo building myapp
 		t.Fatalf("RunTask: %v\nlogs:\n%s", err, logs.String())
 	}
+
 	ex.Close()
 
 	if strings.Contains(raw.String(), "building myapp") {
 		t.Fatalf("local output leaked to raw stream in log mode:\n%s", raw.String())
 	}
+
 	got := logs.String()
 	if !strings.Contains(got, `"output":"building myapp"`) || !strings.Contains(got, `"host":"local"`) {
 		t.Fatalf("local output not routed through logger with host=local:\n%s", got)
@@ -1177,6 +1255,7 @@ func TestRunTask_LogModeRedactsOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	logs := captureLogs(t)
@@ -1191,12 +1270,14 @@ func TestRunTask_LogModeRedactsOutput(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "leak"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	ex.Close()
 
 	got := logs.String()
 	if strings.Contains(got, "ghp_5zsMYN") {
 		t.Fatalf("secret leaked through the logger in log mode:\n%s", got)
 	}
+
 	if !strings.Contains(got, masking.Placeholder) {
 		t.Fatalf("expected redaction in logged output:\n%s", got)
 	}
@@ -1207,6 +1288,7 @@ func TestRunTask_ColorizesHostPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	cfg := newTestConfig(srv, deployTree(t))
@@ -1217,6 +1299,7 @@ func TestRunTask_ColorizesHostPrefix(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "noisy"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 
 	out := buf.String()
@@ -1224,12 +1307,15 @@ func TestRunTask_ColorizesHostPrefix(t *testing.T) {
 	if !strings.Contains(out, green+" $ ") { // the echoed command
 		t.Fatalf("echoed command prefix not green:\n%q", out)
 	}
+
 	if !strings.Contains(out, green+" out") { // stdout output
 		t.Fatalf("stdout prefix not green:\n%q", out)
 	}
+
 	if !strings.Contains(out, green+" oops") { // stderr output uses the same (green) host prefix
 		t.Fatalf("stderr prefix not green:\n%q", out)
 	}
+
 	if strings.Contains(out, "\033[31m") {
 		t.Fatalf("no output should be red (stderr is not an error):\n%q", out)
 	}
@@ -1238,6 +1324,7 @@ func TestRunTask_ColorizesHostPrefix(t *testing.T) {
 // localHostCfg builds a config with one local:true host (cluster path, no SSH server) and the given tasks.
 func localHostCfg(t *testing.T, tasks map[string]*ast.Task) *ast.DeployFile {
 	t.Helper()
+
 	return &ast.DeployFile{
 		App:   ast.App{Name: "app", DeployTo: deployTree(t), Branch: "main"},
 		Stage: "test",
@@ -1256,11 +1343,13 @@ func TestRunTask_SilentOutputHiddenOnSuccess(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "quiet"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	ex.Close()
 
 	if strings.Contains(raw.String(), "hush-line") {
 		t.Fatalf("output not suppressed on success:\n%s", raw.String())
 	}
+
 	// silent_output still announces the task (unlike silent).
 	if g := logs.String(); !strings.Contains(g, `"msg":"task"`) || !strings.Contains(g, `"name":"quiet"`) {
 		t.Fatalf("task not announced:\n%s", g)
@@ -1279,6 +1368,7 @@ func TestRunTask_SilentOutputShownOnFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the failing task to return an error")
 	}
+
 	if !strings.Contains(raw.String(), "boom-line") {
 		t.Fatalf("captured output not flushed on failure:\n%s", raw.String())
 	}
@@ -1299,13 +1389,16 @@ func TestRunTask_SilentOutputLogMode(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "ok"); err != nil {
 		t.Fatalf("RunTask ok: %v", err)
 	}
+
 	if strings.Contains(logs.String(), "hush-line") {
 		t.Fatalf("output emitted on success in log mode:\n%s", logs.String())
 	}
+
 	// Failure: the buffered records are replayed through the logger.
 	if err := ex.RunTask(t.Context(), "bad"); err == nil {
 		t.Fatal("expected failure")
 	}
+
 	if g := logs.String(); !strings.Contains(g, `"output":"doom-line"`) {
 		t.Fatalf("buffered output not replayed on failure:\n%s", g)
 	}
@@ -1321,12 +1414,14 @@ func TestRunTask_SilentOutputRedactsFlushedOutput(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "leak"); err == nil {
 		t.Fatal("expected failure")
 	}
+
 	ex.Close()
 
 	out := raw.String()
 	if strings.Contains(out, "ghp_5zsMYN") {
 		t.Fatalf("secret leaked when flushing on failure:\n%s", out)
 	}
+
 	if !strings.Contains(out, masking.Placeholder) {
 		t.Fatalf("expected redaction in flushed output:\n%s", out)
 	}
@@ -1370,10 +1465,12 @@ func TestRunTask_SkipsNonDeployHost(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "greet"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	out := buf.String()
 	if !strings.Contains(out, "keep.example.com") {
 		t.Errorf("deploy-enabled host missing from plan:\n%s", out)
 	}
+
 	if strings.Contains(out, "skip.example.com") {
 		t.Errorf("deploy:false host should be skipped:\n%s", out)
 	}
@@ -1384,6 +1481,7 @@ func TestRunTask_Unknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	var buf bytes.Buffer
@@ -1401,6 +1499,7 @@ func TestRunOn_VerboseEchoesBareCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	var buf bytes.Buffer
@@ -1410,10 +1509,12 @@ func TestRunOn_VerboseEchoesBareCommand(t *testing.T) {
 	if err := ex.RunOn(t.Context(), ex.Hosts(), "echo built-in"); err != nil {
 		t.Fatalf("RunOn: %v\n%s", err, buf.String())
 	}
+
 	out := buf.String()
 	if !strings.Contains(out, "$ echo built-in\n") {
 		t.Fatalf("missing bare command echo, got:\n%s", out)
 	}
+
 	if strings.Contains(out, "] $ echo built-in") {
 		t.Fatalf("built-in echo must not be host-prefixed:\n%s", out)
 	}
@@ -1434,6 +1535,7 @@ func TestDryRun_LocalAndRunOnFormats(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "b"); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
+
 	ex.Close()
 	if out := buf.String(); !strings.Contains(out, "[dry-run][local] echo hi") {
 		t.Errorf("local plan line missing its [local] prefix:\n%s", out)
@@ -1446,6 +1548,7 @@ func TestDryRun_LocalAndRunOnFormats(t *testing.T) {
 	if err := ex.RunOn(t.Context(), ex.Hosts(), "mkdir -p /srv/app"); err != nil {
 		t.Fatalf("RunOn: %v", err)
 	}
+
 	if out := buf.String(); !strings.Contains(out, "[dry-run] h1: mkdir -p /srv/app") {
 		t.Errorf("RunOn plan line missing its host prefix:\n%s", out)
 	}
@@ -1458,6 +1561,7 @@ func TestRunTask_EchoesRemoteCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	out := run(t, srv, "greet")
@@ -1472,6 +1576,7 @@ func TestRunTask_EchoesLocalCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	out := run(t, srv, "build")
@@ -1500,6 +1605,7 @@ func TestRunTask_VerboseEchoesBuiltCommand(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "env-echo"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, verbose.String())
 	}
+
 	ex.Close()
 	out := verbose.String()
 	for _, want := range []string{`export GLOBAL_ONE="g1"`, `export TASK_ONE="t1"`, "echo $TASK_ONE"} {
@@ -1513,11 +1619,13 @@ func TestRunTask_VerboseEchoesBuiltCommand(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "env-echo"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, quiet.String())
 	}
+
 	ex.Close()
 	out = quiet.String()
 	if strings.Contains(out, "export ") {
 		t.Fatalf("non-verbose echo must not show env exports, got:\n%s", out)
 	}
+
 	if !strings.Contains(out, "[local] $ echo $TASK_ONE") {
 		t.Fatalf("non-verbose echo missing clean command form, got:\n%s", out)
 	}
@@ -1528,6 +1636,7 @@ func TestRunTask_LocalOutputHostPrefixed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	// A local task's output is tagged "[local]" like remote hosts, not emitted bare.
@@ -1549,6 +1658,7 @@ func TestRunTask_LocalPrefixColorized(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "hc"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	ex.Close()
 
 	green := "\033[32m[local]\033[0m"
@@ -1556,6 +1666,7 @@ func TestRunTask_LocalPrefixColorized(t *testing.T) {
 	if !strings.Contains(out, green+" $ ") { // echoed command
 		t.Fatalf("local echo prefix not green:\n%q", out)
 	}
+
 	if !strings.Contains(out, green+" done") { // command output
 		t.Fatalf("local output prefix not green:\n%q", out)
 	}
@@ -1579,9 +1690,11 @@ func TestRunTask_EchoRedactsSensitiveValue(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "login"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	if strings.Contains(buf.String(), "supersecret_value_1234") {
 		t.Errorf("sensitive value leaked into output:\n%s", buf.String())
 	}
+
 	if !strings.Contains(buf.String(), masking.Placeholder) {
 		t.Errorf("expected redaction placeholder, got:\n%s", buf.String())
 	}
@@ -1612,6 +1725,7 @@ func TestRunTask_NonDeployTargetsInventoryHosts(t *testing.T) {
 		if err := ex.RunTask(t.Context(), task); err != nil {
 			t.Fatalf("RunTask(%q): %v\n%s", task, err, buf.String())
 		}
+
 		return buf.String()
 	}
 
@@ -1619,6 +1733,7 @@ func TestRunTask_NonDeployTargetsInventoryHosts(t *testing.T) {
 	if !strings.Contains(nd, "[asg-host] $") {
 		t.Errorf("non_deploy task should target asg-host, got:\n%s", nd)
 	}
+
 	if strings.Contains(nd, "[deploy-host] $") {
 		t.Errorf("non_deploy task should NOT target the deploy host, got:\n%s", nd)
 	}
@@ -1627,6 +1742,7 @@ func TestRunTask_NonDeployTargetsInventoryHosts(t *testing.T) {
 	if !strings.Contains(normal, "[deploy-host] $") {
 		t.Errorf("normal task should target deploy-host, got:\n%s", normal)
 	}
+
 	if strings.Contains(normal, "[asg-host] $") {
 		t.Errorf("normal task should NOT target the deploy:false host, got:\n%s", normal)
 	}
@@ -1646,12 +1762,14 @@ func TestRunTask_StrictHostKeyOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	kh := filepath.Join(t.TempDir(), "known_hosts") // empty: no host is known
 	if err := os.WriteFile(kh, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	cfg := &ast.DeployFile{
 		App:   ast.App{Name: "myapp", DeployTo: deployTree(t), Branch: "main"},
 		Stage: "test",
@@ -1667,12 +1785,14 @@ func TestRunTask_StrictHostKeyOverride(t *testing.T) {
 		var buf bytes.Buffer
 		ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: true, KnownHostsFile: kh}, Out: &buf})
 		defer ex.Close()
+
 		return ex.RunTask(t.Context(), task)
 	}
 
 	if err := run("strict"); err == nil {
 		t.Error("strict task should fail handshake against empty known_hosts")
 	}
+
 	if err := run("skip"); err != nil {
 		t.Errorf("strict_host_key:false task should connect, got: %v", err)
 	}
@@ -1697,6 +1817,7 @@ func TestRunTask_ExposesImports(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	if !strings.Contains(buf.String(), "tmpl=topsecretval env=topsecretval db=postgres://h/db") {
 		t.Fatalf("imports not exposed in template/env, got:\n%s", buf.String())
 	}
@@ -1709,6 +1830,7 @@ func TestRunAction_HostFileWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plugins.Load: %v", err)
 	}
+
 	if err := reg.AddAction("test:writefile", func(ctx context.Context, _ map[string]any, _ io.Writer) error {
 		return plugins.HostFileWriterFrom(ctx).WriteFile(ctx, "rendered.env", []byte("K=v\n"))
 	}); err != nil {
@@ -1740,9 +1862,11 @@ func TestRunAction_HostFileWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("file not rendered on host: %v", err)
 	}
+
 	if string(got) != "K=v\n" {
 		t.Errorf("content = %q, want %q", got, "K=v\n")
 	}
+
 	if info, _ := os.Stat(p); info.Mode().Perm() != 0o600 {
 		t.Errorf("mode = %v, want 0600", info.Mode().Perm())
 	}
@@ -1755,9 +1879,11 @@ func TestRunAction_HostCommandRunner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plugins.Load: %v", err)
 	}
+
 	marker := filepath.Join(t.TempDir(), "ran")
 	if err := reg.AddAction("test:runcmd", func(ctx context.Context, params map[string]any, _ io.Writer) error {
 		cmd, _ := params["cmd"].(string)
+
 		return plugins.HostCommandRunnerFrom(ctx).RunCommand(ctx, cmd)
 	}); err != nil {
 		t.Fatalf("AddAction: %v", err)
@@ -1783,6 +1909,7 @@ func TestRunAction_HostCommandRunner(t *testing.T) {
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("command did not run on host: %v", err)
 	}
+
 	if !strings.Contains(buf.String(), "[localhost] $ echo ran > ") {
 		t.Fatalf("command not echoed per host:\n%s", buf.String())
 	}
@@ -1809,11 +1936,13 @@ func TestRunTask_ContinueOnError(t *testing.T) {
 		var buf bytes.Buffer
 		ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
 		defer ex.Close()
+
 		return ex.RunTask(t.Context(), task)
 	}
 	if err := run("boom"); err == nil {
 		t.Error("a failing command should abort without continue_on_error")
 	}
+
 	if err := run("boom-cont"); err != nil {
 		t.Errorf("continue_on_error should make the failure non-fatal, got %v", err)
 	}
@@ -1837,6 +1966,7 @@ func TestRunTask_EnvTemplateFuncSeesEnvFiles(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "show"); err != nil {
 		t.Fatalf("RunTask: %v\noutput:\n%s", err, buf.String())
 	}
+
 	if !strings.Contains(buf.String(), "exec-from-file") {
 		t.Fatalf("env func should resolve from env_files, got:\n%s", buf.String())
 	}
@@ -1860,6 +1990,7 @@ func TestRunTask_CaptureNoHostsStoresZeroState(t *testing.T) {
 	if err := ex.RunTask(t.Context(), "use"); err != nil {
 		t.Fatalf("RunTask: %v\n%s", err, buf.String())
 	}
+
 	if out := buf.String(); !strings.Contains(out, "n=0") {
 		t.Fatalf("zero state not stored/rendered:\n%s", out)
 	}

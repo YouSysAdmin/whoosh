@@ -29,6 +29,7 @@ func Register(reg *whoosh.Registry, cfg awssdk.Config, fp map[string]map[string]
 	if err := reg.AddAction(actionASGRefresh, asg.runRefresh); err != nil {
 		return err
 	}
+
 	if err := reg.AddAction(actionASGRollback, asg.runRollback); err != nil {
 		return err
 	}
@@ -37,6 +38,7 @@ func Register(reg *whoosh.Registry, cfg awssdk.Config, fp map[string]map[string]
 	if err := reg.AddAction(actionAMICreate, ami.runCreate); err != nil {
 		return err
 	}
+
 	if err := reg.AddAction(actionAMICleanup, ami.runCleanup); err != nil {
 		return err
 	}
@@ -46,12 +48,15 @@ func Register(reg *whoosh.Registry, cfg awssdk.Config, fp map[string]map[string]
 		if err := whoosh.DecodeParamsStrict(p, &ip); err != nil {
 			return fmt.Errorf("%s params: %w", FeatureInventory, err)
 		}
+
 		// A tag filter is mandatory - without one the only remaining filter is instance-state-name and the hook
 		// would inventory every running instance in the region as a deployable host.
 		if !ip.hasTagFilter() {
 			return fmt.Errorf("%s: set 'tags' with at least one value to choose which instances to inventory", FeatureInventory)
 		}
+
 		reg.AddStartup((&ec2Inventory{api: ec2c, params: ip}).appendHosts)
 	}
+
 	return nil
 }

@@ -20,12 +20,15 @@ func resolve(gitLookup func() string) string {
 	if v := strings.TrimSpace(os.Getenv("DEPLOYER")); v != "" {
 		return v
 	}
+
 	if v := strings.TrimSpace(gitLookup()); v != "" {
 		return v
 	}
+
 	if v := strings.TrimSpace(os.Getenv("USER")); v != "" {
 		return v
 	}
+
 	return "unknown"
 }
 
@@ -35,11 +38,13 @@ func gitUserName() string {
 	if err != nil {
 		return ""
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, gitPath, "config", "--get", "user.name").Output()
 	if err != nil {
 		return ""
 	}
+
 	return string(out)
 }

@@ -24,5 +24,6 @@ func NewCommand() *cobra.Command {
 	f.StringVar(&opts.goBin, "go", "go", "path to the go toolchain")
 	f.BoolVar(&opts.keep, "keep", false, "keep the temporary build directory")
 	f.BoolVar(&opts.verbose, "verbose", false, "print the go commands as they run")
+
 	return cmd
 }

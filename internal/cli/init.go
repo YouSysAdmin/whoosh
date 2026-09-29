@@ -23,6 +23,7 @@ func newInitCmd() *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&stages, "stages", []string{"staging", "production"},
 		"stages to scaffold under "+deployfile.StageDirs[0]+"/")
+
 	return cmd
 }
 
@@ -35,6 +36,7 @@ func runInit(stages []string) error {
 	if err := os.MkdirAll(stageDir, 0o755); err != nil {
 		return fmt.Errorf("create %s/: %w", stageDir, err)
 	}
+
 	for _, stage := range stages {
 		path := filepath.Join(stageDir, stage+".yml")
 		if err := writeIfAbsent(path, deployfile.StageScaffold(stage)); err != nil {
@@ -47,11 +49,13 @@ func runInit(stages []string) error {
 	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
 		return fmt.Errorf("create %s/: %w", scriptsDir, err)
 	}
+
 	if err := writeIfAbsent(filepath.Join(scriptsDir, "example.sh"), deployfile.ExampleScript()); err != nil {
 		return err
 	}
 
 	slog.Info("init complete - edit the generated files", "next", "whoosh <stage> deploy")
+
 	return nil
 }
 
@@ -59,11 +63,15 @@ func runInit(stages []string) error {
 func writeIfAbsent(path string, data []byte) error {
 	if _, err := os.Stat(path); err == nil {
 		slog.Info("skipped, already exists", "path", path)
+
 		return nil
 	}
+
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
+
 	slog.Info("created", "path", path)
+
 	return nil
 }

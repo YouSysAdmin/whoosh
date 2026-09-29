@@ -27,6 +27,7 @@ func newValidateCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			// A plugins name that isn't compiled in would only fail later at load, flag it here so validate catches a typo (e.g.
 			// `name: awss`).
 			for _, p := range cfg.Plugins {
@@ -34,7 +35,9 @@ func newValidateCmd(stage string, gf *globalFlags) *cobra.Command {
 					return errors.Config("unknown plugin %q (not built into this binary)", p.Name)
 				}
 			}
+
 			slog.Info("configuration is valid", "stage", stage, "deployfile", path, "tasks", len(cfg.Tasks))
+
 			return nil
 		},
 	}

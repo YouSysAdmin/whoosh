@@ -22,14 +22,17 @@ func genAgentKey(t *testing.T) (gossh.PublicKey, *bytes.Buffer) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
+
 	block, err := gossh.MarshalPrivateKey(priv, "test")
 	if err != nil {
 		t.Fatalf("marshal key: %v", err)
 	}
+
 	sshPub, err := gossh.NewPublicKey(pub)
 	if err != nil {
 		t.Fatalf("public key: %v", err)
 	}
+
 	return sshPub, bytes.NewBuffer(pem.EncodeToMemory(block))
 }
 
@@ -46,6 +49,7 @@ func TestDialBuiltinAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
@@ -55,12 +59,14 @@ func TestDialBuiltinAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial with builtin agent: %v", err)
 	}
+
 	defer conn.Close()
 
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
+
 	if !strings.Contains(stdout.String(), "hi") {
 		t.Errorf("stdout = %q, want it to contain %q", stdout.String(), "hi")
 	}
@@ -80,6 +86,7 @@ func TestDialBuiltinAgent_WrongKeyRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
@@ -105,6 +112,7 @@ func TestForwarding_BuiltinAgentWithoutSystemSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
@@ -114,6 +122,7 @@ func TestForwarding_BuiltinAgentWithoutSystemSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial with forward_agent and builtin agent should not need SSH_AUTH_SOCK: %v", err)
 	}
+
 	defer conn.Close()
 
 	var stdout, stderr bytes.Buffer
@@ -129,14 +138,17 @@ func TestDialEncryptedIdentityFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
+
 	block, err := gossh.MarshalPrivateKeyWithPassphrase(priv, "test", []byte("sesame"))
 	if err != nil {
 		t.Fatalf("marshal key: %v", err)
 	}
+
 	keyPath := filepath.Join(t.TempDir(), "id_enc")
 	if err := os.WriteFile(keyPath, pem.EncodeToMemory(block), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	sshPub, err := gossh.NewPublicKey(pub)
 	if err != nil {
 		t.Fatal(err)
@@ -146,6 +158,7 @@ func TestDialEncryptedIdentityFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	t.Setenv("SSH_AUTH_SOCK", "")
@@ -155,6 +168,7 @@ func TestDialEncryptedIdentityFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial with encrypted identity file and passphrase: %v", err)
 	}
+
 	defer conn.Close()
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
@@ -182,6 +196,7 @@ func TestDialUnencryptedIdentityWithStrayPassphrase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	conn, err := ssh.Dial(t.Context(), ssh.Target{
@@ -190,6 +205,7 @@ func TestDialUnencryptedIdentityWithStrayPassphrase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stray passphrase on an unencrypted key should be ignored: %v", err)
 	}
+
 	_ = conn.Close()
 }
 
@@ -206,6 +222,7 @@ func TestForwarding_ForwardKeyBeatsBuiltinAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	conn, err := ssh.Dial(t.Context(), ssh.Target{
@@ -215,6 +232,7 @@ func TestForwarding_ForwardKeyBeatsBuiltinAgent(t *testing.T) {
 		conn.Close()
 		t.Fatal("a broken forward_key should fail the dial, not fall back to the builtin agent")
 	}
+
 	if !strings.Contains(err.Error(), "forward_key") {
 		t.Errorf("error = %v, want the forward_key failure", err)
 	}

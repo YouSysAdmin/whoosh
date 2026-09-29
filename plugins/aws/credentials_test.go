@@ -26,16 +26,20 @@ func TestResolveCredentials_StaticVars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveCredentials: %v", err)
 	}
+
 	if p == nil {
 		t.Fatal("want a credentials provider for static vars")
 	}
+
 	if region != "" {
 		t.Errorf("static vars region = %q, want empty (region comes from region:)", region)
 	}
+
 	got, err := p.Retrieve(t.Context())
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
+
 	if got.AccessKeyID != "AKIA" || got.SecretAccessKey != "shh" || got.SessionToken != "tok" {
 		t.Errorf("provider returned %+v", got)
 	}
@@ -60,13 +64,16 @@ func TestResolveCredentials_File(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveCredentials: %v", err)
 	}
+
 	if region != "eu-west-1" {
 		t.Errorf("region = %q, want eu-west-1", region)
 	}
+
 	got, err := p.Retrieve(t.Context())
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
+
 	if got.AccessKeyID != "AKIAEXAMPLE" || got.SecretAccessKey != "secretkey" || got.SessionToken != "token123" {
 		t.Errorf("provider returned %+v", got)
 	}
@@ -78,6 +85,7 @@ func TestResolveCredentials_FileMissingKeys(t *testing.T) {
 	if err := os.WriteFile(path, []byte("aws_default_region: us-east-1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	c := awsConfig{CredentialsFile: path}
 	if _, _, err := c.resolveCredentials(t.Context()); err == nil {
 		t.Fatal("expected error for credentials file missing access/secret keys")
@@ -97,16 +105,20 @@ func TestResolveCredentials_URL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveCredentials: %v", err)
 	}
+
 	if gotAuth != "token ghtoken" {
 		t.Errorf("Authorization header = %q, want %q", gotAuth, "token ghtoken")
 	}
+
 	if region != "eu-west-1" {
 		t.Errorf("region = %q, want eu-west-1", region)
 	}
+
 	got, err := p.Retrieve(t.Context())
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
+
 	if got.AccessKeyID != "AKIAEXAMPLE" {
 		t.Errorf("provider returned %+v", got)
 	}
@@ -136,6 +148,7 @@ func fakeIMDS(ctx context.Context, cmd string) (string, error) {
 	case strings.Contains(cmd, "/security-credentials/my-role"):
 		return `{"AccessKeyId":"AKIA","SecretAccessKey":"shh","Token":"sess"}`, nil
 	}
+
 	return "", fmt.Errorf("unexpected command: %s", cmd)
 }
 
@@ -144,6 +157,7 @@ func TestFetchIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fetchIMDS: %v", err)
 	}
+
 	want := imdsCreds{AccessKeyID: "AKIA", SecretAccessKey: "shh", SessionToken: "sess", Region: "eu-west-1"}
 	if got != want {
 		t.Errorf("fetchIMDS = %+v, want %+v", got, want)
@@ -187,6 +201,7 @@ func TestSSHRunner_CapturesStdout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	conn, err := ssh.Dial(t.Context(), ssh.Target{
@@ -195,12 +210,14 @@ func TestSSHRunner_CapturesStdout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
+
 	defer conn.Close()
 
 	got, err := sshRunner(conn)(t.Context(), "echo hello")
 	if err != nil {
 		t.Fatalf("sshRunner: %v", err)
 	}
+
 	if got != "hello" {
 		t.Errorf("sshRunner stdout = %q, want %q", got, "hello")
 	}
@@ -213,9 +230,11 @@ func TestResolveCredentials_DefaultChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveCredentials: %v", err)
 	}
+
 	if p != nil {
 		t.Errorf("want nil provider (default chain), got %T", p)
 	}
+
 	if region != "" {
 		t.Errorf("region from resolveCredentials = %q, want empty (region applied separately)", region)
 	}

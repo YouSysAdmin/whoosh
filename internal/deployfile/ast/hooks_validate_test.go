@@ -49,8 +49,10 @@ func TestValidateHooks(t *testing.T) {
 				if err != nil {
 					t.Fatalf("ValidateHooks: %v", err)
 				}
+
 				return
 			}
+
 			if err == nil || !strings.Contains(err.Error(), c.wantErr) {
 				t.Fatalf("ValidateHooks = %v, want error containing %q", err, c.wantErr)
 			}

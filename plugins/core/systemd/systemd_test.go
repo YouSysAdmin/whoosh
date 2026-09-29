@@ -15,6 +15,7 @@ type fakeRunner struct{ cmds []string }
 
 func (f *fakeRunner) RunCommand(_ context.Context, cmd string) error {
 	f.cmds = append(f.cmds, cmd)
+
 	return nil
 }
 
@@ -25,12 +26,15 @@ func runAction(t *testing.T, spec whoosh.PluginSpec, action string, with map[str
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	fn, ok := reg.Action(action)
 	if !ok {
 		t.Fatalf("action %q not registered", action)
 	}
+
 	f := &fakeRunner{}
 	err = fn(whoosh.WithHostCommandRunner(t.Context(), f), with, io.Discard)
+
 	return f.cmds, err
 }
 
@@ -40,6 +44,7 @@ func TestRegisteredUnderDocumentedName(t *testing.T) {
 	if pluginName != "systemd" {
 		t.Fatalf("pluginName = %q, want %q (the documented name)", pluginName, "systemd")
 	}
+
 	if !whoosh.IsRegistered(pluginName) {
 		t.Fatal("plugin not registered")
 	}
@@ -52,6 +57,7 @@ func TestVersion(t *testing.T) {
 	if !ok {
 		t.Fatal("plugin does not implement whoosh.Versioner")
 	}
+
 	if v.Version() != pluginVersion || pluginVersion == "" {
 		t.Fatalf("Version() = %q, want %q", v.Version(), pluginVersion)
 	}
@@ -175,6 +181,7 @@ func TestCommands(t *testing.T) {
 			if err != nil {
 				t.Fatalf("commands: %v", err)
 			}
+
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("commands = %q, want %q", got, tc.want)
 			}
@@ -186,6 +193,7 @@ func TestCommands_Errors(t *testing.T) {
 	if _, err := (params{}).commands("start"); err == nil || !strings.Contains(err.Error(), "no units configured") {
 		t.Errorf("empty units: err = %v, want no units configured", err)
 	}
+
 	if _, err := (params{System: new(false)}).commands("daemon-reload"); err == nil || !strings.Contains(err.Error(), "nothing to do") {
 		t.Errorf("daemon-reload with both scopes off: err = %v, want nothing to do", err)
 	}
@@ -207,6 +215,7 @@ func TestAction_ParamLayering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("action: %v", err)
 	}
+
 	if want := []string{"sudo -n systemctl start 'app'"}; !reflect.DeepEqual(cmds, want) {
 		t.Fatalf("cmds = %q, want %q", cmds, want)
 	}
@@ -216,6 +225,7 @@ func TestAction_ParamLayering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("action with overrides: %v", err)
 	}
+
 	if want := []string{"systemctl start 'cron'"}; !reflect.DeepEqual(cmds, want) {
 		t.Fatalf("cmds = %q, want %q", cmds, want)
 	}
@@ -225,6 +235,7 @@ func TestAction_ParamLayering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("action without entry: %v", err)
 	}
+
 	if want := []string{"systemctl --user stop 'agent'"}; !reflect.DeepEqual(cmds, want) {
 		t.Fatalf("cmds = %q, want %q", cmds, want)
 	}
@@ -237,10 +248,12 @@ func TestAction_WithValidation(t *testing.T) {
 		!strings.Contains(err.Error(), "plugin-level param") {
 		t.Errorf("phase in with: err = %v, want plugin-level param", err)
 	}
+
 	if _, err := runAction(t, spec, actionStart, map[string]any{"system_unit_files": []string{"$(reboot)"}}); err == nil ||
 		!strings.Contains(err.Error(), "invalid unit name") {
 		t.Errorf("bad unit in with: err = %v, want invalid unit name", err)
 	}
+
 	if _, err := runAction(t, spec, actionStart, nil); err == nil ||
 		!strings.Contains(err.Error(), "no units configured") {
 		t.Errorf("no units: err = %v, want no units configured", err)
@@ -254,6 +267,7 @@ func TestAction_NoRunnerInCtx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	fn, _ := reg.Action(actionStart)
 	err = fn(t.Context(), map[string]any{"system_unit_files": []string{"app"}}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "no host command runner") {
@@ -279,6 +293,7 @@ func TestStartup_HooksWiring(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	cfg := &whoosh.DeployFile{}
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
@@ -288,6 +303,7 @@ func TestStartup_HooksWiring(t *testing.T) {
 	if stop == nil || !stop.Hidden || stop.Action != actionStop {
 		t.Fatalf("stop hook task missing or malformed: %+v", stop)
 	}
+
 	if got := cfg.Hooks.Before[whoosh.PhasePublishing]; len(got) != 1 || got[0] != actionStop+"@"+whoosh.PhasePublishing {
 		t.Errorf("before %s hooks = %v", whoosh.PhasePublishing, got)
 	}
@@ -297,18 +313,22 @@ func TestStartup_HooksWiring(t *testing.T) {
 	if start == nil || !start.Hidden || start.Action != actionStart {
 		t.Fatalf("start hook task missing or malformed: %+v", start)
 	}
+
 	if !reflect.DeepEqual(start.Roles, []string{"web"}) {
 		t.Errorf("start task roles = %v, want [web]", start.Roles)
 	}
+
 	// The spec-only keys are stripped from the task's with:, the rest (units + inherited sudo) is kept.
 	for _, k := range []string{"phase", "when", "roles"} {
 		if _, ok := start.With[k]; ok {
 			t.Errorf("with: still carries spec-only key %q: %v", k, start.With)
 		}
 	}
+
 	if start.With["sudo"] != true || start.With["system_unit_files"] == nil {
 		t.Errorf("with: lost merged params: %v", start.With)
 	}
+
 	if got := cfg.Hooks.After[whoosh.PhaseFinished]; len(got) != 1 || got[0] != startName {
 		t.Errorf("after %s hooks = %v", whoosh.PhaseFinished, got)
 	}
@@ -323,13 +343,16 @@ func TestStartup_NoPhaseNoHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	cfg := &whoosh.DeployFile{}
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	if len(cfg.Tasks) != 0 {
 		t.Errorf("no task should be added, got %v", cfg.Tasks)
 	}
+
 	if len(cfg.Hooks.Before)+len(cfg.Hooks.After) != 0 {
 		t.Errorf("no hooks should be added, got %+v", cfg.Hooks)
 	}
@@ -347,13 +370,16 @@ func TestStartup_DuplicateEntriesGetUniqueTaskNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	cfg := &whoosh.DeployFile{}
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	if len(cfg.Tasks) != 2 {
 		t.Fatalf("tasks = %d (%v), want 2", len(cfg.Tasks), cfg.Tasks)
 	}
+
 	if len(cfg.Hooks.Before[whoosh.PhaseFinished]) != 1 || len(cfg.Hooks.After[whoosh.PhaseFinished]) != 1 {
 		t.Errorf("hooks = %+v, want one before and one after", cfg.Hooks)
 	}

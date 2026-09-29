@@ -23,6 +23,7 @@ type fakeHostWriter struct {
 
 func (f *fakeHostWriter) WriteFile(_ context.Context, path string, content []byte) error {
 	f.path, f.content = path, content
+
 	return nil
 }
 
@@ -38,6 +39,7 @@ func (f *fakeSSM) GetParametersByPath(_ context.Context, in *awsssm.GetParameter
 	if f.calls == nil {
 		f.calls = map[string]int{}
 	}
+
 	path := awssdk.ToString(in.Path)
 	idx := f.calls[path]
 	f.calls[path]++
@@ -45,10 +47,12 @@ func (f *fakeSSM) GetParametersByPath(_ context.Context, in *awsssm.GetParameter
 	if idx >= len(pages) {
 		return &awsssm.GetParametersByPathOutput{}, nil
 	}
+
 	out := &awsssm.GetParametersByPathOutput{Parameters: pages[idx]}
 	if idx+1 < len(pages) {
 		out.NextToken = awssdk.String(fmt.Sprintf("tok-%d", idx+1))
 	}
+
 	return out, nil
 }
 
@@ -58,6 +62,7 @@ func (f *fakeSSM) GetParameter(_ context.Context, in *awsssm.GetParameterInput, 
 	if !ok {
 		return nil, &ssmtypes.ParameterNotFound{}
 	}
+
 	return &awsssm.GetParameterOutput{Parameter: &ssmtypes.Parameter{Name: awssdk.String(name), Value: awssdk.String(v)}}, nil
 }
 
@@ -93,6 +98,7 @@ func TestSSMEnvironmentFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	want := `DATABASE_URL="postgres://u:p@h/db"` + "\n" +
 		"EMPTY=\n" +
 		`GITHUB_AUTH_KEY="ghp_abc123"` + "\n" +
@@ -106,6 +112,7 @@ func TestSSMEnvironmentFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Errorf("env file mode = %v, want 0600", perm)
 	}
@@ -114,6 +121,7 @@ func TestSSMEnvironmentFile(t *testing.T) {
 	if fake.calls["/app/prod"] != 2 {
 		t.Errorf("expected 2 GetParametersByPath calls for /app/prod, got %d", fake.calls["/app/prod"])
 	}
+
 	if fake.calls["/shared/github-auth-key"] != 0 {
 		t.Errorf("a no-slash prefix must not call GetParametersByPath, got %d", fake.calls["/shared/github-auth-key"])
 	}
@@ -129,6 +137,7 @@ func TestSSMEnvironmentFile_Validation(t *testing.T) {
 	if err := s.runEnvironmentFile(t.Context(), map[string]any{"path": "x"}, &bytes.Buffer{}); err == nil {
 		t.Error("missing prefixes should error")
 	}
+
 	if err := s.runEnvironmentFile(t.Context(), map[string]any{"prefixes": []any{"/a"}}, &bytes.Buffer{}); err == nil {
 		t.Error("missing path should error")
 	}
@@ -148,12 +157,15 @@ func TestSSMStartup_LoadsContext(t *testing.T) {
 	if err := s.startup(ssmContextParams{Prefixes: []string{"/app/prod/"}})(t.Context(), cfg); err != nil {
 		t.Fatalf("startup: %v", err)
 	}
+
 	if got := cfg.Imports["ssm"]["secret"]; got != "topsecretval" {
 		t.Errorf(`Imports["ssm"]["secret"] = %q, want "topsecretval"`, got)
 	}
+
 	if got := cfg.Imports["ssm"]["DB_URL"]; got != "postgres://h/db" {
 		t.Errorf(`Imports["ssm"]["DB_URL"] = %q, want "postgres://h/db"`, got)
 	}
+
 	// The value was registered for masking, so it's masked in any output.
 	if red := whoosh.Masking("token=topsecretval"); strings.Contains(red, "topsecretval") {
 		t.Errorf("SSM value not registered for redaction: %q", red)
@@ -174,9 +186,11 @@ func TestSSMEnvironmentFile_RendersOnHosts(t *testing.T) {
 	if err := s.runEnvironmentFile(ctx, with, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runEnvironmentFile: %v", err)
 	}
+
 	if hw.path != "config/app.env" {
 		t.Errorf("host path = %q, want config/app.env", hw.path)
 	}
+
 	want := `DB="x"` + "\n" + `TOKEN="y"` + "\n"
 	if string(hw.content) != want {
 		t.Errorf("host content = %q, want %q", hw.content, want)

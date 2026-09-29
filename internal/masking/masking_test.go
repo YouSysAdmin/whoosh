@@ -54,6 +54,7 @@ func TestString_Redacts(t *testing.T) {
 			if c.gone != "" && strings.Contains(got, c.gone) {
 				t.Errorf("secret leaked: %q still contains %q", got, c.gone)
 			}
+
 			if c.keep != "" && !strings.Contains(got, c.keep) {
 				t.Errorf("expected %q to contain %q", got, c.keep)
 			}
@@ -75,6 +76,7 @@ func TestDisabled_PassesThrough(t *testing.T) {
 	if _, err := w.Write([]byte(secret + "\n")); err != nil {
 		t.Fatal(err)
 	}
+
 	_ = w.Flush()
 	if got := buf.String(); got != secret+"\n" {
 		t.Errorf("disabled Writer altered output: %q", got)
@@ -95,6 +97,7 @@ func TestWriter_RedactsAcrossWrites(t *testing.T) {
 	if strings.Contains(buf.String(), "ghp_5zsMYN") {
 		t.Errorf("token leaked before flush: %q", buf.String())
 	}
+
 	if !strings.Contains(buf.String(), "[10.4.20.66] gem source: https://eduvo:"+Placeholder+"@") {
 		t.Errorf("line not redacted/prefixed as expected: %q", buf.String())
 	}
@@ -102,6 +105,7 @@ func TestWriter_RedactsAcrossWrites(t *testing.T) {
 	if err := w.Flush(); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
+
 	if strings.Contains(buf.String(), "hunter2trailing") {
 		t.Errorf("trailing secret leaked: %q", buf.String())
 	}
@@ -125,11 +129,13 @@ func TestAddSecret_MasksLiteral(t *testing.T) {
 	if got := String("token is " + secret + " ok"); !strings.Contains(got, secret) {
 		t.Fatalf("unregistered value should pass through: %q", got)
 	}
+
 	AddSecret(secret)
 	got := String("token is " + secret + " ok")
 	if strings.Contains(got, secret) {
 		t.Errorf("registered secret leaked: %q", got)
 	}
+
 	if !strings.Contains(got, Placeholder) {
 		t.Errorf("expected placeholder, got %q", got)
 	}

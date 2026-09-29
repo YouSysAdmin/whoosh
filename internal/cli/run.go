@@ -38,6 +38,7 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			command := executor.WrapCommand(args[0], releaseDir, envs)
 			out := masking.NewWriter(cmd.OutOrStdout())
 			defer out.Flush()
@@ -49,10 +50,12 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 				if effectiveVerbose(cmd, gf.verbose, cfg.Log) {
 					shown = command
 				}
+
 				fmt.Fprintf(out, "[dry-run] would run on %d host(s):\n", len(hosts))
 				for _, h := range hosts {
 					fmt.Fprintf(out, "  %s: %s\n", h.Address, shown)
 				}
+
 				return nil
 			}
 
@@ -60,7 +63,9 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			results := runner.RunCommand(cmd.Context(), executor.Targets(hosts), sshOpts, command, out, colorOutput(cmd, cfg.Log), gf.conc, false)
+
 			return reportResults(results)
 		},
 	}
@@ -82,13 +87,16 @@ func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (map[str
 		if err != nil {
 			return nil, fmt.Errorf("env %q: %w", k, err)
 		}
+
 		out[k] = rv
 	}
+
 	for ns, kv := range cfg.Imports {
 		for k, v := range kv {
 			out[executor.EnvName(ns+"_"+k)] = v
 		}
 	}
+
 	return out, nil
 }
 
@@ -102,13 +110,16 @@ func reportResults(results []runner.Result) error {
 			if first == nil {
 				first = r.Err
 			}
+
 			slog.Error("host failed", "host", r.Host, "error", r.Err)
 		}
 	}
+
 	if failed > 0 {
 		// Wrap the first failure so its category exit code (command/unreachable) reaches cli.Execute, while still summarizing
 		// the host count.
 		return fmt.Errorf("%d of %d host(s) failed: %w", failed, len(results), first)
 	}
+
 	return nil
 }

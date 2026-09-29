@@ -75,10 +75,12 @@ func (h *helloPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) er
 	if err := whoosh.DecodeParams(spec.Params, &p); err != nil {
 		return fmt.Errorf("hello params: %w", err)
 	}
+
 	h.greeting = p.Greeting
 	if h.greeting == "" {
 		h.greeting = "Hello"
 	}
+
 	return reg.AddAction(actionGreet, h.greet)
 }
 
@@ -89,7 +91,9 @@ func (h *helloPlugin) greet(_ context.Context, raw map[string]any, out io.Writer
 	if err := whoosh.DecodeParams(raw, &p); err != nil {
 		return fmt.Errorf("hello:greet params: %w", err)
 	}
+
 	name := cmp.Or(p.Name, "world")
 	fmt.Fprintf(out, "%s, %s!\n", h.greeting, name)
+
 	return nil
 }

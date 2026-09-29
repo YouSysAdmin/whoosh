@@ -83,15 +83,18 @@ func writeTestKey(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
+
 	der, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		t.Fatalf("marshal key: %v", err)
 	}
+
 	path := filepath.Join(t.TempDir(), "id_ed25519")
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	if err := os.WriteFile(path, pemBytes, 0o600); err != nil {
 		t.Fatalf("write key: %v", err)
 	}
+
 	return path
 }
 
@@ -101,10 +104,12 @@ func TestKeyringFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keyringFromFile: %v", err)
 	}
+
 	keys, err := kr.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+
 	if len(keys) != 1 {
 		t.Fatalf("keyring holds %d keys, want 1", len(keys))
 	}
@@ -121,6 +126,7 @@ func TestKeyringFromFile_NotAKey(t *testing.T) {
 	if err := os.WriteFile(path, []byte("not a key"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := keyringFromFile(path); err == nil {
 		t.Fatal("expected parse error for non-key file")
 	}
@@ -139,6 +145,7 @@ func TestLocalAgentSocket_Present(t *testing.T) {
 	if err != nil {
 		t.Fatalf("localAgentSocket: %v", err)
 	}
+
 	if got != "/tmp/agent.sock" {
 		t.Errorf("socket = %q, want /tmp/agent.sock", got)
 	}
@@ -151,6 +158,7 @@ func stalledListener(t *testing.T) net.Listener {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
+
 	t.Cleanup(func() { _ = ln.Close() })
 	go func() {
 		for {
@@ -158,9 +166,11 @@ func stalledListener(t *testing.T) net.Listener {
 			if err != nil {
 				return
 			}
+
 			defer conn.Close()
 		}
 	}()
+
 	return ln
 }
 
@@ -176,9 +186,11 @@ func TestDial_HandshakeTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected handshake timeout error")
 	}
+
 	if !strings.Contains(err.Error(), "timeout") {
 		t.Errorf("error = %q, want a timeout mention", err)
 	}
+
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("Dial took %s, the handshake was not bounded", elapsed)
 	}

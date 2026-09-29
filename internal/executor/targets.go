@@ -24,6 +24,7 @@ func (e *Executor) MarkUnreachable(host string) {
 func (e *Executor) UnreachableHosts() []string {
 	e.unreachableMu.Lock()
 	defer e.unreachableMu.Unlock()
+
 	return slices.Sorted(maps.Keys(e.unreachable))
 }
 
@@ -46,6 +47,7 @@ func (e *Executor) applyUnreachablePolicy(task string, hosts []ast.Host, results
 	if !e.skipUnreachable() {
 		return hosts, firstError(results)
 	}
+
 	return SkipUnreachable(hosts, results, func(h string) bool { return e.requiredHosts[h] }, func(host string, err error) {
 		slog.Warn("host unreachable, skipping", "task", task, "host", host, "error", err)
 		e.MarkUnreachable(host)
@@ -63,39 +65,49 @@ func SkipUnreachable(hosts []ast.Host, results []runner.Result, required func(st
 		if r.Err == nil {
 			continue
 		}
+
 		if werrors.Is(r.Err, context.Canceled) || werrors.Is(r.Err, context.DeadlineExceeded) {
 			if canceled == nil {
 				canceled = fmt.Errorf("%s: %w", r.Host, r.Err)
 			}
+
 			continue
 		}
+
 		if !werrors.IsUnreachable(r.Err) {
 			return hosts, fmt.Errorf("%s: %w", r.Host, r.Err)
 		}
+
 		if required(r.Host) {
 			return hosts, fmt.Errorf("required host %s unreachable: %w", r.Host, r.Err)
 		}
 	}
+
 	if canceled != nil {
 		return hosts, canceled
 	}
+
 	dropped := map[string]bool{}
 	for _, r := range results {
 		if r.Err == nil {
 			continue
 		}
+
 		drop(r.Host, r.Err)
 		dropped[r.Host] = true
 	}
+
 	if len(dropped) == 0 {
 		return hosts, nil
 	}
+
 	live := make([]ast.Host, 0, len(hosts))
 	for _, h := range hosts {
 		if !dropped[h.Address] {
 			live = append(live, h)
 		}
 	}
+
 	return live, nil
 }
 
@@ -106,12 +118,14 @@ func (e *Executor) filterExcluded(hosts []ast.Host) []ast.Host {
 	if len(e.unreachable) == 0 {
 		return hosts
 	}
+
 	out := make([]ast.Host, 0, len(hosts))
 	for _, h := range hosts {
 		if !e.unreachable[h.Address] {
 			out = append(out, h)
 		}
 	}
+
 	return out
 }
 
@@ -130,6 +144,7 @@ func (e *Executor) targetsForTask(task *ast.Task) []ast.Host {
 	default:
 		hosts = ast.FilterDeployable(e.cfg.Hosts)
 	}
+
 	hosts = ast.FilterByRoles(hosts, task.Roles)
 	hosts = ast.FilterByRoles(hosts, e.roles)
 	hosts = ast.FilterByAddresses(hosts, e.limit)
@@ -137,6 +152,7 @@ func (e *Executor) targetsForTask(task *ast.Task) []ast.Host {
 	if task.Once && len(hosts) > 1 {
 		hosts = ast.PickPrimary(hosts)
 	}
+
 	return hosts
 }
 
@@ -147,6 +163,7 @@ func Targets(hosts []ast.Host) []runner.Target {
 	for i, h := range hosts {
 		targets[i] = runner.Target{Host: h.Address, Port: h.Port, User: h.User, IdentityFile: h.IdentityFile, Passphrase: h.IdentityFilePassphrase, Local: h.Local}
 	}
+
 	return targets
 }
 
@@ -159,5 +176,6 @@ func (e *Executor) taskTargets(task *ast.Task, hosts []ast.Host) []runner.Target
 			targets[i].StrictHostKey = task.StrictHostKey
 		}
 	}
+
 	return targets
 }

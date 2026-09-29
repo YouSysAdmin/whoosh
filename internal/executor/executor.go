@@ -47,9 +47,11 @@ type Executor struct {
 	// in runTask (sequential) and read by the cluster's line handler from the per-host goroutines it brackets.
 	logMode bool
 	logTask string
+
 	// color colorizes the host prefix on the raw stream (green) - the echoed command here, and command output via the
 	// cluster. Resolved by the CLI (color enabled and a terminal destination).
 	color bool
+
 	// capture, when non-nil, diverts the running task's output into a buffer instead of the console (a silent_output
 	// task); endCapture flushes it only if the task failed. Set/cleared in runTask around the dispatch.
 	capture *captureSink
@@ -80,6 +82,7 @@ type Options struct {
 	Limit       []string
 	Concurrency int
 	Registry    *plugins.Registry
+
 	// Color colorizes the host prefix on the raw command-output stream (green for stdout / the echoed command, red for
 	// stderr). The CLI sets it when --log-color is on and the destination is a terminal.
 	Color bool
@@ -147,6 +150,7 @@ func New(cfg *ast.DeployFile, opts Options) *Executor {
 		// Raw streaming: colorize the host prefix (no effect in log mode).
 		e.cluster.SetColor(e.color)
 	}
+
 	return e
 }
 
@@ -156,6 +160,7 @@ func namespaceSet(names []string) map[string]bool {
 	for _, n := range names {
 		out[n] = true
 	}
+
 	return out
 }
 
@@ -165,6 +170,7 @@ func actionNamespace(action string) string {
 	if i := strings.IndexByte(action, ':'); i > 0 {
 		return action[:i]
 	}
+
 	return action
 }
 
@@ -189,6 +195,7 @@ func (e *Executor) Hosts() []ast.Host {
 	hosts := ast.FilterDeployable(e.cfg.Hosts)
 	hosts = ast.FilterByRoles(hosts, e.roles)
 	hosts = ast.FilterByAddresses(hosts, e.limit)
+
 	return e.filterExcluded(hosts)
 }
 
@@ -199,6 +206,7 @@ func (e *Executor) RunOn(ctx context.Context, hosts []ast.Host, command string) 
 	if runner.Failed(results) {
 		return firstError(results)
 	}
+
 	return nil
 }
 
@@ -216,17 +224,21 @@ func (e *Executor) runOn(ctx context.Context, hosts []ast.Host, command string, 
 	if len(hosts) == 0 {
 		return nil
 	}
+
 	if e.dryRun {
 		if e.verbose {
 			for _, h := range hosts {
 				e.echoDryRun(h.Address, command)
 			}
 		}
+
 		return nil
 	}
+
 	if e.verbose {
 		e.echoExec("", command)
 	}
+
 	return e.cluster.Run(ctx, Targets(hosts), func(string) string { return command }, e.concurrency, failFast)
 }
 
@@ -292,6 +304,7 @@ func (e *Executor) RunTaskInPhase(ctx context.Context, name, phase string) error
 		e.base.Phase = prev
 		e.invalidateRenderCache()
 	}()
+
 	return e.runTask(ctx, name, map[string]bool{})
 }
 
@@ -313,13 +326,17 @@ func firstError(results []runner.Result) error {
 		if r.Err == nil {
 			continue
 		}
+
 		if errors.Is(r.Err, context.Canceled) || errors.Is(r.Err, context.DeadlineExceeded) {
 			if canceled == nil {
 				canceled = fmt.Errorf("%s: %w", r.Host, r.Err)
 			}
+
 			continue
 		}
+
 		return fmt.Errorf("%s: %w", r.Host, r.Err)
 	}
+
 	return canceled
 }

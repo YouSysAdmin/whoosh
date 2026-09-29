@@ -54,16 +54,21 @@ func Start(opts ...Option) (*Server, error) {
 	keyPath, err := writeClientKey(dir)
 	if err != nil {
 		_ = os.RemoveAll(dir)
+
 		return nil, err
 	}
+
 	hostSigner, err := newSigner()
 	if err != nil {
 		_ = os.RemoveAll(dir)
+
 		return nil, err
 	}
+
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		_ = os.RemoveAll(dir)
+
 		return nil, err
 	}
 
@@ -103,12 +108,14 @@ func authHandler(authorized []gssh.PublicKey) gssh.PublicKeyHandler {
 	if len(authorized) == 0 {
 		return func(gssh.Context, gssh.PublicKey) bool { return true }
 	}
+
 	return func(_ gssh.Context, key gssh.PublicKey) bool {
 		for _, a := range authorized {
 			if gssh.KeysEqual(key, a) {
 				return true
 			}
 		}
+
 		return false
 	}
 }
@@ -124,8 +131,10 @@ func handleSession(s gssh.Session) {
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(s.Stderr(), "start: %v\n", err)
 		_ = s.Exit(127)
+
 		return
 	}
+
 	done := make(chan struct{})
 	go func() {
 		select {
@@ -144,6 +153,7 @@ func handleSession(s gssh.Session) {
 			code = ee.ExitCode()
 		}
 	}
+
 	_ = s.Exit(code)
 }
 
@@ -154,14 +164,17 @@ func writeClientKey(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	block, err := ssh.MarshalPrivateKey(priv, "deployer-test")
 	if err != nil {
 		return "", err
 	}
+
 	keyPath := filepath.Join(dir, "id_ed25519")
 	if err := os.WriteFile(keyPath, pem.EncodeToMemory(block), 0o600); err != nil {
 		return "", err
 	}
+
 	return keyPath, nil
 }
 
@@ -170,5 +183,6 @@ func newSigner() (ssh.Signer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("generate key: %w", err)
 	}
+
 	return ssh.NewSignerFromKey(priv)
 }

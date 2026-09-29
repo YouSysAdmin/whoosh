@@ -27,6 +27,7 @@ func (c *client) requireEndpoint(feature string) error {
 	if c.endpoint == "" {
 		return fmt.Errorf("%s: params.endpoint is not configured", feature)
 	}
+
 	return nil
 }
 

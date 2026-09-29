@@ -21,6 +21,7 @@ func load(t *testing.T, spec whoosh.PluginSpec) *whoosh.Registry {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	return reg
 }
 
@@ -31,6 +32,7 @@ func startup(t *testing.T, reg *whoosh.Registry) *whoosh.DeployFile {
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	return cfg
 }
 
@@ -39,6 +41,7 @@ type fakeRunner struct{ cmds []string }
 
 func (f *fakeRunner) RunCommand(_ context.Context, cmd string) error {
 	f.cmds = append(f.cmds, cmd)
+
 	return nil
 }
 
@@ -48,13 +51,16 @@ func (f *fakeWriter) WriteFile(_ context.Context, path string, content []byte) e
 	if f.files == nil {
 		f.files = map[string]string{}
 	}
+
 	f.files[path] = string(content)
+
 	return nil
 }
 
 // bridgedCtx returns a ctx carrying both fakes, like the executor does for a real action task.
 func bridgedCtx(t *testing.T, r *fakeRunner, w *fakeWriter) context.Context {
 	ctx := whoosh.WithHostCommandRunner(t.Context(), r)
+
 	return whoosh.WithHostFileWriter(ctx, w)
 }
 
@@ -70,6 +76,7 @@ func TestVersion(t *testing.T) {
 	if !ok {
 		t.Fatal("plugin does not implement whoosh.Versioner")
 	}
+
 	if v.Version() != pluginVersion || pluginVersion == "" {
 		t.Fatalf("Version() = %q, want %q", v.Version(), pluginVersion)
 	}
@@ -146,10 +153,12 @@ func TestAction_Render(t *testing.T) {
 	if err := fn(bridgedCtx(t, &fakeRunner{}, w), map[string]any{"key": "db_url"}, &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	content, ok := w.files[".env.generated"] // path came from the actions: defaults
 	if !ok || !strings.Contains(content, "db_url") {
 		t.Fatalf("files = %v", w.files)
 	}
+
 	if got := whoosh.Masking(content); strings.Contains(got, strings.TrimSpace(content)) {
 		t.Errorf("fetched value not masked: %q", got)
 	}
@@ -159,6 +168,7 @@ func TestAction_Render(t *testing.T) {
 		!strings.Contains(err.Error(), "required") {
 		t.Errorf("missing key: err = %v", err)
 	}
+
 	if err := fn(t.Context(), map[string]any{"key": "k", "path": "p"}, io.Discard); err == nil ||
 		!strings.Contains(err.Error(), "no host file writer") {
 		t.Errorf("no writer: err = %v", err)
@@ -177,6 +187,7 @@ func TestAction_Exec(t *testing.T) {
 	if err := fn(bridgedCtx(t, r, &fakeWriter{}), map[string]any{"cmd": "uname -a"}, io.Discard); err != nil {
 		t.Fatalf("exec: %v", err)
 	}
+
 	if len(r.cmds) != 1 || r.cmds[0] != "uname -a" {
 		t.Fatalf("runner cmds = %v", r.cmds)
 	}
@@ -185,6 +196,7 @@ func TestAction_Exec(t *testing.T) {
 		!strings.Contains(err.Error(), "'cmd' is required") {
 		t.Errorf("missing cmd: err = %v", err)
 	}
+
 	if err := fn(t.Context(), map[string]any{"cmd": "true"}, io.Discard); err == nil ||
 		!strings.Contains(err.Error(), "no host command runner") {
 		t.Errorf("no runner: err = %v", err)
@@ -207,13 +219,16 @@ func TestStartup_Inventory(t *testing.T) {
 	if len(cfg.Hosts) == 0 {
 		t.Fatal("no hosts discovered")
 	}
+
 	for _, h := range cfg.Hosts {
 		if h.Source != FeatureInventory {
 			t.Errorf("host %s source = %q, want %q", h.Address, h.Source, FeatureInventory)
 		}
+
 		if len(h.Roles) != 1 || h.Roles[0] != "app" || h.User != "deploy" {
 			t.Errorf("host shape not applied: %+v", h)
 		}
+
 		if h.Deploy == nil || *h.Deploy != off {
 			t.Errorf("host %s deploy flag not applied: %+v", h.Address, h.Deploy)
 		}
@@ -246,6 +261,7 @@ func TestStartup_Context(t *testing.T) {
 	if val == "" {
 		t.Fatalf("import not injected: %v", cfg.Imports)
 	}
+
 	if got := whoosh.Masking(val); strings.Contains(got, val) {
 		t.Errorf("imported value not masked: %q", got)
 	}
@@ -267,15 +283,19 @@ func TestStartup_Setup(t *testing.T) {
 	if task == nil || len(task.Scripts) != 1 || task.Scripts[0].Script == "" {
 		t.Fatalf("setup task missing or scriptless: %+v", task)
 	}
+
 	if task.Envs["EXTRA"] != "1" {
 		t.Errorf("user env not merged: %v", task.Envs)
 	}
+
 	if _, ok := task.Envs["PLUGIN_TEMPLATE_ENDPOINT"]; !ok {
 		t.Errorf("plugin control var not set: %v", task.Envs)
 	}
+
 	if got := cfg.Hooks.After[whoosh.PhaseUpdated]; len(got) != 1 || got[0] != taskSetup {
 		t.Errorf("after %s hooks = %v", whoosh.PhaseUpdated, got)
 	}
+
 	if len(cfg.HookFuncsBefore[whoosh.PhaseStarting]) != 1 || len(cfg.HookFuncsAfter[whoosh.PhaseFinished]) != 1 {
 		t.Errorf("func-hooks not registered: before=%d after=%d",
 			len(cfg.HookFuncsBefore[whoosh.PhaseStarting]), len(cfg.HookFuncsAfter[whoosh.PhaseFinished]))
@@ -294,6 +314,7 @@ func TestStartup_Setup(t *testing.T) {
 		cfg.CustomPhases[0].Task != taskSetup || cfg.CustomPhases[0].After != whoosh.PhasePublished {
 		t.Errorf("custom phase = %+v", cfg.CustomPhases)
 	}
+
 	if len(cfg.Hooks.Before)+len(cfg.Hooks.After) != 0 {
 		t.Errorf("custom_phase should not also wire hooks: %+v", cfg.Hooks)
 	}
@@ -305,6 +326,7 @@ func TestCommands_Status(t *testing.T) {
 	if len(cmds) != 1 || cmds[0].Name != pluginName+":status" {
 		t.Fatalf("Commands() = %+v, want one %s:status", cmds, pluginName)
 	}
+
 	cfg := &whoosh.DeployFile{
 		Stage: "prod",
 		Hosts: []whoosh.Host{
@@ -316,6 +338,7 @@ func TestCommands_Status(t *testing.T) {
 	if err := cmds[0].Run(t.Context(), cfg, nil, &out, nil); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
+
 	if !strings.Contains(out.String(), "stage prod") || !strings.Contains(out.String(), "1 discovered") {
 		t.Errorf("status output:\n%s", out.String())
 	}

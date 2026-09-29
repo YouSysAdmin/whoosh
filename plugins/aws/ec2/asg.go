@@ -40,6 +40,7 @@ const (
 	// Action names, namespaced under the plugins ("<plugins>:<action>").
 	actionASGRefresh  = FeatureASG + ":refresh"
 	actionASGRollback = FeatureASG + ":rollback"
+
 	// asgPollInterval is how often the refresh action polls (and logs) status while waiting for the refresh to finish.
 	asgPollInterval = 30 * time.Second
 
@@ -57,9 +58,11 @@ const (
 type asgPlugin struct {
 	api asgAPI
 	ec2 asgEC2API
+
 	// defaults are the feature-level params (the `aws:ec2:asg` actions: entry), layered under each task's `with:` (the
 	// task wins).
 	defaults map[string]any
+
 	// pollInterval is how often run polls refresh status, zero means asgPollInterval.
 	// Overridden in tests to avoid real sleeps.
 	pollInterval time.Duration
@@ -81,9 +84,11 @@ type asgRefreshParams struct {
 // aws:ec2:asg:refresh).
 type asgRollbackParams struct {
 	asgRefreshParams `yaml:",inline"`
+
 	// LaunchTemplate selects which launch template to roll back: an explicit id, or the template of an ASG.
 	// When omitted, the template attached to `name` (the ASG being refreshed) is used.
 	LaunchTemplate *amiLTTarget `yaml:"launch_template"`
+
 	// SetDefault makes the rolled-back version the launch template's $Default.
 	// Default true, so a group that launches from $Default picks it up (a group that tracks $Latest does so regardless,
 	// since the copy becomes the latest).
@@ -95,9 +100,11 @@ func (a *asgPlugin) runRefresh(ctx context.Context, params map[string]any, _ io.
 	if err := awsparams.DecodeFeature(a.defaults, params, &ap); err != nil {
 		return err
 	}
+
 	if ap.Name == "" {
 		return fmt.Errorf("%s: 'name' is required", actionASGRefresh)
 	}
+
 	return a.startAndWait(ctx, ap, false)
 }
 
@@ -108,6 +115,7 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	if err := awsparams.DecodeFeature(a.defaults, params, &rp); err != nil {
 		return err
 	}
+
 	if rp.Name == "" {
 		return fmt.Errorf("%s: 'name' is required", actionASGRollback)
 	}
@@ -116,6 +124,7 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	if err != nil {
 		return fmt.Errorf("%s: %w", actionASGRollback, err)
 	}
+
 	prev, err := a.previousLTVersion(ctx, ltID)
 	if err != nil {
 		return fmt.Errorf("%s: %w", actionASGRollback, err)
@@ -133,10 +142,12 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	if err != nil {
 		return fmt.Errorf("%s: create launch template version: %w", actionASGRollback, err)
 	}
+
 	// The API may succeed with warnings and omit the version, guard before the deref - this runs mid-rollback.
 	if ver.LaunchTemplateVersion == nil {
 		return fmt.Errorf("%s: create launch template version: response carries no version", actionASGRollback)
 	}
+
 	newVer := awssdk.ToInt64(ver.LaunchTemplateVersion.VersionNumber)
 
 	setDefault := rp.SetDefault == nil || *rp.SetDefault
@@ -148,6 +159,7 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 			return fmt.Errorf("%s: set default launch template version: %w", actionASGRollback, err)
 		}
 	}
+
 	slog.Info("launch template rolled back", "launch_template", ltID,
 		"new_version", newVer, "copied_from", prev, "default", setDefault)
 
@@ -176,16 +188,21 @@ func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams, cance
 	if _, inProgress := errors.AsType[*astypes.InstanceRefreshInProgressFault](err); inProgress {
 		if !cancelInFlight {
 			slog.Warn("instance refresh already in progress, skipping", "asg", ap.Name)
+
 			return nil
 		}
+
 		if err := a.cancelActiveRefresh(ctx, ap.Name); err != nil {
 			return err
 		}
+
 		res, err = a.api.StartInstanceRefresh(ctx, in)
 	}
+
 	if err != nil {
 		return fmt.Errorf("start instance refresh: %w", err)
 	}
+
 	id := awssdk.ToString(res.InstanceRefreshId)
 	slog.Info("started instance refresh", "asg", ap.Name, "refresh_id", id,
 		"min_healthy", awssdk.ToInt32(in.Preferences.MinHealthyPercentage),
@@ -207,6 +224,7 @@ func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error 
 		if _, gone := errors.AsType[*astypes.ActiveInstanceRefreshNotFoundFault](err); gone {
 			return nil
 		}
+
 		return fmt.Errorf("cancel instance refresh: %w", err)
 	}
 
@@ -214,6 +232,7 @@ func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error 
 	if interval <= 0 {
 		interval = asgPollInterval
 	}
+
 	for {
 		out, err := a.api.DescribeInstanceRefreshes(ctx, &autoscaling.DescribeInstanceRefreshesInput{
 			AutoScalingGroupName: awssdk.String(name),
@@ -222,9 +241,11 @@ func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error 
 		if err != nil {
 			return fmt.Errorf("describe instance refreshes: %w", err)
 		}
+
 		if len(out.InstanceRefreshes) == 0 {
 			return nil
 		}
+
 		switch st := out.InstanceRefreshes[0].Status; st {
 		case astypes.InstanceRefreshStatusSuccessful,
 			astypes.InstanceRefreshStatusFailed,
@@ -235,6 +256,7 @@ func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error 
 		default:
 			slog.Info("waiting for in-flight instance refresh to cancel", "asg", name, "status", string(st))
 		}
+
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("stopped waiting for instance refresh cancellation: %w", ctx.Err())
@@ -249,23 +271,28 @@ func (a *asgPlugin) rollbackLaunchTemplateID(ctx context.Context, rp asgRollback
 	if rp.LaunchTemplate != nil && rp.LaunchTemplate.ID != "" {
 		return rp.LaunchTemplate.ID, nil
 	}
+
 	asgName := rp.Name
 	if rp.LaunchTemplate != nil && rp.LaunchTemplate.ASG != "" {
 		asgName = rp.LaunchTemplate.ASG
 	}
+
 	out, err := a.api.DescribeAutoScalingGroups(ctx, &autoscaling.DescribeAutoScalingGroupsInput{
 		AutoScalingGroupNames: []string{asgName},
 	})
 	if err != nil {
 		return "", fmt.Errorf("describe ASG %q: %w", asgName, err)
 	}
+
 	if len(out.AutoScalingGroups) == 0 {
 		return "", fmt.Errorf("ASG %q not found", asgName)
 	}
+
 	ltID := asgLaunchTemplateID(out.AutoScalingGroups[0])
 	if ltID == "" {
 		return "", fmt.Errorf("ASG %q has no launch template", asgName)
 	}
+
 	return ltID, nil
 }
 
@@ -282,18 +309,24 @@ func (a *asgPlugin) previousLTVersion(ctx context.Context, ltID string) (int64, 
 		if err != nil {
 			return 0, fmt.Errorf("describe launch template versions: %w", err)
 		}
+
 		for _, v := range out.LaunchTemplateVersions {
 			nums = append(nums, awssdk.ToInt64(v.VersionNumber))
 		}
+
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
+
 		token = out.NextToken
 	}
+
 	if len(nums) < 2 {
 		return 0, fmt.Errorf("launch template %s has %d version(s), need at least 2 to roll back", ltID, len(nums))
 	}
+
 	slices.SortFunc(nums, func(a, b int64) int { return cmp.Compare(b, a) })
+
 	return nums[1], nil
 }
 
@@ -314,9 +347,11 @@ func (a *asgPlugin) waitForRefresh(ctx context.Context, asgName, id string) erro
 		if err != nil {
 			return fmt.Errorf("describe instance refresh %s: %w", id, err)
 		}
+
 		if len(resp.InstanceRefreshes) == 0 {
 			return fmt.Errorf("instance refresh %s not found", id)
 		}
+
 		r := resp.InstanceRefreshes[0]
 		pct := awssdk.ToInt32(r.PercentageComplete)
 		reason := awssdk.ToString(r.StatusReason)
@@ -324,6 +359,7 @@ func (a *asgPlugin) waitForRefresh(ctx context.Context, asgName, id string) erro
 		switch r.Status {
 		case astypes.InstanceRefreshStatusSuccessful:
 			slog.Info("instance refresh complete", "asg", asgName, "refresh_id", id)
+
 			return nil
 		case astypes.InstanceRefreshStatusFailed,
 			astypes.InstanceRefreshStatusCancelled,

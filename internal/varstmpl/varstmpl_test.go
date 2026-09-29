@@ -19,6 +19,7 @@ func TestRender_VarsAndContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	want := "cd /var/www/myapp/releases/20260101000000 && RAILS_ENV=production restart myapp on web1"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
@@ -31,9 +32,11 @@ func TestRender_CommitHash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "rev=abc123" {
 		t.Fatalf("got %q, want rev=abc123", got)
 	}
+
 	// Unset commit_hash is an empty string, not a missing key (no error).
 	if got, err := varstmpl.Render("rev={{.commit_hash}}", varstmpl.Context{}); err != nil || got != "rev=" {
 		t.Fatalf("empty commit_hash render = %q, %v", got, err)
@@ -56,6 +59,7 @@ func TestRender_TaskState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "a=123 r=eu-west-1" {
 		t.Fatalf("got %q, want a=123 r=eu-west-1", got)
 	}
@@ -67,10 +71,12 @@ func TestRenderWith_LenientMissingKey(t *testing.T) {
 	if _, err := varstmpl.Render("{{ .tasks.whoami.Account }}", c); err == nil {
 		t.Fatal("strict render should error on a missing field")
 	}
+
 	got, err := varstmpl.RenderWith("{{ .tasks.whoami.Account }}", c, false)
 	if err != nil {
 		t.Fatalf("lenient render: %v", err)
 	}
+
 	if got != "<no value>" {
 		t.Fatalf("lenient render = %q, want <no value>", got)
 	}
@@ -81,6 +87,7 @@ func TestRender_SprigHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if !strings.Contains(got, "MYAPP") {
 		t.Fatalf("sprig upper not applied, got %q", got)
 	}
@@ -96,6 +103,7 @@ func TestRender_SprigSerializationHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if want := `{"keep":3,"region":"eu-west-1"} web,worker`; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -109,6 +117,7 @@ func TestRender_ToYaml(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	// yaml.Marshal sorts map keys; the trailing newline is trimmed.
 	want := "region: eu-west-1\ntags:\n    - a\n    - b"
 	if got != want {
@@ -122,9 +131,11 @@ func TestRender_FromYaml(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "eu-west-1/3" {
 		t.Fatalf("got %q, want eu-west-1/3", got)
 	}
+
 	// Invalid YAML fails the render.
 	if _, err := varstmpl.Render("{{ fromYaml .y }}", varstmpl.Context{Vars: map[string]any{"y": ": ["}}); err == nil {
 		t.Fatal("expected error for invalid YAML, got nil")
@@ -137,6 +148,7 @@ func TestRender_FromYamlArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "web1,web2" {
 		t.Fatalf("got %q, want web1,web2", got)
 	}
@@ -148,9 +160,11 @@ func TestRender_Required(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "my-bucket" {
 		t.Fatalf("got %q, want my-bucket", got)
 	}
+
 	// An empty value fails with the given message.
 	_, err = varstmpl.Render(`{{ required "bucket must be set" .empty }}`, c)
 	if err == nil || !strings.Contains(err.Error(), "bucket must be set") {
@@ -165,6 +179,7 @@ func TestRender_BuiltinWinsOverVar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "real" {
 		t.Fatalf("builtin should win, got %q", got)
 	}
@@ -187,15 +202,19 @@ func TestRenderParams_DeepTemplating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderParams: %v", err)
 	}
+
 	if out["name"] != "my-asg" || out["stage"] != "prod" {
 		t.Errorf("string render wrong: %v / %v", out["name"], out["stage"])
 	}
+
 	if m, _ := out["creds"].(map[string]any); m == nil || m["host"] != "10.0.0.9" {
 		t.Errorf("nested map render wrong: %v", out["creds"])
 	}
+
 	if l, _ := out["tags"].([]any); len(l) != 2 || l[0] != "my-asg-a" || l[1] != "literal" {
 		t.Errorf("list render wrong: %v", out["tags"])
 	}
+
 	if out["keep"] != 3 || out["flag"] != true {
 		t.Errorf("non-strings changed: keep=%v flag=%v", out["keep"], out["flag"])
 	}
@@ -216,10 +235,12 @@ func TestEnvSecret_RegistersForRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	// The rendered command carries the real value (it must reach the server).
 	if got != "auth "+val {
 		t.Fatalf("envSecret should return the value, got %q", got)
 	}
+
 	// But the value is now registered, so redacting the command masks it.
 	if red := masking.String(got); strings.Contains(red, val) {
 		t.Errorf("envSecret value not redacted: %q", red)
@@ -235,9 +256,11 @@ func TestSensitiveEnv_AliasOfEnvSecret(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "auth "+val {
 		t.Fatalf("sensitiveEnv should return the value, got %q", got)
 	}
+
 	if red := masking.String(got); strings.Contains(red, val) {
 		t.Errorf("sensitiveEnv value not redacted: %q", red)
 	}
@@ -248,9 +271,11 @@ func TestSensitiveEnv_AliasOfEnvSecret(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "from-file-secret" {
 		t.Fatalf("sensitiveEnv env_files fallback = %q, want from-file-secret", got)
 	}
+
 	if red := masking.String(got); strings.Contains(red, "from-file-secret") {
 		t.Errorf("env_files-sourced value not redacted: %q", red)
 	}
@@ -266,6 +291,7 @@ func TestRender_EnvFallsBackToEnvFileValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "v=from-file" {
 		t.Fatalf("env fallback = %q, want v=from-file", got)
 	}
@@ -275,6 +301,7 @@ func TestRender_EnvFallsBackToEnvFileValues(t *testing.T) {
 	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=from-proc" {
 		t.Fatalf("process env should win, got %q", got)
 	}
+
 	// ...even when set to empty (dotenv non-override convention).
 	t.Setenv(name, "")
 	if got, _ := varstmpl.Render(`v={{ env "`+name+`" }}`, c); got != "v=" {
@@ -313,9 +340,11 @@ func TestLookupEnv_GlobalEnvLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "auth "+secret {
 		t.Fatalf("envSecret should return the global value, got %q", got)
 	}
+
 	if red := masking.String(got); strings.Contains(red, secret) {
 		t.Errorf("envSecret global value not redacted: %q", red)
 	}
@@ -336,9 +365,11 @@ func TestEnvSecret_EnvFileValueRedacted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "auth "+val {
 		t.Fatalf("envSecret should return the env_files value, got %q", got)
 	}
+
 	if red := masking.String(got); strings.Contains(red, val) {
 		t.Errorf("envSecret env_files value not redacted: %q", red)
 	}
@@ -351,9 +382,11 @@ func TestSensitive_RegistersForRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
+
 	if got != "PGPASSWORD=pw_abc_XYZ_123456" {
 		t.Fatalf("sensitive should return the value, got %q", got)
 	}
+
 	if red := masking.String(got); strings.Contains(red, "pw_abc_XYZ_123456") {
 		t.Errorf("sensitive value not redacted: %q", red)
 	}

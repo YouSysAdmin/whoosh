@@ -53,6 +53,7 @@ func Execute() {
 			slog.Warn("interrupted")
 			os.Exit(errors.CodeInterrupted)
 		}
+
 		slog.Error("command failed", "error", err)
 		// Exit with the error's category code (config/unreachable/command/...) so a caller can distinguish failures, a plain
 		// error falls back to 1.
@@ -73,9 +74,11 @@ func newRootCmd(args []string) *cobra.Command {
 	if logState.file != nil {
 		_ = logState.file.Close()
 	}
+
 	if logState.output != nil {
 		_ = logState.output.Close()
 	}
+
 	logState.base, logState.file, logState.output = nil, nil, nil
 	root := &cobra.Command{
 		Use:   "whoosh",
@@ -95,7 +98,9 @@ func newRootCmd(args []string) *cobra.Command {
 			if err := setupLogging(cmd, lf.level, lf.format, lf.output, lf.color, lf.file, lf.fileFormat); err != nil {
 				return err
 			}
+
 			applyMasking(lf.level)
+
 			return nil
 		},
 	}
@@ -120,6 +125,7 @@ func newRootCmd(args []string) *cobra.Command {
 	if stage, ok := detectStage(args); ok {
 		root.AddCommand(newStageCmd(stage, detectDeployfile(args)))
 	}
+
 	return root
 }
 
@@ -131,10 +137,12 @@ func detectDeployfile(args []string) string {
 		if args[i] == "--deployfile" && i+1 < len(args) {
 			return args[i+1]
 		}
+
 		if v, ok := strings.CutPrefix(args[i], "--deployfile="); ok {
 			return v
 		}
 	}
+
 	return ""
 }
 
@@ -181,29 +189,36 @@ func detectStage(args []string) (string, bool) {
 		if a == "" {
 			continue
 		}
+
 		// Skip cobra's completion driver token so the stage is detected from the real command line being completed (`whoosh
 		// __complete <stage> ...`), letting `whoosh <stage> <TAB>` register the stage and offer its tasks.
 		if completionDrivers[a] {
 			completing = true
 			continue
 		}
+
 		if strings.HasPrefix(a, "-") {
 			// A space-separated root flag consumes the next token as its value.
 			if valuedRootFlags[a] {
 				i++
 			}
+
 			continue
 		}
+
 		if reservedFirstArgs[a] {
 			return "", false
 		}
+
 		// During completion the final token is the word being completed (`whoosh ca<TAB>`): a partial stage name, not a
 		// chosen stage - leave it to the root completion (subcommands + completeStages) instead of registering it.
 		if completing && i == len(args)-1 {
 			return "", false
 		}
+
 		return a, true
 	}
+
 	return "", false
 }
 
@@ -248,10 +263,12 @@ func newStageCmd(stage, deployfileOverride string) *cobra.Command {
 			tasks = t
 		}
 	}
+
 	registerTaskCmds(cmd, stage, tasks, gf)
 	// Plugin-contributed actions (e.g. print-hosts-table's deploy:hosts).
 	// Added last so a built-in or a task of the same name wins.
 	registerPluginCmds(cmd, stage, declared, gf)
+
 	return cmd
 }
 
@@ -275,6 +292,7 @@ func registerTaskCmds(stageCmd *cobra.Command, stage string, tasks map[string]*a
 		if t == nil || reservedActions[name] {
 			continue
 		}
+
 		// A task gated out of this stage (only/except) is still registered so a hook referencing it resolves and an explicit
 		// run logs a skip - but omit it from this stage's listing, like a hidden task.
 		hidden := t.Hidden || !t.ActiveForStage(stage)
@@ -287,6 +305,7 @@ func registerTaskCmds(stageCmd *cobra.Command, stage string, tasks map[string]*a
 // or commit_hash, which don't exist yet.
 func loadTimeContext(cfg *ast.DeployFile) varstmpl.Context {
 	layout := paths.For(cfg.App.DeployTo)
+
 	return varstmpl.Context{
 		Vars:          cfg.Vars,
 		AppName:       cfg.App.Name,
@@ -312,13 +331,16 @@ func renderVars(cfg *ast.DeployFile) error {
 	if len(cfg.Vars) == 0 {
 		return nil
 	}
+
 	ctx := loadTimeContext(cfg)
 	ctx.Vars = nil
 	rendered, err := varstmpl.RenderParams(cfg.Vars, ctx, true)
 	if err != nil {
 		return fmt.Errorf("vars: %w", err)
 	}
+
 	cfg.Vars = rendered
+
 	return nil
 }
 
@@ -330,11 +352,14 @@ func renderAppBranch(cfg *ast.DeployFile) error {
 	if !strings.Contains(cfg.App.Branch, "{{") {
 		return nil
 	}
+
 	rendered, err := varstmpl.RenderWith(cfg.App.Branch, loadTimeContext(cfg), true)
 	if err != nil {
 		return fmt.Errorf("app.branch: %w", err)
 	}
+
 	cfg.App.Branch = cmp.Or(rendered, ast.DefaultBranch)
+
 	return nil
 }
 
@@ -351,27 +376,33 @@ func renderSSHSecrets(cfg *ast.DeployFile) error {
 		if *value == "" {
 			return nil
 		}
+
 		rendered, err := varstmpl.RenderWith(*value, ctx, true)
 		if err != nil {
 			return fmt.Errorf("%s: %w", label, err)
 		}
+
 		*value = rendered
 		masking.AddSecret(rendered)
+
 		return nil
 	}
 	if err := renderSecret("ssh.identity_file_passphrase", &cfg.SSH.IdentityFilePassphrase); err != nil {
 		return err
 	}
+
 	if cfg.SSH.Bastion != nil {
 		if err := renderSecret("ssh.bastion.identity_file_passphrase", &cfg.SSH.Bastion.IdentityFilePassphrase); err != nil {
 			return err
 		}
 	}
+
 	for i := range cfg.Hosts {
 		if err := renderSecret(fmt.Sprintf("hosts[%d].identity_file_passphrase", i), &cfg.Hosts[i].IdentityFilePassphrase); err != nil {
 			return err
 		}
 	}
+
 	for _, name := range sortedKeys(cfg.SSH.Identities) {
 		id := cfg.SSH.Identities[name]
 		for _, f := range []struct {
@@ -385,20 +416,26 @@ func renderSSHSecrets(cfg *ast.DeployFile) error {
 			if *f.value == "" {
 				continue
 			}
+
 			rendered, err := varstmpl.RenderWith(*f.value, ctx, true)
 			if err != nil {
 				return fmt.Errorf("ssh.identities.%s.%s: %w", name, f.label, err)
 			}
+
 			*f.value = rendered
 		}
+
 		if id.Content != "" {
 			masking.AddSecret(id.Content)
 		}
+
 		if id.Passphrase != "" {
 			masking.AddSecret(id.Passphrase)
 		}
+
 		cfg.SSH.Identities[name] = id
 	}
+
 	return nil
 }
 
@@ -412,6 +449,7 @@ func renderPluginParams(cfg *ast.DeployFile) error {
 	if len(cfg.Plugins) == 0 {
 		return nil
 	}
+
 	ctx := loadTimeContext(cfg)
 	for i := range cfg.Plugins {
 		p := &cfg.Plugins[i]
@@ -419,15 +457,18 @@ func renderPluginParams(cfg *ast.DeployFile) error {
 		if err != nil {
 			return fmt.Errorf("plugins %q params: %w", p.Name, err)
 		}
+
 		p.Params = rendered
 		for j := range p.Actions {
 			ra, err := varstmpl.RenderParams(p.Actions[j].Params, ctx, true)
 			if err != nil {
 				return fmt.Errorf("plugins %q action %q params: %w", p.Name, p.Actions[j].Name, err)
 			}
+
 			p.Actions[j].Params = ra
 		}
 	}
+
 	return nil
 }
 
@@ -446,6 +487,7 @@ func selectPluginsForStage(cfg *ast.DeployFile) {
 			skipped = append(skipped, p.Name)
 		}
 	}
+
 	cfg.Plugins = active
 	cfg.SkippedPlugins = skipped
 }
@@ -459,28 +501,34 @@ func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.Deploy
 	if err != nil {
 		return nil, "", err
 	}
+
 	cfg, err := deployfile.Load(path, stage)
 	if err != nil {
 		return nil, "", err
 	}
+
 	// Re-apply logging now that the Deployfile's log: config is known (CLI --log-* flags still take priority over it).
 	if err := applyLogConfig(cmd, &cfg.Log); err != nil {
 		return nil, "", err
 	}
+
 	// Resolve templated vars first, so plugin params (below) and everything downstream see final values.
 	if err := renderVars(cfg); err != nil {
 		return nil, "", err
 	}
+
 	// Resolve a templated app.branch next (it may reference vars), so the deploy and the {{.branch}} context key see
 	// the final branch name.
 	if err := renderAppBranch(cfg); err != nil {
 		return nil, "", err
 	}
+
 	// Resolve ssh secret templates next (they may reference vars), so a broken identity or passphrase template fails
 	// offline and the secret values are registered with the masker before anything can print them.
 	if err := renderSSHSecrets(cfg); err != nil {
 		return nil, "", err
 	}
+
 	// Add always-on (default) plugins not already declared, then drop plugins not active for this stage (and record them,
 	// so action tasks bound to them are skipped rather than failing), then render the survivors.
 	cfg.Plugins = plugins.DefaultSpecs(cfg.Plugins)
@@ -488,11 +536,13 @@ func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.Deploy
 	if err := renderPluginParams(cfg); err != nil {
 		return nil, "", err
 	}
+
 	// Render-check every user template (envs, cmds, dir, with, scripts) as the last load step, so any command fails
 	// up front on a config mistake - before plugins load (which may dial SSH/cloud for credentials or inventory).
 	if err := reportTemplateFindings(cmd.OutOrStdout(), checkTemplates(cfg)); err != nil {
 		return nil, "", err
 	}
+
 	return cfg, path, nil
 }
 
@@ -504,18 +554,22 @@ func loadConfig(ctx context.Context, cmd *cobra.Command, gf *globalFlags, stage 
 	if err != nil {
 		return nil, nil, err
 	}
+
 	reg, err := plugins.Load(cfg.Plugins)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	if err := reg.RunStartup(ctx, cfg); err != nil {
 		return nil, nil, fmt.Errorf("plugins startup: %w", err)
 	}
+
 	cfg.ApplyDefaults()
 	// Hooks can only be checked once the plugins have contributed their tasks, custom phases, and hook entries -
 	// a typo'd hook key (user or plugin phase:) would otherwise be silently dead.
 	if err := cfg.ValidateHooks(); err != nil {
 		return nil, nil, err
 	}
+
 	return cfg, reg, nil
 }

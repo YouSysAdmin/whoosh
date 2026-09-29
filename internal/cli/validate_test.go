@@ -17,17 +17,21 @@ func runStageCmd(t *testing.T, deployfile string, extra map[string]string, actio
 	if err := os.WriteFile(filepath.Join(dir, "Deployfile.yml"), []byte(deployfile), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(filepath.Join(dir, "deploy"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, "deploy", "uat.yml"), []byte("version: \"1\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	for name, content := range extra {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	t.Chdir(dir)
 
 	args := []string{"uat", action}
@@ -37,6 +41,7 @@ func runStageCmd(t *testing.T, deployfile string, extra map[string]string, actio
 	root.SetOut(&out)
 	root.SetErr(io.Discard)
 	err := root.Execute()
+
 	return out.String(), err
 }
 
@@ -44,6 +49,7 @@ func runStageCmd(t *testing.T, deployfile string, extra map[string]string, actio
 func runValidate(t *testing.T, deployfile string) error {
 	t.Helper()
 	_, err := runStageCmd(t, deployfile, nil, "validate")
+
 	return err
 }
 
@@ -170,11 +176,14 @@ app:
 				if err != nil {
 					t.Fatalf("expected validate to pass, got: %v\n%s", err, out)
 				}
+
 				return
 			}
+
 			if err == nil {
 				t.Fatal("expected validate to fail")
 			}
+
 			// Findings are printed as a plain list on stdout; the error carries only the count.
 			if !strings.Contains(out, tc.wantErr) {
 				t.Fatalf("findings should mention %q, got:\n%s", tc.wantErr, out)
@@ -207,6 +216,7 @@ tasks:
 		if err == nil {
 			t.Errorf("%s should fail the template check", action)
 		}
+
 		if !strings.Contains(out, "APP_VERSION must be exported") {
 			t.Errorf("%s should print the findings, got:\n%s", action, out)
 		}
@@ -234,6 +244,7 @@ tasks:
 	if err == nil || !strings.Contains(err.Error(), "template check") {
 		t.Fatalf("want the template-check error before the unknown-plugin error, got: %v", err)
 	}
+
 	if !strings.Contains(out, "APP_VERSION must be exported") {
 		t.Fatalf("findings should be printed, got:\n%s", out)
 	}
@@ -253,9 +264,11 @@ vars:
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
+
 	if strings.Contains(out, secret) {
 		t.Errorf("config dump leaks an envSecret var value:\n%s", out)
 	}
+
 	if !strings.Contains(out, "webhook") {
 		t.Errorf("config dump should still list the var key:\n%s", out)
 	}

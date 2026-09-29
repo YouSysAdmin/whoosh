@@ -30,6 +30,7 @@ const (
 const (
 	// amiMaxWait bounds the total wait for a new image to become available.
 	amiMaxWait = 30 * time.Minute
+
 	// amiPollInterval is how often aws:ec2:ami:create polls (and logs) image state while waiting, so a long bake isn't
 	// mistaken for a hang.
 	amiPollInterval = 30 * time.Second
@@ -57,9 +58,11 @@ type amiASGAPI interface {
 type amiPlugin struct {
 	ec2 amiEC2API
 	asg amiASGAPI
+
 	// defaults are the feature-level params (the `aws:ec2:ami` actions: entry), layered under each task's `with:` (the
 	// task wins).
 	defaults map[string]any
+
 	// pollInterval is how often runCreate polls image state while waiting, zero means amiPollInterval.
 	// Overridden in tests to avoid real sleeps.
 	pollInterval time.Duration
@@ -77,16 +80,20 @@ type amiCreateParams struct {
 	// NamePrefix is the AMI Name prefix, the image is named "<prefix>-<timestamp>".
 	// When empty it falls back to the source instance's Name tag.
 	NamePrefix string `yaml:"name_prefix"`
+
 	// Source instance, in precedence order (set one): InstanceID names it directly, SourceTags selects the first running
 	// instance matching every tag, ASG selects the first InService instance in the group.
 	InstanceID string            `yaml:"instance_id"`
 	SourceTags map[string]string `yaml:"source_tags"`
 	ASG        string            `yaml:"asg"`
+
 	// NoReboot defaults to true (snapshot without stopping the instance).
 	NoReboot *bool `yaml:"no_reboot"`
+
 	// Wait defaults to true: block until the image is available.
 	// Forced on when LaunchTemplate is set (a launch template must not point at a pending image).
 	Wait *bool `yaml:"wait"`
+
 	// LaunchTemplate, when set, is patched to the new AMI once it is available.
 	LaunchTemplate *amiLTTarget `yaml:"launch_template"`
 }
@@ -107,6 +114,7 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 	if err := awsparams.DecodeFeature(p.defaults, params, &ap); err != nil {
 		return err
 	}
+
 	if ap.InstanceID == "" && len(ap.SourceTags) == 0 && ap.ASG == "" {
 		return fmt.Errorf("%s: set 'instance_id', 'source_tags', or 'asg' to choose the source instance", actionAMICreate)
 	}
@@ -115,6 +123,7 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 	if err != nil {
 		return fmt.Errorf("%s: %w", actionAMICreate, err)
 	}
+
 	inst, err := p.describeInstance(ctx, instanceID)
 	if err != nil {
 		return fmt.Errorf("%s: %w", actionAMICreate, err)
@@ -124,6 +133,7 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 	if base == "" {
 		return fmt.Errorf("%s: set 'name_prefix' (source instance %s has no Name tag)", actionAMICreate, instanceID)
 	}
+
 	amiName := base + "-" + time.Now().UTC().Format("20060102-150405")
 	noReboot := ap.NoReboot == nil || *ap.NoReboot
 
@@ -141,6 +151,7 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 	if err != nil {
 		return fmt.Errorf("%s: create image: %w", actionAMICreate, err)
 	}
+
 	amiID := awssdk.ToString(img.ImageId)
 	slog.Info("created AMI", "ami", amiID)
 
@@ -157,6 +168,7 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 			return fmt.Errorf("%s: %w", actionAMICreate, err)
 		}
 	}
+
 	return nil
 }
 
@@ -167,6 +179,7 @@ func (p *amiPlugin) waitForImage(ctx context.Context, amiID string) error {
 	if interval <= 0 {
 		interval = amiPollInterval
 	}
+
 	ctx, cancel := context.WithTimeout(ctx, amiMaxWait)
 	defer cancel()
 
@@ -179,6 +192,7 @@ func (p *amiPlugin) waitForImage(ctx context.Context, amiID string) error {
 			if imageNotFound(err) {
 				return fmt.Errorf("AMI %s no longer exists (deregistered or deleted while pending?)", amiID)
 			}
+
 			return fmt.Errorf("describe image %s: %w", amiID, err)
 		}
 
@@ -188,10 +202,12 @@ func (p *amiPlugin) waitForImage(ctx context.Context, amiID string) error {
 			if seen {
 				return fmt.Errorf("AMI %s disappeared mid-build (deregistered or deleted?)", amiID)
 			}
+
 			slog.Info("waiting for AMI", "ami", amiID, "state", "not-yet-visible", "attempt", attempt)
 			if err := sleepCtx(ctx, interval); err != nil {
 				return waitStopped(ctx, amiID, "not-yet-visible")
 			}
+
 			continue
 		}
 
@@ -201,9 +217,11 @@ func (p *amiPlugin) waitForImage(ctx context.Context, amiID string) error {
 		if sr := img.StateReason; sr != nil {
 			reason = awssdk.ToString(sr.Message)
 		}
+
 		switch img.State {
 		case ec2types.ImageStateAvailable:
 			slog.Info("AMI is available", "ami", amiID, "attempts", attempt)
+
 			return nil
 		case ec2types.ImageStateFailed, ec2types.ImageStateError, ec2types.ImageStateInvalid,
 			ec2types.ImageStateDeregistered, ec2types.ImageStateDisabled:
@@ -233,12 +251,14 @@ func waitStopped(ctx context.Context, amiID, lastState string) error {
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return fmt.Errorf("AMI %s not available after %s (last state %q)", amiID, amiMaxWait, lastState)
 	}
+
 	return fmt.Errorf("waiting for AMI %s cancelled (last state %q): %w", amiID, lastState, ctx.Err())
 }
 
 // imageNotFound reports whether err is the EC2 InvalidAMIID.NotFound API error (the image was deregistered/deleted).
 func imageNotFound(err error) bool {
 	apiErr, ok := errors.AsType[smithy.APIError](err)
+
 	return ok && apiErr.ErrorCode() == "InvalidAMIID.NotFound"
 }
 
@@ -248,15 +268,18 @@ func (p *amiPlugin) sourceInstanceID(ctx context.Context, ap amiCreateParams) (s
 	if ap.InstanceID != "" {
 		return ap.InstanceID, nil
 	}
+
 	if len(ap.SourceTags) > 0 {
 		filters := []ec2types.Filter{{Name: awssdk.String("instance-state-name"), Values: []string{"running"}}}
 		for k, v := range ap.SourceTags {
 			filters = append(filters, ec2types.Filter{Name: awssdk.String("tag:" + k), Values: []string{v}})
 		}
+
 		out, err := p.ec2.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{Filters: filters})
 		if err != nil {
 			return "", fmt.Errorf("describe instances: %w", err)
 		}
+
 		for _, r := range out.Reservations {
 			for _, inst := range r.Instances {
 				if inst.InstanceId != nil {
@@ -264,6 +287,7 @@ func (p *amiPlugin) sourceInstanceID(ctx context.Context, ap amiCreateParams) (s
 				}
 			}
 		}
+
 		return "", fmt.Errorf("no running instance matches source_tags %v", ap.SourceTags)
 	}
 
@@ -271,11 +295,13 @@ func (p *amiPlugin) sourceInstanceID(ctx context.Context, ap amiCreateParams) (s
 	if err != nil {
 		return "", err
 	}
+
 	for _, inst := range grp.Instances {
 		if inst.LifecycleState == astypes.LifecycleStateInService && inst.InstanceId != nil {
 			return *inst.InstanceId, nil
 		}
 	}
+
 	return "", fmt.Errorf("no InService instance in ASG %q", ap.ASG)
 }
 
@@ -285,11 +311,13 @@ func (p *amiPlugin) describeInstance(ctx context.Context, id string) (ec2types.I
 	if err != nil {
 		return ec2types.Instance{}, fmt.Errorf("describe instance %s: %w", id, err)
 	}
+
 	for _, r := range out.Reservations {
 		for _, inst := range r.Instances {
 			return inst, nil
 		}
 	}
+
 	return ec2types.Instance{}, fmt.Errorf("instance %s not found", id)
 }
 
@@ -302,8 +330,10 @@ func amiTags(instanceTags []ec2types.Tag, amiName string) []ec2types.Tag {
 		if k == "Name" || strings.HasPrefix(k, "aws:") {
 			continue
 		}
+
 		tags = append(tags, ec2types.Tag{Key: t.Key, Value: t.Value})
 	}
+
 	return append(tags, ec2types.Tag{Key: awssdk.String("Name"), Value: awssdk.String(amiName)})
 }
 
@@ -315,10 +345,12 @@ func (p *amiPlugin) patchLaunchTemplate(ctx context.Context, tgt amiLTTarget, am
 		if tgt.ASG == "" {
 			return fmt.Errorf("launch_template: set 'id' or 'asg'")
 		}
+
 		grp, err := p.fetchASG(ctx, tgt.ASG)
 		if err != nil {
 			return err
 		}
+
 		if ltID = asgLaunchTemplateID(grp); ltID == "" {
 			return fmt.Errorf("ASG %q has no launch template", tgt.ASG)
 		}
@@ -333,10 +365,12 @@ func (p *amiPlugin) patchLaunchTemplate(ctx context.Context, tgt amiLTTarget, am
 	if err != nil {
 		return fmt.Errorf("create launch template version: %w", err)
 	}
+
 	// The API may succeed with warnings and omit the version, guard before the deref.
 	if ver.LaunchTemplateVersion == nil {
 		return fmt.Errorf("create launch template version: response carries no version")
 	}
+
 	version := strconv.FormatInt(awssdk.ToInt64(ver.LaunchTemplateVersion.VersionNumber), 10)
 	if _, err := p.ec2.ModifyLaunchTemplate(ctx, &awsec2.ModifyLaunchTemplateInput{
 		LaunchTemplateId: awssdk.String(ltID),
@@ -344,7 +378,9 @@ func (p *amiPlugin) patchLaunchTemplate(ctx context.Context, tgt amiLTTarget, am
 	}); err != nil {
 		return fmt.Errorf("set default launch template version: %w", err)
 	}
+
 	slog.Info("launch template updated", "launch_template", ltID, "default_version", version)
+
 	return nil
 }
 
@@ -354,11 +390,13 @@ func asgLaunchTemplateID(grp astypes.AutoScalingGroup) string {
 	if grp.LaunchTemplate != nil && grp.LaunchTemplate.LaunchTemplateId != nil {
 		return *grp.LaunchTemplate.LaunchTemplateId
 	}
+
 	if mip := grp.MixedInstancesPolicy; mip != nil && mip.LaunchTemplate != nil &&
 		mip.LaunchTemplate.LaunchTemplateSpecification != nil &&
 		mip.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateId != nil {
 		return *mip.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateId
 	}
+
 	return ""
 }
 
@@ -370,9 +408,11 @@ func (p *amiPlugin) fetchASG(ctx context.Context, name string) (astypes.AutoScal
 	if err != nil {
 		return astypes.AutoScalingGroup{}, fmt.Errorf("describe ASG %q: %w", name, err)
 	}
+
 	if len(out.AutoScalingGroups) == 0 {
 		return astypes.AutoScalingGroup{}, fmt.Errorf("ASG %q not found", name)
 	}
+
 	return out.AutoScalingGroups[0], nil
 }
 
@@ -386,9 +426,11 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 	if err := awsparams.DecodeFeature(p.defaults, params, &ap); err != nil {
 		return err
 	}
+
 	if ap.NamePrefix == "" && len(ap.Tags) == 0 {
 		return fmt.Errorf("%s: set 'name_prefix' and/or 'tags' to choose which images to prune", actionAMICleanup)
 	}
+
 	keep := ap.KeepLast
 	if keep < 1 {
 		keep = 3
@@ -400,31 +442,39 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 		if len(vals) == 0 {
 			continue
 		}
+
 		in.Filters = append(in.Filters, ec2types.Filter{Name: awssdk.String("tag:" + k), Values: vals})
 	}
+
 	var images []ec2types.Image
 	for {
 		resp, err := p.ec2.DescribeImages(ctx, in)
 		if err != nil {
 			return fmt.Errorf("%s: describe images: %w", actionAMICleanup, err)
 		}
+
 		for _, img := range resp.Images {
 			if ap.NamePrefix != "" && !strings.HasPrefix(awssdk.ToString(img.Name), ap.NamePrefix+"-") {
 				continue
 			}
+
 			images = append(images, img)
 		}
+
 		if resp.NextToken == nil || *resp.NextToken == "" {
 			break
 		}
+
 		in.NextToken = resp.NextToken
 	}
+
 	// Timestamp-formatted ISO dates sort chronologically as strings, newest first.
 	slices.SortFunc(images, func(a, b ec2types.Image) int {
 		return cmp.Compare(awssdk.ToString(b.CreationDate), awssdk.ToString(a.CreationDate))
 	})
 	if len(images) <= keep {
 		slog.Info("AMI cleanup: nothing to remove", "matching", len(images), "keep_last", keep)
+
 		return nil
 	}
 
@@ -438,19 +488,24 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 			slog.Warn("deregister AMI failed", "ami", id, "error", err)
 			continue
 		}
+
 		for _, bdm := range img.BlockDeviceMappings {
 			if bdm.Ebs == nil || bdm.Ebs.SnapshotId == nil {
 				continue
 			}
+
 			snap := *bdm.Ebs.SnapshotId
 			if _, err := p.ec2.DeleteSnapshot(ctx, &awsec2.DeleteSnapshotInput{SnapshotId: bdm.Ebs.SnapshotId}); err != nil {
 				warnings++
 				slog.Warn("delete snapshot failed", "snapshot", snap, "error", err)
 				continue
 			}
+
 			slog.Info("deleted snapshot", "snapshot", snap)
 		}
 	}
+
 	slog.Info("AMI cleanup done", "removed", len(old), "kept", keep, "warnings", warnings)
+
 	return nil
 }

@@ -26,13 +26,16 @@ type ec2InventoryParams struct {
 	RoleTag     string                `yaml:"role_tag"`
 	Roles       []string              `yaml:"roles"`
 	UsePublicIP bool                  `yaml:"use_public_ip"`
+
 	// DeployTag, when set, marks a discovered instance deploy:true only when it carries this tag (Name/Value), every other
 	// matched instance is added with deploy:false - still listed in inventory, just not deployed to.
 	// When unset, all discovered instances deploy (the default).
 	DeployTag *tagMatch `yaml:"deploy_tag"`
+
 	// RequiredTag, when set, marks a discovered instance required:true (its unreachability always aborts, even under
 	// on_unreachable: skip) when it carries this tag. When unset, discovered hosts are not required.
 	RequiredTag *tagMatch `yaml:"required_tag"`
+
 	// ResolveConfigHosts, when set, resolves the already-listed hosts' FQDN addresses to IPs (on the operator's
 	// machine) before the duplicate check, so a machine declared in the Deployfile by name and discovered by EC2 by IP
 	// is not listed twice - the declared entry (with its roles and flags) wins. A failed lookup only logs a warning.
@@ -47,6 +50,7 @@ func (p ec2InventoryParams) hasTagFilter() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -67,14 +71,19 @@ func (s *stringList) UnmarshalYAML(node *yaml.Node) error {
 		if err := node.Decode(&many); err != nil {
 			return err
 		}
+
 		*s = many
+
 		return nil
 	}
+
 	var single string
 	if err := node.Decode(&single); err != nil {
 		return err
 	}
+
 	*s = stringList{single}
+
 	return nil
 }
 
@@ -84,6 +93,7 @@ func (s *stringList) UnmarshalYAML(node *yaml.Node) error {
 type ec2Inventory struct {
 	api    ec2API
 	params ec2InventoryParams
+
 	// lookupHost resolves a hostname for the resolve_config_hosts dedup. nil means net.DefaultResolver - a field so
 	// tests can inject a fake resolver.
 	lookupHost func(ctx context.Context, host string) ([]string, error)
@@ -100,6 +110,7 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 		if len(vals) == 0 {
 			continue
 		}
+
 		filters = append(filters, ec2types.Filter{
 			Name:   awssdk.String("tag:" + k),
 			Values: vals,
@@ -114,6 +125,7 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 	for _, h := range cfg.Hosts {
 		seen[h.Address] = true
 	}
+
 	// With resolve_config_hosts, a host declared by FQDN also blocks its resolved IPs, so the same machine
 	// discovered by EC2 by IP is not listed twice. Resolution failures only warn - a stale DNS name must not fail
 	// startup, it just leaves the potential duplicate visible.
@@ -122,15 +134,18 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 		if lookup == nil {
 			lookup = net.DefaultResolver.LookupHost
 		}
+
 		for _, h := range cfg.Hosts {
 			if h.Address == "" || net.ParseIP(h.Address) != nil {
 				continue
 			}
+
 			ips, err := lookup(ctx, h.Address)
 			if err != nil {
 				slog.Warn("resolve host for inventory dedup failed", "host", h.Address, "error", err)
 				continue
 			}
+
 			for _, ip := range ips {
 				seen[ip] = true
 			}
@@ -155,11 +170,14 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 					if i.params.UsePublicIP {
 						slog.Warn("skipping instance without a public IP", "instance", awssdk.ToString(inst.InstanceId))
 					}
+
 					continue
 				}
+
 				if seen[addr] {
 					continue
 				}
+
 				seen[addr] = true
 				roles := i.params.Roles
 				if i.params.RoleTag != "" {
@@ -167,16 +185,19 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 						roles = splitRoles(v)
 					}
 				}
+
 				h := whoosh.Host{Address: addr, Roles: roles, Source: FeatureInventory}
 				// With deploy_tag set, only tag-matching instances deploy, the rest are still listed (deploy:false).
 				// Without it, all instances deploy.
 				if dt := i.params.DeployTag; dt != nil {
 					h.Deploy = new(tagValue(inst.Tags, dt.Name) == dt.Value)
 				}
+
 				// With required_tag set, tag-matching instances are required (never skipped on unreachability).
 				if rt := i.params.RequiredTag; rt != nil {
 					h.Required = new(tagValue(inst.Tags, rt.Name) == rt.Value)
 				}
+
 				cfg.Hosts = append(cfg.Hosts, h)
 			}
 		}
@@ -184,6 +205,7 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 		if out.NextToken == nil {
 			return nil
 		}
+
 		nextToken = out.NextToken
 	}
 }
@@ -193,11 +215,14 @@ func instanceHost(inst ec2types.Instance, public bool) string {
 		if inst.PublicIpAddress != nil {
 			return *inst.PublicIpAddress
 		}
+
 		return ""
 	}
+
 	if inst.PrivateIpAddress != nil {
 		return *inst.PrivateIpAddress
 	}
+
 	return ""
 }
 
@@ -207,6 +232,7 @@ func tagValue(tags []ec2types.Tag, key string) string {
 			return *t.Value
 		}
 	}
+
 	return ""
 }
 
@@ -217,5 +243,6 @@ func splitRoles(v string) []string {
 			out = append(out, s)
 		}
 	}
+
 	return out
 }

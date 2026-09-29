@@ -18,12 +18,15 @@ func writeProject(t *testing.T, shared, stageName, stage string) string {
 	if err := os.WriteFile(df, []byte(shared), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(filepath.Join(dir, "deploy"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, "deploy", stageName+".yml"), []byte(stage), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	return df
 }
 
@@ -35,6 +38,7 @@ func writeFragment(t *testing.T, df, rel, content string) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -85,36 +89,45 @@ hosts:
 	if cfg.App.Branch != "release/prod" {
 		t.Errorf("branch = %q, want release/prod", cfg.App.Branch)
 	}
+
 	if cfg.App.DeployTo != "/srv/myapp" {
 		t.Errorf("deploy_to = %q, want /srv/myapp", cfg.App.DeployTo)
 	}
+
 	// Base scalar not overridden is retained.
 	if cfg.App.Name != "myapp" {
 		t.Errorf("name = %q, want myapp", cfg.App.Name)
 	}
+
 	// Vars merge: stage overrides one key, base key survives.
 	if cfg.Vars["RAILS_ENV"] != "staging" {
 		t.Errorf("RAILS_ENV = %v, want staging", cfg.Vars["RAILS_ENV"])
 	}
+
 	if cfg.Vars["COMMON"] != "base" {
 		t.Errorf("COMMON = %v, want base", cfg.Vars["COMMON"])
 	}
+
 	// Tasks come from base.
 	if _, ok := cfg.Tasks["restart"]; !ok {
 		t.Errorf("restart task missing after merge")
 	}
+
 	// Servers from stage, with SSH defaults applied.
 	if len(cfg.Hosts) != 2 {
 		t.Fatalf("servers = %d, want 2", len(cfg.Hosts))
 	}
+
 	web := cfg.Hosts[0]
 	if web.User != "deploy" || web.Port != 22 {
 		t.Errorf("web1 ssh defaults not applied: user=%q port=%d", web.User, web.Port)
 	}
+
 	db := cfg.Hosts[1]
 	if db.Port != 2222 {
 		t.Errorf("db1 explicit port lost: %d", db.Port)
 	}
+
 	if cfg.Stage != "production" {
 		t.Errorf("stage = %q, want production", cfg.Stage)
 	}
@@ -137,12 +150,15 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if cfg.App.KeepReleases != ast.DefaultKeepReleases {
 		t.Errorf("keep_releases default = %d, want %d", cfg.App.KeepReleases, ast.DefaultKeepReleases)
 	}
+
 	if cfg.App.Branch != ast.DefaultBranch {
 		t.Errorf("branch default = %q, want %q", cfg.App.Branch, ast.DefaultBranch)
 	}
+
 	if cfg.Hosts[0].Port != ast.DefaultSSHPort {
 		t.Errorf("server port default = %d, want %d", cfg.Hosts[0].Port, ast.DefaultSSHPort)
 	}
@@ -209,6 +225,7 @@ func TestScriptsLocation_DefaultAndOverride(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "deploy"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	c = &ast.DeployFile{Dir: dir}
 	if got, want := deployfile.ScriptsLocation(c), filepath.Join(dir, "deploy", "scripts"); got != want {
 		t.Errorf("probed ScriptsLocation = %q, want %q", got, want)
@@ -219,6 +236,7 @@ func TestScriptsLocation_DefaultAndOverride(t *testing.T) {
 	if got := deployfile.ScriptsLocation(c); got != "/proj/ops/scripts" {
 		t.Errorf("relative override = %q", got)
 	}
+
 	c.ScriptsDir = "/abs/scripts"
 	if got := deployfile.ScriptsLocation(c); got != "/abs/scripts" {
 		t.Errorf("absolute override = %q", got)
@@ -237,17 +255,21 @@ app:
 	if err := os.WriteFile(df, []byte(shared), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(filepath.Join(dir, "whoosh"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, "whoosh", "prod.yml"),
 		[]byte("hosts:\n  - address: h1\n    roles: [app]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	cfg, err := deployfile.Load(df, "prod")
 	if err != nil {
 		t.Fatalf("load with whoosh/ stage dir: %v", err)
 	}
+
 	if len(cfg.Hosts) != 1 || cfg.Hosts[0].Address != "h1" {
 		t.Errorf("stage file under whoosh/ not loaded: %+v", cfg.Hosts)
 	}
@@ -258,10 +280,12 @@ func TestDiscover_Whooshfile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "Whooshfile.yml"), []byte("app:\n  name: a\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	got, err := deployfile.Discover(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if filepath.Base(got) != "Whooshfile.yml" {
 		t.Errorf("Discover = %q, want Whooshfile.yml", got)
 	}
@@ -292,12 +316,15 @@ tasks:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if len(cfg.Plugins) != 2 || cfg.Plugins[0].Name != "aws:ec2:inventory" || cfg.Plugins[1].Name != "aws:ec2:asg" {
 		t.Fatalf("plugins list not parsed: %+v", cfg.Plugins)
 	}
+
 	if cfg.Plugins[0].Params["region"] != "eu-west-1" {
 		t.Errorf("plugins params not parsed: %+v", cfg.Plugins[0].Params)
 	}
+
 	task := cfg.Tasks["refresh"]
 	if task == nil || task.Action != "aws:ec2:asg:refresh" || task.With["name"] != "my-asg" {
 		t.Fatalf("action task not parsed: %+v", task)
@@ -366,9 +393,11 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if cfg.OnUnreachable != ast.OnUnreachableSkip {
 		t.Errorf("on_unreachable = %q, want skip", cfg.OnUnreachable)
 	}
+
 	want := map[string]bool{"db1": true, "web1": false}
 	for _, s := range cfg.Hosts {
 		if s.IsRequired() != want[s.Address] {
@@ -433,10 +462,12 @@ tasks:
 			t.Errorf("task %q missing after include merge", name)
 		}
 	}
+
 	// Include wins over base for a same-named task.
 	if got := cfg.Tasks["dup"].Cmds[0]; got != "echo included" {
 		t.Errorf("dup cmd = %q, want include to win (echo included)", got)
 	}
+
 	// Precedence on vars: stage > include > base; unique keys all survive.
 	want := map[string]string{
 		"COMMON":       "stage",    // stage wins
@@ -475,11 +506,13 @@ tasks:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	for _, name := range []string{"web", "proxy"} {
 		if _, ok := cfg.Tasks[name]; !ok {
 			t.Errorf("task %q missing; nested/relative include not resolved", name)
 		}
 	}
+
 	if cfg.Vars["PROXY"] != "enabled" {
 		t.Errorf("PROXY = %v, want enabled (from ../libs/proxy.yml)", cfg.Vars["PROXY"])
 	}
@@ -512,17 +545,20 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	for _, name := range []string{"b", "c"} {
 		if _, ok := cfg.Tasks[name]; !ok {
 			t.Errorf("task %q missing after diamond include merge", name)
 		}
 	}
+
 	var n int
 	for _, h := range cfg.Hosts {
 		if h.Address == "shared-host" {
 			n++
 		}
 	}
+
 	if n != 1 {
 		t.Errorf("shared-host appears %d times, want 1 (diamond include must merge once)", n)
 	}
@@ -542,6 +578,7 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if _, ok := cfg.Tasks["only"]; !ok {
 		t.Error("scalar include form did not parse/merge")
 	}
@@ -591,13 +628,16 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if cfg.Include != nil {
 		t.Errorf("Include should be nil after load, got %v", cfg.Include)
 	}
+
 	m, err := cfg.AsMap()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, ok := m["include"]; ok {
 		t.Error("include key leaked into AsMap()/config output")
 	}
@@ -621,6 +661,7 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if _, ok := cfg.Tasks["fromdeployfileinclude"]; !ok {
 		t.Error("include in the shared Deployfile was not resolved")
 	}
@@ -632,10 +673,12 @@ func TestDiscover_PrefersOverride(t *testing.T) {
 	if err := os.WriteFile(custom, []byte("app:\n  name: a\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	got, err := deployfile.Discover(dir, custom)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if got != custom {
 		t.Errorf("Discover override = %q, want %q", got, custom)
 	}
@@ -662,12 +705,14 @@ hosts:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	var n int
 	for _, h := range cfg.Hosts {
 		if h.Address == "shared-host" {
 			n++
 		}
 	}
+
 	if n != 1 {
 		t.Errorf("shared-host appears %d times, want 1 (fragment included by base and stage must merge once)", n)
 	}

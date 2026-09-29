@@ -26,9 +26,12 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 			if err != nil {
 				return fmt.Errorf("task %q: %w", name, err)
 			}
+
 			e.setTaskState(name, val)
+
 			return nil
 		}
+
 		target = e.taskTargets(task, servers[:1])[0]
 	}
 
@@ -43,22 +46,27 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 		if err != nil {
 			return err
 		}
+
 		e.announceStep(st)
 		if e.dryRun {
 			line := e.stepLine(st, b)
 			if !e.logDryRun(target.Host, "capture: "+line) {
 				fmt.Fprintf(e.out, "[dry-run] capture %s: %s\n", target.Host, line)
 			}
+
 			continue
 		}
+
 		s, err := e.cluster.Capture(ctx, target, b.cmd)
 		if err != nil {
 			if task.ContinueOnError {
 				slog.Warn("continuing past error", "task", name, "error", err)
 				continue
 			}
+
 			return fmt.Errorf("%s: %w", target.Host, err)
 		}
+
 		out.WriteString(s)
 		out.WriteByte('\n')
 	}
@@ -67,7 +75,9 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 	if err != nil {
 		return fmt.Errorf("task %q: %w", name, err)
 	}
+
 	e.setTaskState(name, val)
+
 	return nil
 }
 
@@ -80,15 +90,18 @@ func parseOutput(format, raw string) (any, error) {
 		if raw == "" {
 			return map[string]any{}, nil
 		}
+
 		var v any
 		if err := json.Unmarshal([]byte(raw), &v); err != nil {
 			return nil, fmt.Errorf("parse json output: %w", err)
 		}
+
 		return v, nil
 	case "lines":
 		if raw == "" {
 			return []string{}, nil
 		}
+
 		return strings.Split(raw, "\n"), nil
 	default: // "text"
 		return raw, nil

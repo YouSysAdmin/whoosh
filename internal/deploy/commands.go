@@ -21,6 +21,7 @@ func ensureStructureCmd(l paths.Layout, linkedFiles, linkedDirs []string) string
 		src, _ := ast.ParseLinkedPath(d)
 		dirs = append(dirs, path.Join(l.SharedPath, src))
 	}
+
 	var files []string
 	for _, f := range linkedFiles {
 		src, _ := ast.ParseLinkedPath(f)
@@ -28,6 +29,7 @@ func ensureStructureCmd(l paths.Layout, linkedFiles, linkedDirs []string) string
 		dirs = append(dirs, path.Dir(shared))
 		files = append(files, shared)
 	}
+
 	return shtmpl.MustRender(tmpl, "ensure_structure.sh.tmpl", struct {
 		Dirs  []string
 		Files []string
@@ -51,6 +53,7 @@ func symlinkSharedScript(l paths.Layout, release string, linkedFiles, linkedDirs
 		shared, target := path.Join(l.SharedPath, src), path.Join(release, dst)
 		dirs = append(dirs, linkSpec{Shared: shared, Target: target, TargetParent: path.Dir(target)})
 	}
+
 	for _, f := range linkedFiles {
 		src, dst := ast.ParseLinkedPath(f)
 		shared, target := path.Join(l.SharedPath, src), path.Join(release, dst)
@@ -59,6 +62,7 @@ func symlinkSharedScript(l paths.Layout, release string, linkedFiles, linkedDirs
 			SharedParent: path.Dir(shared), TargetParent: path.Dir(target),
 		})
 	}
+
 	return shtmpl.MustRender(tmpl, "symlink_shared.sh.tmpl", struct {
 		Dirs  []linkSpec
 		Files []linkSpec

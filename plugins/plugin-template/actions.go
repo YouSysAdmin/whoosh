@@ -25,6 +25,7 @@ const (
 	// ActionRender fetches a value operator-side (once) and renders it as a file on every target host - the
 	// HostFileWriter pattern (compare aws:ssm:to-dotenv).
 	ActionRender = pluginName + ":render"
+
 	// ActionExec runs a command on every target host - the HostCommandRunner pattern (compare the systemd plugin).
 	ActionExec = pluginName + ":exec"
 )
@@ -33,6 +34,7 @@ const (
 type renderParams struct {
 	// Key selects what to fetch from the external system.
 	Key string `yaml:"key"`
+
 	// Path is where the file lands on each host, a relative path resolves against the release dir.
 	Path string `yaml:"path"`
 }
@@ -44,9 +46,11 @@ func (p *plugin) render(ctx context.Context, with map[string]any, out io.Writer)
 	if err := decodeFeature(p.features[ActionRender], with, &a); err != nil {
 		return fmt.Errorf("%s: %w", ActionRender, err)
 	}
+
 	if a.Key == "" || a.Path == "" {
 		return fmt.Errorf("%s: both 'key' and 'path' are required", ActionRender)
 	}
+
 	if err := p.client.requireEndpoint(ActionRender); err != nil {
 		return err
 	}
@@ -56,13 +60,16 @@ func (p *plugin) render(ctx context.Context, with map[string]any, out io.Writer)
 	if err != nil {
 		return fmt.Errorf("%s: fetch %q: %w", ActionRender, a.Key, err)
 	}
+
 	whoosh.AddSecret(value)
 
 	w := whoosh.HostFileWriterFrom(ctx)
 	if w == nil {
 		return fmt.Errorf("%s: no host file writer in context (the action must run as a whoosh task)", ActionRender)
 	}
+
 	fmt.Fprintf(out, "%s: rendering %s\n", ActionRender, a.Path)
+
 	return w.WriteFile(ctx, a.Path, []byte(value+"\n"))
 }
 
@@ -80,13 +87,16 @@ func (p *plugin) exec(ctx context.Context, with map[string]any, _ io.Writer) err
 	if err := decodeFeature(p.features[ActionExec], with, &a); err != nil {
 		return fmt.Errorf("%s: %w", ActionExec, err)
 	}
+
 	if a.Cmd == "" {
 		return fmt.Errorf("%s: 'cmd' is required", ActionExec)
 	}
+
 	r := whoosh.HostCommandRunnerFrom(ctx)
 	if r == nil {
 		return fmt.Errorf("%s: no host command runner in context (the action must run as a whoosh task)", ActionExec)
 	}
+
 	// The runner echoes the command per host itself - no extra progress line needed.
 	return r.RunCommand(ctx, a.Cmd)
 }

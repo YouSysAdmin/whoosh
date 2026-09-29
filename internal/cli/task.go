@@ -15,6 +15,7 @@ import (
 // A hidden task is still registered (so it can be run directly, or as a dep/hook) but omitted from the CLI listing.
 func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.Command {
 	short := cmp.Or(desc, fmt.Sprintf("Run the %q task", name))
+
 	return &cobra.Command{
 		Use:    name,
 		Short:  short,
@@ -25,15 +26,18 @@ func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.C
 			if err != nil {
 				return err
 			}
+
 			ex, err := newExecutor(cmd, cfg, reg, gf)
 			if err != nil {
 				return err
 			}
+
 			defer ex.Close()
 			err = ex.RunTask(cmd.Context(), name)
 			if err != nil && !gf.dryRun {
 				notifyTaskFailure(cfg, ex, name, err)
 			}
+
 			return err
 		},
 	}
@@ -47,6 +51,7 @@ func notifyTaskFailure(cfg *ast.DeployFile, ex *executor.Executor, name string, 
 	if t := cfg.Tasks[name]; t != nil && t.NotifyFailure != nil && !*t.NotifyFailure {
 		return
 	}
+
 	r := hooks.New(cfg.Hooks, cfg.HookFuncsBefore, cfg.HookFuncsAfter, ex.RunTaskInPhase, ex.Out())
 	r.NotifyFailed(ex.SetError, err)
 }

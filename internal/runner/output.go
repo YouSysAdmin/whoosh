@@ -27,6 +27,7 @@ func HostLabel(host string, color bool) string {
 	if !color {
 		return label
 	}
+
 	return ansiGreen + label + ansiReset
 }
 
@@ -72,14 +73,18 @@ func (lw *LineWriter) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
+
 		if err := lw.emit(lw.buf[:i+1]); err != nil {
 			// p is already consumed into the buffer, so report it written and drop the failed line - keeping it
 			// would re-emit it on the next Write or Flush.
 			lw.buf = lw.buf[i+1:]
+
 			return len(p), err
 		}
+
 		lw.buf = lw.buf[i+1:]
 	}
+
 	return len(p), nil
 }
 
@@ -90,6 +95,7 @@ func (lw *LineWriter) Flush() {
 	if len(lw.buf) == 0 {
 		return
 	}
+
 	_ = lw.emit(append(lw.buf, '\n'))
 	lw.buf = nil
 }
@@ -97,6 +103,7 @@ func (lw *LineWriter) Flush() {
 // Close flushes any buffered partial line. It lets a LineWriter stand in for an io.WriteCloser.
 func (lw *LineWriter) Close() error {
 	lw.Flush()
+
 	return nil
 }
 
@@ -105,11 +112,15 @@ func (lw *LineWriter) Close() error {
 func (lw *LineWriter) emit(line []byte) error {
 	if lw.handler != nil {
 		lw.handler(lw.host, string(bytes.TrimRight(line, "\n")))
+
 		return nil
 	}
+
 	if _, err := io.WriteString(lw.w, lw.prefix); err != nil {
 		return err
 	}
+
 	_, err := lw.w.Write(line)
+
 	return err
 }

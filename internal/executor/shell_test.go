@@ -9,6 +9,7 @@ func TestWrapRemote(t *testing.T) {
 		`export A="1"; export B="2"; cd '/tmp' && echo hi`; got != want {
 		t.Errorf("wrapRemote:\n got: %q\nwant: %q", got, want)
 	}
+
 	if got, want := wrapRemote("echo hi", "", nil), `echo hi`; got != want {
 		t.Errorf("wrapRemote bare = %q, want %q", got, want)
 	}

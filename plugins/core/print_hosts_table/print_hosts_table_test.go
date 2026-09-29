@@ -24,6 +24,7 @@ func TestVersion(t *testing.T) {
 	if !ok {
 		t.Fatal("plugin does not implement whoosh.Versioner")
 	}
+
 	if v.Version() != pluginVersion || pluginVersion == "" {
 		t.Fatalf("Version() = %q, want %q", v.Version(), pluginVersion)
 	}
@@ -36,6 +37,7 @@ func TestInstall_RegistersPrintFuncHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{
 		{Address: "web1.example.com", Roles: []string{"app"}},
 		{Address: "db1.example.com", Roles: []string{"db"}},
@@ -49,6 +51,7 @@ func TestInstall_RegistersPrintFuncHook(t *testing.T) {
 	if len(fns) != 1 {
 		t.Fatalf("before %s func hooks = %d, want 1", whoosh.PhaseStarting, len(fns))
 	}
+
 	if len(cfg.Tasks) != 0 {
 		t.Errorf("no task should be added, got %v", cfg.Tasks)
 	}
@@ -58,6 +61,7 @@ func TestInstall_RegistersPrintFuncHook(t *testing.T) {
 	if err := fns[0](t.Context(), &buf); err != nil {
 		t.Fatalf("hook func: %v", err)
 	}
+
 	for _, want := range []string{"web1.example.com", "db1.example.com", "app", "db"} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("printed table missing %q in:\n%s", want, buf.String())
@@ -81,6 +85,7 @@ func TestCommands_DeployHosts(t *testing.T) {
 	if err := cmds[0].Run(t.Context(), cfg, nil, &buf, nil); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
+
 	for _, want := range []string{"web1.example.com", "db1.example.com", "app", "db"} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("deploy:hosts output missing %q in:\n%s", want, buf.String())
@@ -104,27 +109,33 @@ func TestHostsTable(t *testing.T) {
 			t.Errorf("table missing %q in:\n%s", want, out)
 		}
 	}
+
 	lineFor := func(host string) string {
 		for l := range strings.SplitSeq(out, "\n") {
 			if strings.Contains(l, host) {
 				return l
 			}
 		}
+
 		return ""
 	}
 	if l := lineFor("10.0.0.1"); !strings.Contains(l, "yes") {
 		t.Errorf("deploy-enabled row = %q, want 'yes'", l)
 	}
+
 	if l := lineFor("10.0.0.2"); !strings.Contains(l, "no") {
 		t.Errorf("deploy:false row = %q, want 'no'", l)
 	}
+
 	// A host with no Source shows "config"; a discovered host shows its plugin source.
 	if l := lineFor("10.0.0.1"); !strings.Contains(l, "config") {
 		t.Errorf("config-host row = %q, want 'config' source", l)
 	}
+
 	if l := lineFor("10.0.0.3"); !strings.Contains(l, "aws:ec2:inventory") {
 		t.Errorf("discovered-host row = %q, want 'aws:ec2:inventory' source", l)
 	}
+
 	// The primary-marked host shows "yes" in the PRIMARY column, an unmarked one stays empty there.
 	if l := lineFor("10.0.0.3"); !strings.Contains(l, "yes") {
 		t.Errorf("primary row = %q, want 'yes'", l)

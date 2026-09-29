@@ -54,9 +54,11 @@ func TestEnsureStructureCmd_VerifiesLinkedFiles(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected failure for a missing linked file, output:\n%s", out)
 	}
+
 	if !strings.Contains(string(out), "missing linked file") {
 		t.Errorf("missing-file message absent:\n%s", out)
 	}
+
 	if _, statErr := os.Stat(l.SharedPath); statErr != nil {
 		t.Errorf("shared dir should have been created even on failure: %v", statErr)
 	}
@@ -65,6 +67,7 @@ func TestEnsureStructureCmd_VerifiesLinkedFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(l.SharedPath, "config", "database.yml"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if out, err := exec.Command("sh", "-c", script).CombinedOutput(); err != nil {
 		t.Fatalf("check should pass once the linked file exists: %v\n%s", err, out)
 	}
@@ -108,6 +111,7 @@ func TestEnsureStructureCmd_RewriteChecksSource(t *testing.T) {
 	if !strings.Contains(got, "'/srv/app/shared/config/database.yml'") {
 		t.Errorf("check should verify the shared source path, got:\n%s", got)
 	}
+
 	if strings.Contains(got, "new-database.yml") {
 		t.Errorf("check must not reference the release-side destination, got:\n%s", got)
 	}
@@ -177,9 +181,11 @@ func TestRollbackScript(t *testing.T) {
 	if !strings.Contains(noClean, `mv -T "/srv/app/current.tmp" "/srv/app/current"`) {
 		t.Errorf("rollback missing atomic swap:\n%s", noClean)
 	}
+
 	if strings.Contains(noClean, "removed rolled-back release") {
 		t.Errorf("rollback(false) should not clean up:\n%s", noClean)
 	}
+
 	withClean := rollbackScript(l, true)
 	if !strings.Contains(withClean, `rm -rf "/srv/app/releases/$curbase"`) || !strings.Contains(withClean, "removed rolled-back release") {
 		t.Errorf("rollback(true) missing cleanup:\n%s", withClean)

@@ -29,6 +29,7 @@ type Target struct {
 	IdentityFile string // private key file used to authenticate
 	Passphrase   string // optional, decrypts an encrypted IdentityFile
 	Local        bool   // run via the local shell instead of SSH
+
 	// StrictHostKey, when non-nil, overrides the cluster's StrictHostKey for this host's dial (a task may skip known_hosts
 	// verification for ephemeral hosts).
 	// Connections are pooled per host and effective strictness, so a target requiring verification never reuses a
@@ -68,8 +69,10 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 			results[i] = Result{Host: t.Host}
 			if ctx.Err() != nil {
 				results[i].Err = ctx.Err()
+
 				return
 			}
+
 			if err := fn(ctx, t); err != nil {
 				results[i].Err = err
 				if failFast {
@@ -78,7 +81,9 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 			}
 		})
 	}
+
 	wg.Wait()
+
 	return results
 }
 
@@ -89,6 +94,7 @@ func RunCommand(ctx context.Context, targets []Target, opts Options, cmd string,
 	cl := NewCluster(opts, out)
 	cl.SetColor(color)
 	defer cl.Close()
+
 	return cl.Run(ctx, targets, func(string) string { return cmd }, concurrency, failFast)
 }
 
@@ -99,5 +105,6 @@ func Failed(results []Result) bool {
 			return true
 		}
 	}
+
 	return false
 }

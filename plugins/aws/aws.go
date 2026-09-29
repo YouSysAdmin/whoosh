@@ -66,20 +66,25 @@ func (a *awsPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) erro
 	if err := whoosh.DecodeParamsStrict(spec.Params, &c); err != nil {
 		return fmt.Errorf("aws params: %w", err)
 	}
+
 	cfg, err := loadAWS(context.Background(), c)
 	if err != nil {
 		return fmt.Errorf("load aws config: %w", err)
 	}
+
 	fp, err := indexFeatures(spec.Actions)
 	if err != nil {
 		return err
 	}
+
 	if err := ec2.Register(reg, cfg, fp); err != nil {
 		return err
 	}
+
 	if err := ssm.Register(reg, cfg, fp); err != nil {
 		return err
 	}
+
 	return secretstore.Register(reg, cfg, fp)
 }
 
@@ -96,5 +101,6 @@ func indexFeatures(actions []whoosh.PluginActionSpec) (map[string]map[string]any
 				act.Name, ec2.FeatureInventory, ec2.FeatureASG, ec2.FeatureAMI, ssm.Feature, secretstore.Feature)
 		}
 	}
+
 	return fp, nil
 }

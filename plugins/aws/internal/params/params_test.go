@@ -22,9 +22,11 @@ func TestMerge(t *testing.T) {
 	if got["name"] != "task" {
 		t.Errorf("scalar override: name = %v, want task", got["name"])
 	}
+
 	if got["keep"] != "frombase" {
 		t.Errorf("default-only key dropped: keep = %v, want frombase", got["keep"])
 	}
+
 	st, ok := got["source_tags"].(map[string]any)
 	if !ok || st["App"] != "x" || st["Env"] != "uat" || st["Role"] != "worker" {
 		t.Errorf("nested merge: source_tags = %v, want {App:x, Env:uat, Role:worker}", got["source_tags"])
@@ -49,6 +51,7 @@ func TestDecodeFeature(t *testing.T) {
 	); err != nil {
 		t.Fatalf("DecodeFeature: %v", err)
 	}
+
 	if got.Name != "task" || got.Keep != "frombase" {
 		t.Fatalf("got %+v, want {Name:task Keep:frombase}", got)
 	}

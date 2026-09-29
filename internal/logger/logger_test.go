@@ -32,16 +32,20 @@ func TestNewFanOut(t *testing.T) {
 	if !strings.Contains(text, "hello") {
 		t.Errorf("text sink missing the info line: %q", text)
 	}
+
 	if !strings.Contains(js, "hello") {
 		t.Errorf("json sink missing the info line: %q", js)
 	}
+
 	// The debug line must reach only the debug sink.
 	if strings.Contains(text, "verbose") {
 		t.Errorf("info text sink should not carry the debug line: %q", text)
 	}
+
 	if !strings.Contains(js, "verbose") {
 		t.Errorf("debug json sink missing the debug line: %q", js)
 	}
+
 	// The json sink is really JSON.
 	if !strings.Contains(js, `"msg":"hello"`) {
 		t.Errorf("json sink is not JSON-formatted: %q", js)
@@ -68,6 +72,7 @@ func TestColorSinkToFileHasNoEscapes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+
 	l.Info("plain")
 
 	if got := readFile(t, path); strings.Contains(got, "\033[") {
@@ -83,12 +88,14 @@ func TestSinkWriterSharesDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+
 	l.Info("shared")
 
 	got := buf.String()
 	if !strings.Contains(got, "shared") {
 		t.Errorf("Writer sink did not receive the line: %q", got)
 	}
+
 	// A non-*os.File writer can never be a terminal, so Color is ignored.
 	if strings.Contains(got, "\033[") {
 		t.Errorf("Writer sink should not be colorized: %q", got)
@@ -101,6 +108,7 @@ func readFile(t *testing.T, p string) string {
 	if err != nil {
 		t.Fatalf("read %s: %v", p, err)
 	}
+
 	return string(b)
 }
 
@@ -108,10 +116,12 @@ func TestIsTerminal(t *testing.T) {
 	if IsTerminal(&bytes.Buffer{}) {
 		t.Error("a bytes.Buffer must not be reported as a terminal")
 	}
+
 	f, err := os.CreateTemp(t.TempDir(), "out")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer f.Close()
 	if IsTerminal(f) {
 		t.Error("a regular file must not be reported as a terminal")

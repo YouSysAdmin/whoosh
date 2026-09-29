@@ -18,6 +18,7 @@ func rootWithLogFlags(t *testing.T) *cobra.Command {
 	root.PersistentFlags().Bool("log-color", true, "")
 	sub := &cobra.Command{Use: "child"}
 	root.AddCommand(sub)
+
 	return sub
 }
 
@@ -56,6 +57,7 @@ func rootWithAllLogFlags(t *testing.T) *cobra.Command {
 	pf.String("log-file-format", "text", "")
 	sub := &cobra.Command{Use: "child"}
 	root.AddCommand(sub)
+
 	return sub
 }
 
@@ -68,10 +70,12 @@ func TestApplyLogConfig_MaterializesFlags(t *testing.T) {
 	if err := sub.Root().PersistentFlags().Set("log-format", "json"); err != nil {
 		t.Fatal(err)
 	}
+
 	lc := ast.Log{}
 	if err := applyLogConfig(sub, &lc); err != nil {
 		t.Fatalf("applyLogConfig: %v", err)
 	}
+
 	if lc.Format != "json" {
 		t.Errorf("Format = %q, want json (explicit flag must be materialized)", lc.Format)
 	}
@@ -82,6 +86,7 @@ func TestApplyLogConfig_MaterializesFlags(t *testing.T) {
 	if err := applyLogConfig(sub, &lc); err != nil {
 		t.Fatalf("applyLogConfig: %v", err)
 	}
+
 	if lc.Format != "" {
 		t.Errorf("Format = %q, want empty (unset flag must not bake in the default)", lc.Format)
 	}
@@ -92,6 +97,7 @@ func TestApplyLogConfig_MaterializesFlags(t *testing.T) {
 	if err := applyLogConfig(sub, &lc); err != nil {
 		t.Fatalf("applyLogConfig: %v", err)
 	}
+
 	if lc.Format != "json" {
 		t.Errorf("Format = %q, want json (Deployfile value must be preserved)", lc.Format)
 	}

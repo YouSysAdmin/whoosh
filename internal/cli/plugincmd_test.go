@@ -27,6 +27,7 @@ func TestRegisterPluginCmds_AddsDeployHosts(t *testing.T) {
 		for _, c := range stageCmd.Commands() {
 			names = append(names, c.Name())
 		}
+
 		t.Fatalf("deploy:hosts not registered, subcommands: %v", names)
 	}
 }

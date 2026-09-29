@@ -11,6 +11,7 @@ func writeFile(t *testing.T, path, content string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -32,6 +33,7 @@ func TestListStages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListStages: %v", err)
 	}
+
 	want := []StageInfo{
 		{Name: "broken", Path: filepath.Join("deploy", "broken.yml")},
 		{Name: "prod", Path: filepath.Join("deploy", "prod.yaml")},
@@ -40,6 +42,7 @@ func TestListStages(t *testing.T) {
 	if len(stages) != len(want) {
 		t.Fatalf("got %d stages %v, want %d", len(stages), stages, len(want))
 	}
+
 	for i, w := range want {
 		if stages[i] != w {
 			t.Errorf("stages[%d] = %+v, want %+v", i, stages[i], w)
@@ -57,6 +60,7 @@ func TestListStages_ExtensionPrecedence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListStages: %v", err)
 	}
+
 	if len(stages) != 1 || stages[0].Description != "yml file" {
 		t.Errorf("got %+v, want the single .yml stage", stages)
 	}
@@ -67,6 +71,7 @@ func TestListStages_NoStageDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListStages: %v", err)
 	}
+
 	if len(stages) != 0 {
 		t.Errorf("got %+v, want none", stages)
 	}

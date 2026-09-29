@@ -20,8 +20,10 @@ func newPluginsCmd() *cobra.Command {
 			infos := plugins.RegisteredInfo()
 			if len(infos) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "(no plugins compiled in)")
+
 				return
 			}
+
 			for _, p := range infos {
 				if p.Version == "" {
 					fmt.Fprintln(cmd.OutOrStdout(), p.Name)

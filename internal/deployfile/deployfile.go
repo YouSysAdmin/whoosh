@@ -53,14 +53,17 @@ func Discover(dir, override string) (string, error) {
 		if _, err := os.Stat(override); err != nil {
 			return "", fmt.Errorf("deployfile %q: %w", override, err)
 		}
+
 		return override, nil
 	}
+
 	for _, name := range DefaultDeployfiles {
 		p := filepath.Join(dir, name)
 		if _, err := os.Stat(p); err == nil {
 			return p, nil
 		}
 	}
+
 	return "", fmt.Errorf("no Deployfile found in %s (looked for %v)", dir, DefaultDeployfiles)
 }
 
@@ -84,6 +87,7 @@ func ListStages(deployfileDir string) ([]StageInfo, error) {
 				return i
 			}
 		}
+
 		return -1
 	}
 	seen := map[string]bool{}
@@ -93,27 +97,33 @@ func ListStages(deployfileDir string) ([]StageInfo, error) {
 		if err != nil {
 			continue
 		}
+
 		// Within one dir, walk the extensions in stagePath's order so <stage>.yml wins over <stage>.yaml.
 		for rank := range stageExts {
 			for _, e := range entries {
 				if e.IsDir() || extRank(e.Name()) != rank {
 					continue
 				}
+
 				name := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
 				if seen[name] {
 					continue
 				}
+
 				seen[name] = true
 				rel := filepath.Join(sd, e.Name())
 				info := StageInfo{Name: name, Path: rel}
 				if cfg, err := readConfig(filepath.Join(deployfileDir, rel)); err == nil {
 					info.Description = cfg.Description
 				}
+
 				stages = append(stages, info)
 			}
 		}
 	}
+
 	slices.SortFunc(stages, func(a, b StageInfo) int { return cmp.Compare(a.Name, b.Name) })
+
 	return stages, nil
 }
 
@@ -128,5 +138,6 @@ func stagePath(deployfileDir, stage string) (string, error) {
 			}
 		}
 	}
+
 	return "", fmt.Errorf("stage %q not found: expected %s/%s.yml (in one of %v)", stage, StageDirs[0], stage, StageDirs)
 }

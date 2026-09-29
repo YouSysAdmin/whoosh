@@ -15,8 +15,10 @@ func (e *Executor) logLine(host, line string) {
 	args := e.outputArgs(host, "output", line)
 	if e.capture != nil { // silent_output: defer until the task's success/failure is known
 		e.capture.add("output", args)
+
 		return
 	}
+
 	slog.Info("output", args...)
 }
 
@@ -26,12 +28,16 @@ func (e *Executor) logExec(host, command string) bool {
 	if !e.logMode {
 		return false
 	}
+
 	args := e.outputArgs(host, "command", command)
 	if e.capture != nil { // silent_output: defer until the task's success/failure is known
 		e.capture.add("exec", args)
+
 		return true
 	}
+
 	slog.Info("exec", args...)
+
 	return true
 }
 
@@ -42,7 +48,9 @@ func (e *Executor) logDryRun(host, command string) bool {
 	if !e.logMode {
 		return false
 	}
+
 	slog.Info("dry-run", e.outputArgs(host, "command", command)...)
+
 	return true
 }
 
@@ -54,10 +62,13 @@ func (e *Executor) echoExec(host, command string) {
 	if e.logExec(host, command) {
 		return
 	}
+
 	if host == "" {
 		fmt.Fprintf(e.out, "$ %s\n", command)
+
 		return
 	}
+
 	fmt.Fprintf(e.out, "%s $ %s\n", runner.HostLabel(host, e.color), command)
 }
 
@@ -67,10 +78,13 @@ func (e *Executor) echoDryRun(host, line string) {
 	if e.logDryRun(host, line) {
 		return
 	}
+
 	if host == "" {
 		fmt.Fprintf(e.out, "[dry-run] %s\n", line)
+
 		return
 	}
+
 	fmt.Fprintf(e.out, "[dry-run] %s: %s\n", host, line)
 }
 
@@ -83,6 +97,7 @@ func (e *Executor) echoDryRunLocal(line string) {
 	if e.logDryRun("local", line) {
 		return
 	}
+
 	fmt.Fprintf(e.out, "[dry-run][local] %s\n", line)
 }
 
@@ -93,8 +108,10 @@ func (e *Executor) outputArgs(host, key, val string) []any {
 	if e.logTask != "" {
 		args = append(args, "task", e.logTask)
 	}
+
 	if host != "" {
 		args = append(args, "host", host)
 	}
+
 	return append(args, key, masking.String(val))
 }

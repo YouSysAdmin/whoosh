@@ -107,9 +107,11 @@ type params struct {
 	DaemonReload    bool     `yaml:"daemon_reload"`
 	Now             bool     `yaml:"now"`
 	NoBlock         bool     `yaml:"no_block"`
+
 	// System / User scope the standalone daemon-reload action (system defaults to true).
 	System *bool `yaml:"system"`
 	User   bool  `yaml:"user"`
+
 	// Roles / Phase / When are plugin-spec only: they shape the contributed hook task and are rejected in a task's with:.
 	Roles []string `yaml:"roles"`
 	Phase string   `yaml:"phase"`
@@ -140,6 +142,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := whoosh.DecodeParamsStrict(spec.Params, &gp); err != nil {
 		return fmt.Errorf("systemd params: %w", err)
 	}
+
 	if err := gp.validate(""); err != nil {
 		return err
 	}
@@ -152,24 +155,29 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 		if !ok {
 			return fmt.Errorf("systemd: unknown action %q (want one of %s)", a.Name, strings.Join(actionNames(), ", "))
 		}
+
 		merged := whoosh.MergeParams(spec.Params, a.Params)
 		var fp params
 		if err := whoosh.DecodeParamsStrict(merged, &fp); err != nil {
 			return fmt.Errorf("systemd: %s params: %w", a.Name, err)
 		}
+
 		if err := fp.validate(verb); err != nil {
 			return err
 		}
+
 		// The entry's params are the action's defaults for ad-hoc with: too, on duplicate entries the last wins.
 		n.defaults[a.Name] = merged
 
 		if fp.Phase == "" {
 			continue
 		}
+
 		name := a.Name + "@" + fp.Phase
 		if taskNames[name] {
 			name = fmt.Sprintf("%s#%d", name, i)
 		}
+
 		taskNames[name] = true
 		hooks = append(hooks, hookSpec{
 			task:   name,
@@ -186,6 +194,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 			return err
 		}
 	}
+
 	reg.AddStartup(func(_ context.Context, cfg *whoosh.DeployFile) error {
 		for _, h := range hooks {
 			cfg.AddTask(h.task, &whoosh.Task{
@@ -202,8 +211,10 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 				cfg.AddHookBefore(h.phase, h.task)
 			}
 		}
+
 		return nil
 	})
+
 	return nil
 }
 
@@ -212,36 +223,44 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 // order).
 func (n *actions) run(action string) whoosh.ActionFunc {
 	verb := verbs[action]
+
 	return func(ctx context.Context, with map[string]any, _ io.Writer) error {
 		for _, k := range []string{"roles", "phase", "when"} {
 			if _, ok := with[k]; ok {
 				return fmt.Errorf("systemd: %s: %q is a plugin-level param, not valid in a task's with:", action, k)
 			}
 		}
+
 		base := n.defaults[action]
 		if base == nil {
 			base = n.global
 		}
+
 		var p params
 		if err := whoosh.DecodeParamsStrict(whoosh.MergeParams(base, with), &p); err != nil {
 			return fmt.Errorf("systemd: %s: %w", action, err)
 		}
+
 		if err := p.validate(verb); err != nil {
 			return err
 		}
+
 		cmds, err := p.commands(verb)
 		if err != nil {
 			return err
 		}
+
 		runner := whoosh.HostCommandRunnerFrom(ctx)
 		if runner == nil {
 			return fmt.Errorf("systemd: %s: no host command runner in context (the action must run as a whoosh task)", action)
 		}
+
 		for _, cmd := range cmds {
 			if err := runner.RunCommand(ctx, cmd); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	}
 }
@@ -254,17 +273,21 @@ func (p params) validate(verb string) error {
 			return fmt.Errorf("systemd: invalid unit name %q", u)
 		}
 	}
+
 	if p.When != "" && !strings.EqualFold(p.When, "before") && !strings.EqualFold(p.When, "after") {
 		return fmt.Errorf("systemd: when must be \"before\" or \"after\", got %q", p.When)
 	}
+
 	if verb != "" {
 		if p.Now && verb != "enable" && verb != "disable" {
 			return fmt.Errorf("systemd: %s: now is only valid for enable/disable", verb)
 		}
+
 		if verb != "daemon-reload" && (p.System != nil || p.User) {
 			return fmt.Errorf("systemd: %s: system/user are daemon-reload params", verb)
 		}
 	}
+
 	return nil
 }
 
@@ -276,39 +299,50 @@ func (p params) commands(verb string) ([]string, error) {
 		if p.System == nil || *p.System {
 			cmds = append(cmds, p.sysPrefix()+"systemctl daemon-reload")
 		}
+
 		if p.User {
 			cmds = append(cmds, "systemctl --user daemon-reload")
 		}
+
 		if len(cmds) == 0 {
 			return nil, fmt.Errorf("systemd: daemon-reload: nothing to do (system: false and user: false)")
 		}
+
 		return cmds, nil
 	}
+
 	if len(p.SystemUnitFiles)+len(p.UserUnitFiles) == 0 {
 		return nil, fmt.Errorf("systemd: %s: no units configured (set system_unit_files and/or user_unit_files)", verb)
 	}
+
 	var cmds []string
 	if p.DaemonReload {
 		if len(p.SystemUnitFiles) > 0 {
 			cmds = append(cmds, p.sysPrefix()+"systemctl daemon-reload")
 		}
+
 		if len(p.UserUnitFiles) > 0 {
 			cmds = append(cmds, "systemctl --user daemon-reload")
 		}
 	}
+
 	var flags string
 	if p.Now {
 		flags += " --now"
 	}
+
 	if p.NoBlock {
 		flags += " --no-block"
 	}
+
 	if len(p.SystemUnitFiles) > 0 {
 		cmds = append(cmds, p.sysPrefix()+"systemctl "+verb+flags+" "+quoteUnits(p.SystemUnitFiles))
 	}
+
 	if len(p.UserUnitFiles) > 0 {
 		cmds = append(cmds, "systemctl --user "+verb+flags+" "+quoteUnits(p.UserUnitFiles))
 	}
+
 	return cmds, nil
 }
 
@@ -318,6 +352,7 @@ func (p params) sysPrefix() string {
 	if p.Sudo {
 		return "sudo -n "
 	}
+
 	return ""
 }
 
@@ -327,6 +362,7 @@ func quoteUnits(units []string) string {
 	for i, u := range units {
 		quoted[i] = "'" + u + "'"
 	}
+
 	return strings.Join(quoted, " ")
 }
 
@@ -339,8 +375,10 @@ func stripSpecOnly(m map[string]any) map[string]any {
 		case "roles", "phase", "when":
 			continue
 		}
+
 		out[k] = v
 	}
+
 	return out
 }
 

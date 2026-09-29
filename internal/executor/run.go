@@ -37,19 +37,23 @@ func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
 				if err != nil {
 					return built{}, err
 				}
+
 				env, err := e.execEnv(host, task)
 				if err != nil {
 					return built{}, err
 				}
+
 				dir, err := e.taskDir(task, host)
 				if err != nil {
 					return built{}, err
 				}
+
 				// The echo shows the rendered command itself, not the env-export wrapper.
 				return built{cmd: wrapRemote(rendered, dir, env), display: rendered}, nil
 			},
 		})
 	}
+
 	for _, sc := range task.Scripts {
 		// Inline scripts are always templated, a file script only when asked (explicit flag or .tmpl suffix).
 		content, templated := sc.Script, true
@@ -58,8 +62,10 @@ func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			content, templated = string(data), sc.Template || strings.HasSuffix(sc.Path, ".tmpl")
 		}
+
 		steps = append(steps, step{
 			label:    scriptLabel(sc),
 			isScript: true,
@@ -70,20 +76,25 @@ func (e *Executor) taskSteps(task *ast.Task) ([]step, error) {
 					if err != nil {
 						return built{}, err
 					}
+
 					body = rendered
 				}
+
 				env, err := e.execEnv(host, task)
 				if err != nil {
 					return built{}, err
 				}
+
 				dir, err := e.taskDir(task, host)
 				if err != nil {
 					return built{}, err
 				}
+
 				return built{cmd: buildScriptCommand(sc.Interpreter, body, dir, env)}, nil
 			},
 		})
 	}
+
 	return steps, nil
 }
 
@@ -91,8 +102,10 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 	hosts := e.targetsForTask(task)
 	if len(hosts) == 0 {
 		slog.Warn("no hosts match task", "task", name)
+
 		return nil
 	}
+
 	steps, err := e.taskSteps(task)
 	if err != nil {
 		return err
@@ -107,6 +120,7 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 			if err != nil {
 				return err
 			}
+
 			rendered[h.Address] = b
 		}
 
@@ -115,8 +129,10 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 			for _, h := range hosts {
 				e.echoDryRun(h.Address, e.stepLine(st, rendered[h.Address]))
 			}
+
 			continue
 		}
+
 		// Echo the command we send to each host so the console and the --log-file transcript show what ran, not just its
 		// output. cmd steps are echoed always (clean display form); verbose upgrades the echo to the full built command
 		// (env exports, cd) and also echoes scripts, whose full rendered body is large. The echo redacts, so secrets -
@@ -137,12 +153,16 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 				if err != nil {
 					return err
 				}
+
 				if len(hosts) == 0 {
 					slog.Warn("all task hosts unreachable, skipping remaining steps", "task", name)
+
 					return nil
 				}
+
 				continue
 			}
+
 			// Non-fatal mode: surface each failed host so a sweep's failures (e.g. an unreachable host, which streams no stderr)
 			// aren't silently dropped.
 			for _, r := range results {
@@ -152,6 +172,7 @@ func (e *Executor) runRemote(ctx context.Context, name string, task *ast.Task) e
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -160,20 +181,24 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 	if err != nil {
 		return err
 	}
+
 	for _, st := range steps {
 		// dir/env are baked into the command, so run a bare shell here.
 		b, err := st.build("local")
 		if err != nil {
 			return err
 		}
+
 		e.announceStep(st)
 		if e.dryRun {
 			e.echoDryRunLocal(e.stepLine(st, b))
 			continue
 		}
+
 		if !st.isScript || e.verbose {
 			e.echoExec("local", e.stepLine(st, b))
 		}
+
 		// Tag local task output with a "[local]" host prefix like the cluster does for remote/local:true hosts - colored
 		// in raw mode, a structured record (host "local") in log mode - so every command's output is attributed to a host.
 		// Flush the writer's trailing partial line as soon as the command finishes.
@@ -183,6 +208,7 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 		} else {
 			lw = runner.NewPrefixWriter(e.out, runner.HostLabel("local", e.color)+" ")
 		}
+
 		err = runLocalShell(ctx, b.cmd, lw)
 		lw.Close()
 		if err != nil {
@@ -190,9 +216,11 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 				slog.Warn("continuing past error", "error", err)
 				continue
 			}
+
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -211,8 +239,10 @@ func (e *Executor) stepLine(st step, b built) string {
 	if e.verbose {
 		return b.cmd
 	}
+
 	if st.isScript {
 		return "script " + st.label
 	}
+
 	return b.display
 }

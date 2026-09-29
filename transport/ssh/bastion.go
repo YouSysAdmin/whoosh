@@ -34,6 +34,7 @@ func (b *Bastion) connect(ctx context.Context, opts Options) (*Client, error) {
 	if b.dialed {
 		return b.client, b.err
 	}
+
 	opts.Bastion = nil
 	opts.ForwardAgent = false
 	opts.ForwardKey = ""
@@ -47,8 +48,10 @@ func (b *Bastion) connect(ctx context.Context, opts Options) (*Client, error) {
 			return nil, err
 		}
 	}
+
 	b.dialed = true
 	b.client, b.err = client, err
+
 	return b.client, b.err
 }
 
@@ -59,16 +62,19 @@ func (b *Bastion) dialThrough(ctx context.Context, addr string, opts Options) (n
 	if err != nil {
 		return nil, err
 	}
+
 	timeout := opts.ConnectTimeout
 	if timeout == 0 {
 		timeout = DefaultConnectTimeout
 	}
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	conn, err := client.conn.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("via bastion %s: %w", b.target.Host, err)
 	}
+
 	return conn, nil
 }
 
@@ -79,14 +85,17 @@ func (b *Bastion) Close() error {
 	if b == nil {
 		return nil
 	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	var err error
 	if b.client != nil {
 		err = b.client.Close()
 	}
+
 	b.client = nil
 	b.dialed = true
 	b.err = fmt.Errorf("bastion %s: connection closed", b.target.Host)
+
 	return err
 }

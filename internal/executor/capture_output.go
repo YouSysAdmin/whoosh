@@ -29,6 +29,7 @@ type captureRec struct {
 func (s *captureSink) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.text.Write(p)
 }
 
@@ -46,6 +47,7 @@ func (e *Executor) beginCapture() *captureSink {
 	e.out = sink
 	e.cluster.SetOut(sink)
 	e.capture = sink
+
 	return sink
 }
 
@@ -59,17 +61,21 @@ func (e *Executor) endCapture(sink *captureSink, runErr error) {
 	if runErr == nil {
 		return
 	}
+
 	sink.mu.Lock()
 	defer sink.mu.Unlock()
 	if e.logMode {
 		for _, r := range sink.records {
 			slog.Info(r.msg, r.args...)
 		}
+
 		return
 	}
+
 	if sink.text.Len() == 0 {
 		return
 	}
+
 	_, _ = sink.prevOut.Write(sink.text.Bytes())
 	if rw, ok := sink.prevOut.(*masking.Writer); ok {
 		_ = rw.Flush()

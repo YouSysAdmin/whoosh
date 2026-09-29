@@ -51,6 +51,7 @@ import (
 const (
 	pluginName    = "slack"
 	pluginVersion = "1.1.0"
+
 	// actionSend is the plugin's single action; its "slack" namespace prefix must match pluginName so the executor's
 	// stage-skip logic (SkippedPlugins) applies to it.
 	actionSend = "slack:send"
@@ -96,12 +97,14 @@ func (p *plugin) Version() string { return pluginVersion }
 type params struct {
 	// WebhookURL is the Slack incoming-webhook URL. Required; the default for every notification.
 	WebhookURL string `yaml:"webhook_url"`
+
 	// Per-event webhook overrides, so e.g. failures can go to an alerts channel while the rest use the default.
 	// They are resolved notifier-side (never placed in the tasks' with: maps), so they stay out of dry-run plans.
 	WebhookStart    string `yaml:"webhook_start"`
 	WebhookSuccess  string `yaml:"webhook_success"`
 	WebhookFail     string `yaml:"webhook_fail"`
 	WebhookRollback string `yaml:"webhook_rollback"`
+
 	// Channel/Username/IconEmoji override the webhook's defaults. Honored by legacy incoming webhooks only - Slack-app
 	// webhooks ignore them.
 	Channel   string `yaml:"channel"`
@@ -166,24 +169,30 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := whoosh.DecodeParamsStrict(spec.Params, &pr); err != nil {
 		return fmt.Errorf("slack params: %w", err)
 	}
+
 	if pr.WebhookURL == "" {
 		return fmt.Errorf("slack: webhook_url is required (e.g. webhook_url: '{{ env \"SLACK_WEBHOOK_URL\" }}' with SLACK_WEBHOOK_URL exported)")
 	}
+
 	if err := validateWebhookURL("webhook_url", pr.WebhookURL); err != nil {
 		return err
 	}
+
 	// The plugin has no per-feature actions: config lives entirely in params, so any actions: entry is a mistake.
 	for _, a := range spec.Actions {
 		return fmt.Errorf("slack: unknown feature %q under actions: (the plugin is configured via params: only)", a.Name)
 	}
+
 	timeout := defaultTimeout
 	if pr.Timeout != "" {
 		d, err := time.ParseDuration(pr.Timeout)
 		if err != nil || d <= 0 {
 			return fmt.Errorf("slack: invalid timeout %q (want a positive Go duration, e.g. \"10s\")", pr.Timeout)
 		}
+
 		timeout = d
 	}
+
 	for _, e := range []struct{ name, url string }{
 		{"webhook_start", pr.WebhookStart},
 		{"webhook_success", pr.WebhookSuccess},
@@ -193,11 +202,14 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 		if e.url == "" {
 			continue
 		}
+
 		if err := validateWebhookURL(e.name, e.url); err != nil {
 			return err
 		}
+
 		whoosh.AddSecret(e.url)
 	}
+
 	// The built-in masking rules already cover hooks.slack.com URLs; register the literal too so a proxied or
 	// non-standard webhook URL is redacted as well.
 	whoosh.AddSecret(pr.WebhookURL)
@@ -205,6 +217,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if pr.Changelog.MaxCommits < 0 {
 		return fmt.Errorf("slack: changelog.max_commits must not be negative")
 	}
+
 	if len(pr.Changelog.Authors) > 0 {
 		// Commit author emails are matched case-insensitively - normalize the keys once here.
 		authors := make(map[string]string, len(pr.Changelog.Authors))
@@ -212,8 +225,10 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 			if strings.TrimSpace(id) == "" {
 				return fmt.Errorf("slack: changelog.authors[%q] has an empty Slack member ID", email)
 			}
+
 			authors[strings.ToLower(email)] = id
 		}
+
 		pr.Changelog.Authors = authors
 	}
 
@@ -221,7 +236,9 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := reg.AddAction(actionSend, n.send); err != nil {
 		return err
 	}
+
 	reg.AddStartup(n.install)
+
 	return nil
 }
 
@@ -232,6 +249,7 @@ func validateWebhookURL(field, raw string) error {
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return fmt.Errorf("slack: %s is not a valid http(s) URL", field)
 	}
+
 	return nil
 }
 
@@ -240,6 +258,7 @@ func validateWebhookURL(field, raw string) error {
 func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 	cfg.AddHookFuncBefore(whoosh.PhaseStarting, func(context.Context, io.Writer) error {
 		n.startedAt = n.now()
+
 		return nil
 	})
 
@@ -250,6 +269,7 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 		if t == nil || t.Action != actionSend {
 			continue
 		}
+
 		if wu, ok := t.With["webhook_url"].(string); ok && wu != "" && !strings.Contains(wu, "{{") {
 			whoosh.AddSecret(wu)
 		}
@@ -278,14 +298,17 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 		add(taskNotifyStart, "Notify Slack: deploy started",
 			eventStarted, whoosh.OrZero(n.cfg.MessageStart, defaultMsgStart), whoosh.OrZero(n.cfg.ColorStart, colorStart), whoosh.PhaseStarting, true)
 	}
+
 	if whoosh.Or(n.cfg.NotifySuccess, true) {
 		add(taskNotifySuccess, "Notify Slack: deploy succeeded",
 			eventFinished, whoosh.OrZero(n.cfg.MessageSuccess, defaultMsgSuccess), whoosh.OrZero(n.cfg.ColorSuccess, colorSuccess), whoosh.PhaseFinished, false)
 	}
+
 	if whoosh.Or(n.cfg.NotifyFail, true) {
 		add(taskNotifyFail, "Notify Slack: deploy failed",
 			eventFailed, whoosh.OrZero(n.cfg.MessageFail, defaultMsgFail), whoosh.OrZero(n.cfg.ColorFail, colorFail), whoosh.PhaseFailed, false)
 	}
+
 	if n.cfg.NotifyRollback {
 		add(taskNotifyRollback, "Notify Slack: rollback",
 			eventRollback, whoosh.OrZero(n.cfg.MessageRollback, defaultMsgRollback), whoosh.OrZero(n.cfg.ColorRollback, colorRollback), whoosh.PhaseRollback, false)
@@ -299,6 +322,7 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 			if !ok {
 				continue
 			}
+
 			t.With["rich_fields"] = true
 			t.With["stage"] = "{{.stage}}"
 			t.With["branch"] = "{{.branch}}"
@@ -324,5 +348,6 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 			t.With["previous_commit_hash"] = `{{ index . "previous_commit_hash" }}`
 		}
 	}
+
 	return nil
 }

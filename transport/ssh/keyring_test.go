@@ -20,15 +20,18 @@ func genKeyPEM(t *testing.T, passphrase string) []byte {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
+
 	var block *pem.Block
 	if passphrase == "" {
 		block, err = ssh.MarshalPrivateKey(priv, "test")
 	} else {
 		block, err = ssh.MarshalPrivateKeyWithPassphrase(priv, "test", []byte(passphrase))
 	}
+
 	if err != nil {
 		t.Fatalf("marshal key: %v", err)
 	}
+
 	return pem.EncodeToMemory(block)
 }
 
@@ -38,6 +41,7 @@ func writeFile(t *testing.T, dir, name string, data []byte) string {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	return path
 }
 
@@ -47,13 +51,16 @@ func TestNewAgent_File(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAgent: %v", err)
 	}
+
 	keys, err := ag.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+
 	if len(keys) != 1 {
 		t.Fatalf("agent holds %d keys, want 1", len(keys))
 	}
+
 	if !strings.HasPrefix(keys[0].Comment, "a:") {
 		t.Errorf("key comment = %q, want the identity label prefix", keys[0].Comment)
 	}
@@ -64,6 +71,7 @@ func TestNewAgent_InlineContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAgent: %v", err)
 	}
+
 	if keys, _ := ag.List(); len(keys) != 1 {
 		t.Fatalf("agent holds %d keys, want 1", len(keys))
 	}
@@ -75,13 +83,16 @@ func TestNewAgent_EncryptedContent(t *testing.T) {
 	if _, err := NewAgent([]Identity{{Name: "e", Content: enc, Passphrase: "sesame"}}); err != nil {
 		t.Errorf("correct passphrase should load the key: %v", err)
 	}
+
 	if _, err := NewAgent([]Identity{{Name: "e", Content: enc, Passphrase: "wrong"}}); err == nil {
 		t.Error("wrong passphrase should fail")
 	}
+
 	_, err := NewAgent([]Identity{{Name: "e", Content: enc}})
 	if err == nil || !strings.Contains(err.Error(), "set passphrase") {
 		t.Errorf("missing passphrase error = %v, want it to say 'set passphrase'", err)
 	}
+
 	if err != nil && !strings.Contains(err.Error(), `"e"`) {
 		t.Errorf("error %v should name the identity", err)
 	}
@@ -112,12 +123,14 @@ func TestNewAgent_Directory(t *testing.T) {
 	if err := os.Mkdir(sub, 0o700); err != nil {
 		t.Fatal(err)
 	}
+
 	writeFile(t, sub, "id_b", genKeyPEM(t, ""))
 
 	ag, err := NewAgent([]Identity{{Name: "dir", Path: dir}})
 	if err != nil {
 		t.Fatalf("NewAgent non-recursive: %v", err)
 	}
+
 	if keys, _ := ag.List(); len(keys) != 1 {
 		t.Errorf("non-recursive scan loaded %d keys, want 1 (top-level only)", len(keys))
 	}
@@ -126,6 +139,7 @@ func TestNewAgent_Directory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAgent recursive: %v", err)
 	}
+
 	if keys, _ := ag.List(); len(keys) != 2 {
 		t.Errorf("recursive scan loaded %d keys, want 2", len(keys))
 	}
@@ -141,6 +155,7 @@ func TestNewAgent_DirectorySkipsEncrypted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan with an encrypted key should not fail: %v", err)
 	}
+
 	if keys, _ := ag.List(); len(keys) != 1 {
 		t.Errorf("scan loaded %d keys, want 1 (encrypted one skipped)", len(keys))
 	}
@@ -150,6 +165,7 @@ func TestNewAgent_DirectorySkipsEncrypted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan with passphrase: %v", err)
 	}
+
 	if keys, _ := ag.List(); len(keys) != 2 {
 		t.Errorf("scan with passphrase loaded %d keys, want 2", len(keys))
 	}
@@ -172,6 +188,7 @@ func TestNewAgent_ExpandsHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAgent with ~ path: %v", err)
 	}
+
 	if keys, _ := ag.List(); len(keys) != 1 {
 		t.Errorf("agent holds %d keys, want 1", len(keys))
 	}
@@ -184,12 +201,14 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer os.RemoveAll(sockDir)
 	sock := filepath.Join(sockDir, "s")
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer ln.Close()
 	t.Setenv("SSH_AUTH_SOCK", sock)
 
@@ -197,11 +216,13 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	methods, cleanup, err := authMethods("", "", ag)
 	defer cleanup()
 	if err != nil {
 		t.Fatalf("authMethods: %v", err)
 	}
+
 	if len(methods) != 1 {
 		t.Fatalf("authMethods offered %d methods, want 1 (builtin agent only)", len(methods))
 	}
@@ -212,6 +233,7 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authMethods without builtin agent: %v", err)
 	}
+
 	if len(methods) != 1 {
 		t.Fatalf("authMethods offered %d methods, want 1 (system agent)", len(methods))
 	}

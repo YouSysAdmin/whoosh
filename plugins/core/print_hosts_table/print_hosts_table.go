@@ -44,6 +44,7 @@ func (p *plugin) Version() string { return pluginVersion }
 // Configure registers the startup hook, the plugin takes no params or actions.
 func (p *plugin) Configure(_ whoosh.PluginSpec, reg *whoosh.Registry) error {
 	reg.AddStartup(p.install)
+
 	return nil
 }
 
@@ -55,10 +56,13 @@ func (p *plugin) install(_ context.Context, cfg *whoosh.DeployFile) error {
 	cfg.AddHookFuncBefore(whoosh.PhaseStarting, func(_ context.Context, out io.Writer) error {
 		if strings.EqualFold(cfg.Log.Format, "json") {
 			slog.Info("hosts", slog.Any("hosts", cfg.Hosts))
+
 			return nil
 		}
+
 		return printHostsTable(out, cfg.Hosts)
 	})
+
 	return nil
 }
 
@@ -72,8 +76,10 @@ func (p *plugin) Commands() []whoosh.Command {
 		Run: func(_ context.Context, cfg *whoosh.DeployFile, _ *whoosh.Registry, out io.Writer, _ []string) error {
 			if strings.EqualFold(cfg.Log.Format, "json") {
 				slog.Info("hosts", slog.Any("hosts", cfg.Hosts))
+
 				return nil
 			}
+
 			return printHostsTable(out, cfg.Hosts)
 		},
 	}}
@@ -85,7 +91,9 @@ func printHostsTable(w io.Writer, hosts []whoosh.Host) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = fmt.Fprint(w, table)
+
 	return err
 }
 
@@ -98,14 +106,17 @@ func hostsTable(hosts []whoosh.Host) (string, error) {
 		if h.DeployEnabled() {
 			deploy = "yes"
 		}
+
 		primary := ""
 		if h.Primary {
 			primary = "yes"
 		}
+
 		transport := "ssh"
 		if h.Local {
 			transport = "local"
 		}
+
 		roles := cmp.Or(strings.Join(h.Roles, ","), "-")
 		// Where the host came from: "config" (Deployfile) or a plugin feature (e.g. "aws:ec2:inventory").
 		// Defaulted here in case the table is rendered before ApplyDefaults stamped it.
@@ -122,8 +133,10 @@ func hostsTable(hosts []whoosh.Host) (string, error) {
 	if err := table.Bulk(rows); err != nil {
 		return "", fmt.Errorf("generate hosts table: %w", err)
 	}
+
 	if err := table.Render(); err != nil {
 		return "", fmt.Errorf("render hosts table: %w", err)
 	}
+
 	return b.String(), nil
 }

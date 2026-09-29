@@ -28,9 +28,11 @@ func newFrozenProxy(t *testing.T, target string) *frozenProxy {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
+
 	p := &frozenProxy{ln: ln, target: target}
 	go p.serve()
 	t.Cleanup(func() { _ = ln.Close() })
+
 	return p
 }
 
@@ -43,11 +45,13 @@ func (p *frozenProxy) serve() {
 		if err != nil {
 			return
 		}
+
 		server, err := net.Dial("tcp", p.target)
 		if err != nil {
 			_ = client.Close()
 			continue
 		}
+
 		go p.pipe(server, client)
 		go p.pipe(client, server)
 	}
@@ -64,6 +68,7 @@ func (p *frozenProxy) pipe(dst, src net.Conn) {
 				return
 			}
 		}
+
 		if err != nil {
 			return
 		}
@@ -77,6 +82,7 @@ func TestKeepalive_DropsVanishedHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	proxy := newFrozenProxy(t, net.JoinHostPort(srv.Host, strconv.Itoa(srv.Port)))
@@ -91,6 +97,7 @@ func TestKeepalive_DropsVanishedHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
+
 	defer conn.Close()
 
 	runErr := make(chan error, 1)
@@ -119,6 +126,7 @@ func TestKeepalive_HealthyConnectionSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	conn, err := ssh.Dial(t.Context(), ssh.Target{
@@ -131,6 +139,7 @@ func TestKeepalive_HealthyConnectionSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
+
 	defer conn.Close()
 
 	// A drop from a false-positive keepalive would surface as a Run error.

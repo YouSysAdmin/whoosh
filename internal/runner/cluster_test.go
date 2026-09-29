@@ -22,6 +22,7 @@ func TestCluster_Capture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Capture: %v", err)
 	}
+
 	if got != "deadbeef" {
 		t.Fatalf("Capture = %q, want %q (trimmed)", got, "deadbeef")
 	}
@@ -35,6 +36,7 @@ func TestCluster_CloseAfterFailedDial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
+
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
 
@@ -58,12 +60,14 @@ func TestCluster_PerTargetHostKeyOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	kh := filepath.Join(t.TempDir(), "known_hosts")
 	if err := os.WriteFile(kh, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	opts := runner.Options{StrictHostKey: true, KnownHostsFile: kh}
 	base := runner.Target{Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile}
 
@@ -92,12 +96,14 @@ func TestCluster_StrictDoesNotReuseInsecureConn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	kh := filepath.Join(t.TempDir(), "known_hosts")
 	if err := os.WriteFile(kh, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	opts := runner.Options{StrictHostKey: true, KnownHostsFile: kh}
 	base := runner.Target{Host: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile}
 
@@ -124,6 +130,7 @@ func TestCluster_CancelledDialIsNotCached(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	c := runner.NewCluster(runner.Options{}, io.Discard)
@@ -140,6 +147,7 @@ func TestCluster_CancelledDialIsNotCached(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
 	}
+
 	if got != "hi" {
 		t.Fatalf("Capture = %q, want %q", got, "hi")
 	}

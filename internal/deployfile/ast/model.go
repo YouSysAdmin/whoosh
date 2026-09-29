@@ -23,6 +23,7 @@ func ParseLinkedPath(entry string) (source, dest string) {
 	if src, dst, ok := strings.Cut(entry, ":"); ok {
 		return src, dst
 	}
+
 	return entry, entry
 }
 
@@ -38,16 +39,19 @@ func (s *StringList) UnmarshalYAML(value *yaml.Node) error {
 		if err := value.Decode(&one); err != nil {
 			return err
 		}
+
 		*s = StringList{one}
 	case yaml.SequenceNode:
 		var many []string
 		if err := value.Decode(&many); err != nil {
 			return err
 		}
+
 		*s = StringList(many)
 	default:
 		return fmt.Errorf("expected a string or a list of strings")
 	}
+
 	return nil
 }
 
@@ -56,9 +60,11 @@ func (s *StringList) UnmarshalYAML(value *yaml.Node) error {
 // and combined with Merge. After Load it represents the fully resolved config for one stage.
 type DeployFile struct {
 	Version string `yaml:"version,omitempty"` // Marker of Whooshfile, Deployfile schema version
+
 	// Description is a short human-readable summary of the file. In a stage file it labels the stage - `whoosh stages`
 	// shows it next to the stage name.
 	Description string `yaml:"description,omitempty"`
+
 	// Include lists other config files to merge underneath this one (require_relative style: paths resolve against this
 	// file's directory). Includes are layered in listed order with this file winning, then nested recursively.
 	// Resolved at load time; never present on the merged result.
@@ -66,13 +72,16 @@ type DeployFile struct {
 	App         App        `yaml:"app,omitempty"`          // The application being deployed: name, repo, branch, deploy_to, keep_releases
 	LinkedFiles []string   `yaml:"linked_files,omitempty"` // Files symlinked from shared/ into every release; "source:dest" rewrites the release-side path
 	LinkedDirs  []string   `yaml:"linked_dirs,omitempty"`  // Dirs symlinked from shared/ into every release; "source:dest" rewrites the release-side path
+
 	// Vars are template values ({{.key}}); not exported to the shell - use envs for that.
 	// Each value is itself a Go template, rendered once at load against the static context (app/stage/paths, sprig,
 	// env/envSecret - which fall back to env_files values): e.g. app_version: '{{ env "APP_VERSION" }}'.
 	Vars map[string]any `yaml:"vars,omitempty"`
+
 	// Envs is a default environment exported for every task command and script (merged with a task's own `envs`, which
 	// wins). Values are shell-expanded, so e.g. PATH can reference $HOME/$PATH - useful for rbenv/nvm shims.
 	Envs map[string]string `yaml:"envs,omitempty"`
+
 	// EnvFiles are dotenv (.env) files loaded into every task's environment as a base layer beneath the global and
 	// per-task `envs` (which override).
 	// Paths resolve against the config-file dir; later entries win (stage-file entries are appended after the shared
@@ -83,19 +92,24 @@ type DeployFile struct {
 
 	Tasks map[string]*Task `yaml:"tasks,omitempty"` // List of deployment tasks
 	Hooks Hooks            `yaml:"hooks,omitempty"` // List of deployment hooks
+
 	// ScriptsDir overrides the directory that task `scripts` reference by name.
 	// Relative paths are resolved against the Deployfile's directory; the default is deploy/scripts.
 	ScriptsDir string `yaml:"scripts_dir,omitempty"`
+
 	// OnUnreachable is the policy for a host that becomes unreachable during a deploy: "abort" (default - fail the whole
 	// deploy) or "skip" (drop the host, finish on the survivors, and exit non-zero).
 	// It applies to connectivity failures only; a command that runs and exits non-zero always aborts.
 	OnUnreachable string `yaml:"on_unreachable,omitempty" jsonschema:"enum=abort,enum=skip"`
+
 	// Log configures whoosh's own logging (level/format/output/color and an optional log file).
 	// Command-line --log-* flags override these when set.
 	Log Log `yaml:"log,omitempty"`
+
 	// Plugins is the ordered list of plugins to load with their params.
 	// Each one validates its params on load and registers startup hooks and/or actions.
 	Plugins []PluginSpec `yaml:"plugins,omitempty"`
+
 	// CustomPhases inserts named phases into the deploy lifecycle, each anchored before or after a built-in phase.
 	// A custom phase runs its Task (if set) and is itself a before/after hook anchor.
 	// Concatenated across base+stage like hosts/plugins; validated when the deploy starts.
@@ -103,21 +117,26 @@ type DeployFile struct {
 
 	// Stage is the resolved stage name. It is not read from YAML.
 	Stage string `yaml:"-"`
+
 	// Dir is the directory containing the Deployfile. It is not read from YAML.
 	Dir string `yaml:"-"`
+
 	// SkippedPlugins names plugins filtered out for this stage (by Only/Except).
 	// Action tasks whose action namespace matches one of these are skipped instead of failing.
 	// Populated at load; not read from YAML.
 	SkippedPlugins []string `yaml:"-"`
+
 	// Imports holds values a plugin startup hook injected into the template context, keyed namespace -> key -> value
 	// (e.g. SSM parameters under "ssm"). Exposed to templates as {{ .<ns>.<key> }} and to commands as $<NS>_<KEY>.
 	// Runtime-only (never read from or written to YAML), so the values are not emitted by the `config` command or surfaced
 	// under {{.config}} - keep secrets here.
 	Imports map[string]map[string]string `yaml:"-"`
+
 	// EnvFileValues holds the KEY=value pairs merged from EnvFiles at load time.
 	// Runtime-only (yaml:"-") so dotenv contents never reach `config`/{{.config}}; the executor applies them to each
 	// task's environment.
 	EnvFileValues map[string]string `yaml:"-"`
+
 	// HookFuncsBefore/After hold plugins-registered Go functions to run before/after a deploy phase, keyed by phase name.
 	// Unlike the task hooks (Hooks), these run the plugin's own code with the deploy's console writer - for emitting
 	// operator-side output (e.g. print-hosts-table).
@@ -136,6 +155,7 @@ type Log struct {
 	Color      *bool  `yaml:"color,omitempty"`                                                        // colorize text logs (terminal only)
 	File       string `yaml:"file,omitempty"`                                                         // also write a deploy log to this file
 	FileFormat string `yaml:"file_format,omitempty" jsonschema:"enum=text,enum=json"`                 // text or json for File
+
 	// RawRemoteLog controls how command output (and the echoed commands) is shown. When set it wins: true streams raw to
 	// the console (host-prefixed, as it arrives), false emits each line through the logger as a structured record (with
 	// the host and running task), so command output joins the JSON log stream and can be shipped to a collector.
@@ -153,6 +173,7 @@ func (l Log) RawOutput() bool {
 	if l.RawRemoteLog != nil {
 		return *l.RawRemoteLog
 	}
+
 	return !strings.EqualFold(l.Format, "json")
 }
 
@@ -162,9 +183,11 @@ func (c *DeployFile) AddImport(namespace, key, value string) {
 	if c.Imports == nil {
 		c.Imports = map[string]map[string]string{}
 	}
+
 	if c.Imports[namespace] == nil {
 		c.Imports[namespace] = map[string]string{}
 	}
+
 	c.Imports[namespace][key] = value
 }
 
@@ -174,6 +197,7 @@ func (c *DeployFile) AddTask(name string, t *Task) {
 	if c.Tasks == nil {
 		c.Tasks = map[string]*Task{}
 	}
+
 	c.Tasks[name] = t
 }
 
@@ -183,6 +207,7 @@ func (c *DeployFile) AddHookBefore(key string, tasks ...string) {
 	if c.Hooks.Before == nil {
 		c.Hooks.Before = map[string][]string{}
 	}
+
 	c.Hooks.Before[key] = append(c.Hooks.Before[key], tasks...)
 }
 
@@ -192,6 +217,7 @@ func (c *DeployFile) AddHookAfter(key string, tasks ...string) {
 	if c.Hooks.After == nil {
 		c.Hooks.After = map[string][]string{}
 	}
+
 	c.Hooks.After[key] = append(c.Hooks.After[key], tasks...)
 }
 
@@ -206,6 +232,7 @@ func (c *DeployFile) AddHookFuncBefore(phase string, fn HookFunc) {
 	if c.HookFuncsBefore == nil {
 		c.HookFuncsBefore = map[string][]HookFunc{}
 	}
+
 	c.HookFuncsBefore[phase] = append(c.HookFuncsBefore[phase], fn)
 }
 
@@ -214,6 +241,7 @@ func (c *DeployFile) AddHookFuncAfter(phase string, fn HookFunc) {
 	if c.HookFuncsAfter == nil {
 		c.HookFuncsAfter = map[string][]HookFunc{}
 	}
+
 	c.HookFuncsAfter[phase] = append(c.HookFuncsAfter[phase], fn)
 }
 
@@ -230,6 +258,7 @@ func (c *DeployFile) AddPhase(p CustomPhase) {
 // When a plugin is inactive for a stage, action tasks bound to it are skipped rather than failing.
 type PluginSpec struct {
 	Name string `yaml:"name"` // The plugin's registered name (e.g. "aws")
+
 	// Enabled is a coarse on/off switch, independent of stage.
 	// Omitted (nil) or true loads the plugin; false turns it off entirely - its startup hooks and actions are never
 	// registered and action tasks bound to it are skipped (logged) rather than failing, exactly like an
@@ -266,9 +295,11 @@ func stageActive(stage string, only, except []string) bool {
 	if slices.Contains(except, stage) {
 		return false
 	}
+
 	if len(only) == 0 {
 		return true
 	}
+
 	return slices.Contains(only, stage)
 }
 
@@ -278,6 +309,7 @@ type App struct {
 	Repo     string `yaml:"repo,omitempty"`      // Git remote to deploy from (required to deploy)
 	Branch   string `yaml:"branch,omitempty"`    // Branch to deploy (default: master)
 	DeployTo string `yaml:"deploy_to,omitempty"` // Deploy root on each host; holds releases/, shared/, repo/, current (required)
+
 	// KeepReleases is how many releases to keep on each host; older ones are pruned at deploy:finishing (default 5).
 	// Exposed to templates/scripts as {{.keep_releases}} / $KEEP_RELEASES.
 	KeepReleases int `yaml:"keep_releases,omitempty"`
@@ -288,27 +320,34 @@ type SSH struct {
 	User         string `yaml:"user,omitempty"`          // SSH login user
 	Port         int    `yaml:"port,omitempty"`          // SSH port (default: 22)
 	IdentityFile string `yaml:"identity_file,omitempty"` // Private key file used to authenticate
+
 	// IdentityFilePassphrase decrypts an encrypted identity_file. Rendered as a Go template at load time, so it can
 	// come from the environment (e.g. "{{ envSecret \"KEY_PASS\" }}"), and is redacted everywhere.
 	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty"`
 	KnownHostsFile         string `yaml:"known_hosts_file,omitempty"` // known_hosts file for host-key verification
+
 	// StrictHostKey toggles host-key verification. nil means "use the default" (true).
 	StrictHostKey *bool `yaml:"strict_host_key,omitempty"`
+
 	// AcceptNew, with strict host-key checking, trusts a host seen for the first time (OpenSSH accept-new): its key is
 	// appended to the known_hosts file (created when missing) and the connection proceeds. A changed key still fails.
 	// nil means the default (true); set false to require every host key to be present in known_hosts already.
 	AcceptNew *bool `yaml:"accept_new,omitempty"`
+
 	// ForwardAgent forwards the operator's local ssh-agent to each host, so commands there (notably git) authenticate to
 	// remotes with the operator's keys. nil means the default (false - the host uses its own keys); a stage can
 	// explicitly set false to disable forwarding the base enabled.
 	ForwardAgent *bool `yaml:"forward_agent,omitempty"`
+
 	// ForwardKey forwards only the key at this path, presented in-memory over the agent protocol (never written to the
 	// host). Takes precedence over ForwardAgent when both are set.
 	ForwardKey string `yaml:"forward_key,omitempty"`
+
 	// Identities feeds the builtin in-memory SSH agent. When identities or identity_file is set, whoosh authenticates
 	// with these keys and the system ssh-agent (SSH_AUTH_SOCK) is not consulted. With forward_agent, this builtin agent
 	// is what gets forwarded to the hosts. The map key is a label used only in logs and error messages.
 	Identities map[string]SSHIdentity `yaml:"identities,omitempty"`
+
 	// Bastion routes every SSH connection through this jump host (like OpenSSH ProxyJump, single hop): whoosh connects
 	// to the bastion once and tunnels each host connection through it. The bastion authenticates like any host (its own
 	// identity_file, else the builtin agent, else the system ssh-agent) and its host key is checked with the same
@@ -323,6 +362,7 @@ type Bastion struct {
 	Port         int    `yaml:"port,omitempty"`          // SSH port (default: 22)
 	User         string `yaml:"user,omitempty"`          // SSH login user (default: the operator's user)
 	IdentityFile string `yaml:"identity_file,omitempty"` // Private key file for the bastion (default: builtin agent or the system ssh-agent)
+
 	// IdentityFilePassphrase decrypts an encrypted identity_file. Rendered as a Go template at load time, so it can
 	// come from the environment (e.g. "{{ envSecret \"BASTION_KEY_PASS\" }}"), and is redacted everywhere.
 	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty"`
@@ -336,6 +376,7 @@ func (b Bastion) MarshalYAML() (any, error) {
 	if m.IdentityFilePassphrase != "" {
 		m.IdentityFilePassphrase = "[MASKED]"
 	}
+
 	return m, nil
 }
 
@@ -344,12 +385,15 @@ type SSHIdentity struct {
 	// Path is a private key file, or a directory whose key files are all loaded (unparsable files, *.pub and other
 	// obvious non-key files are skipped). Rendered as a Go template at load time. A leading ~/ expands to the home dir.
 	Path string `yaml:"path,omitempty"`
+
 	// Content is the private key PEM inline. Rendered as a Go template at load time and redacted in the config dump
 	// and {{.config}}.
 	Content string `yaml:"content,omitempty"`
+
 	// Passphrase decrypts an encrypted key. Rendered as a Go template at load time, so it can come from the
 	// environment (e.g. "{{ envSecret \"KEY_PASS\" }}"), and is redacted everywhere.
 	Passphrase string `yaml:"passphrase,omitempty"`
+
 	// Recursive includes subdirectories when path is a directory.
 	Recursive bool `yaml:"recursive,omitempty"`
 }
@@ -363,9 +407,11 @@ func (i SSHIdentity) MarshalYAML() (any, error) {
 	if m.Content != "" {
 		m.Content = "[MASKED]"
 	}
+
 	if m.Passphrase != "" {
 		m.Passphrase = "[MASKED]"
 	}
+
 	return m, nil
 }
 
@@ -377,6 +423,7 @@ func (s SSH) MarshalYAML() (any, error) {
 	if m.IdentityFilePassphrase != "" {
 		m.IdentityFilePassphrase = "[MASKED]"
 	}
+
 	return m, nil
 }
 
@@ -388,6 +435,7 @@ func (h Host) MarshalYAML() (any, error) {
 	if m.IdentityFilePassphrase != "" {
 		m.IdentityFilePassphrase = "[MASKED]"
 	}
+
 	return m, nil
 }
 
@@ -400,23 +448,28 @@ type Host struct {
 	User         string   `yaml:"user,omitempty" json:"user,omitempty"`                   // Overrides ssh.user for this host
 	Port         int      `yaml:"port,omitempty" json:"port,omitzero"`                    // Overrides ssh.port for this host
 	IdentityFile string   `yaml:"identity_file,omitempty" json:"identity_file,omitempty"` // Overrides ssh.identity_file for this host
+
 	// IdentityFilePassphrase decrypts this host's encrypted identity_file. Inherited from ssh.identity_file_passphrase
 	// only together with ssh.identity_file - a host with its own identity_file sets its own passphrase. Rendered as a
 	// Go template at load time and redacted everywhere (excluded from JSON so log records never carry it).
 	IdentityFilePassphrase string `yaml:"identity_file_passphrase,omitempty" json:"-"`
 	Local                  bool   `yaml:"local,omitempty" json:"local,omitzero"` // Run on the operator's machine via the local shell (SSH fields ignored)
+
 	// Primary marks the preferred host for single-host work: a `once:` task and the deploy lock (plus the
 	// previous-revision read) pick the first primary-marked host among their candidates, falling back to the first
 	// candidate when none is marked. Multiple marked hosts are allowed, the first one wins.
 	Primary bool `yaml:"primary,omitempty" json:"primary,omitzero"`
+
 	// Deploy gates whether the release lifecycle, tasks, hooks, and ad-hoc run target this host. nil means the default
 	// (true).
 	// Set false to keep a host in inventory - listed by `config` and the `deploy:hosts` command - without deploying the
 	// app to it.
 	Deploy *bool `yaml:"deploy,omitempty" json:"deploy,omitempty"`
+
 	// Required, when true, makes this host's unreachability fatal even under on_unreachable: skip - so a critical host is
 	// never silently dropped. nil means the default (false).
 	Required *bool `yaml:"required,omitempty" json:"required,omitempty"`
+
 	// Source records where the host came from: HostSourceConfig ("config") for one declared in the Deployfile, or the
 	// name of the plugin feature that discovered it (e.g. "aws:ec2:inventory"). Runtime-only (yaml:"-"); ApplyDefaults
 	// stamps "config" on any host without a source, and an inventory plugin sets its own source when it appends a host.
@@ -437,6 +490,7 @@ type Task struct {
 	Local   bool              `yaml:"local,omitempty"`   // Run on the operator's machine instead of the target hosts
 	Once    bool              `yaml:"once,omitempty"`    // When multiple hosts match, run on a single host only
 	Silent  bool              `yaml:"silent,omitempty"`  // Suppress the task's start announcement in the log
+
 	// SilentOutput hides the task's command output (and the echoed commands): it is buffered instead of shown, discarded
 	// on success, and flushed to the console (redacted) only if the task fails - so a noisy task stays quiet without
 	// hiding failures. Orthogonal to Silent (which suppresses the start announcement); the task is still announced.
@@ -444,11 +498,13 @@ type Task struct {
 	// still surface as warnings).
 	SilentOutput    bool `yaml:"silent_output,omitempty"`
 	ContinueOnError bool `yaml:"continue_on_error,omitempty"` // Don't abort on a non-zero exit; log each failed host and continue
+
 	// NotifyFailure controls whether this task, failing as its own CLI invocation (`whoosh <stage> <task>`), fires the
 	// after deploy:failed hooks - so a pipeline run outside the deploy lifecycle (e.g. an ASG refresh) notifies like a
 	// failed deploy. Default true, set false to opt a task out. Within the deploy lifecycle the deploy itself fires
 	// deploy:failed and this flag is not consulted.
 	NotifyFailure *bool `yaml:"notify_failure,omitempty"`
+
 	// NonDeploy targets the inventory's *non-deployable* hosts (deploy:false) instead of the deployable ones - the inverse
 	// of the normal task targeting. Roles still narrow within that set.
 	// Intended for a task run as its own invocation after a deploy (e.g. a healthcheck on freshly refreshed ASG hosts): a
@@ -456,15 +512,18 @@ type Task struct {
 	// Within the deploy lifecycle the inventory is fixed at startup, so a non_deploy hook would see the pre-deploy host
 	// list.
 	NonDeploy bool `yaml:"non_deploy,omitempty"`
+
 	// AllHosts targets every host in the inventory, ignoring the per-server deploy flag (both deploy:true and
 	// deploy:false) - for a task that should hit the whole fleet (e.g. collecting disk usage).
 	// Roles/limit still narrow the set. Takes precedence over NonDeploy.
 	// Like NonDeploy, it operates on the inventory captured at startup (see the note there).
 	AllHosts bool `yaml:"all_hosts,omitempty"`
+
 	// StrictHostKey overrides the stage's ssh.strict_host_key for this task's SSH connections. nil inherits the stage
 	// setting; false skips known_hosts verification (e.g. for ASG instances launched from one AMI that share a key and
 	// rotate IPs, where the key is legitimately "unknown"); true forces it.
 	StrictHostKey *bool `yaml:"strict_host_key,omitempty"`
+
 	// Hidden omits the task from the CLI listing (`whoosh <stage> --help`).
 	// The task is still runnable directly by name and still usable as a dep or hook - useful for helper tasks (a `setup`
 	// dep, a hook-only `restore-manifest`) that shouldn't clutter the command list.
@@ -512,6 +571,7 @@ type Script struct {
 	Path        string `yaml:"path,omitempty"`        // script file (by name or absolute path)
 	Script      string `yaml:"script,omitempty"`      // inline script content
 	Interpreter string `yaml:"interpreter,omitempty"` // e.g. /bin/bash; default /bin/sh
+
 	// Template renders a file script as a Go template before running it.
 	// Files whose path ends in .tmpl are templated automatically. Inline scripts are always templated.
 	Template bool `yaml:"template,omitempty"`

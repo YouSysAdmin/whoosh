@@ -16,9 +16,11 @@ func (e *Executor) runTask(ctx context.Context, name string, stack map[string]bo
 	if !ok || task == nil {
 		return fmt.Errorf("unknown task %q", name)
 	}
+
 	if stack[name] {
 		return fmt.Errorf("task dependency cycle through %q", name)
 	}
+
 	stack[name] = true
 	defer delete(stack, name)
 
@@ -33,6 +35,7 @@ func (e *Executor) runTask(ctx context.Context, name string, stack map[string]bo
 	if !task.ActiveForStage(e.cfg.Stage) {
 		slog.Info("skipping task: not active for this stage",
 			"task", name, "stage", e.cfg.Stage)
+
 		return nil
 	}
 
@@ -41,6 +44,7 @@ func (e *Executor) runTask(ctx context.Context, name string, stack map[string]bo
 	if task.Action != "" && e.skipped[actionNamespace(task.Action)] {
 		slog.Info("skipping action task: plugins not active for this stage",
 			"task", name, "action", task.Action, "stage", e.cfg.Stage)
+
 		return nil
 	}
 
@@ -68,6 +72,7 @@ func (e *Executor) runTask(ctx context.Context, name string, stack map[string]bo
 	} else {
 		runErr = e.dispatchTask(ctx, name, task)
 	}
+
 	if runErr != nil {
 		return runErr
 	}
@@ -97,6 +102,7 @@ func (e *Executor) runHooks(ctx context.Context, when, task string, hooks []stri
 			return fmt.Errorf("%s %q hook %q: %w", when, task, hook, err)
 		}
 	}
+
 	return nil
 }
 
@@ -104,6 +110,7 @@ func (e *Executor) announce(name string, task *ast.Task) {
 	if task.Silent {
 		return
 	}
+
 	if task.Desc != "" {
 		slog.Info("task", "name", name, "desc", task.Desc)
 	} else {

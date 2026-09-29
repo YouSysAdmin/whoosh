@@ -18,6 +18,7 @@ import (
 type globalParams struct {
 	// Endpoint of the external system this plugin talks to (see client.go).
 	Endpoint string `yaml:"endpoint"`
+
 	// Token authenticates against it. Configure registers the literal with whoosh.AddSecret, so it is masked in every
 	// echoed command, output line, log record, and dry-run plan. Feed it from the operator env:
 	//	token: '{{ env "EXAMPLE_TOKEN" }}'

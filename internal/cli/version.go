@@ -27,6 +27,7 @@ func newVersionCmd() *cobra.Command {
 						parts[i] = p.Name + " " + p.Version
 					}
 				}
+
 				fmt.Fprintf(cmd.OutOrStdout(), "plugins: %s\n", strings.Join(parts, ", "))
 			}
 		},
@@ -43,8 +44,10 @@ func resolveVersion() string {
 	if version.Version != "" && version.Version != "dev" {
 		return version.Version
 	}
+
 	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
 		return info.Main.Version
 	}
+
 	return version.Version
 }

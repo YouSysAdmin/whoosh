@@ -13,6 +13,7 @@ func (e *PluginError) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Msg, e.Err)
 	}
+
 	return e.Msg
 }
 func (e *PluginError) Unwrap() error { return e.Err }

@@ -32,6 +32,7 @@ func TestNotifyTaskFailure(t *testing.T) {
 		if err != nil {
 			notifyTaskFailure(cfg, ex, "boom", err)
 		}
+
 		return buf.String(), err
 	}
 
@@ -40,9 +41,11 @@ func TestNotifyTaskFailure(t *testing.T) {
 		if err == nil {
 			t.Fatal("boom should fail")
 		}
+
 		if !strings.Contains(out, "FAIL_HOOK_RAN") {
 			t.Errorf("deploy:failed hook did not run, output:\n%s", out)
 		}
+
 		// The failure message reaches the hook task as $DEPLOY_ERROR.
 		if !strings.Contains(out, "err=") || strings.Contains(out, "err=\n") {
 			t.Errorf("hook task did not see $DEPLOY_ERROR, output:\n%s", out)
@@ -54,6 +57,7 @@ func TestNotifyTaskFailure(t *testing.T) {
 		if err == nil {
 			t.Fatal("boom should fail")
 		}
+
 		if strings.Contains(out, "FAIL_HOOK_RAN") {
 			t.Errorf("deploy:failed hook ran despite notify_failure: false, output:\n%s", out)
 		}

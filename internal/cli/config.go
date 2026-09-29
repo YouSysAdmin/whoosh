@@ -19,14 +19,17 @@ func newConfigCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			b, err := yaml.Marshal(cfg)
 			if err != nil {
 				return fmt.Errorf("marshal config: %w", err)
 			}
+
 			// The resolved vars/params may carry envSecret values - redact the dump like every other output path.
 			out := masking.NewWriter(cmd.OutOrStdout())
 			defer out.Flush()
 			fmt.Fprintf(out, "# resolved config for stage %q\n%s", stage, b)
+
 			return nil
 		},
 	}

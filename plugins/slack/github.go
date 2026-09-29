@@ -19,12 +19,14 @@ func (n *notifier) displayDeployer(ctx context.Context, login string) string {
 	if !n.cfg.DeployerGithubLookup || login == "" || strings.ContainsAny(login, " \t") {
 		return login
 	}
+
 	n.ghOnce.Do(func() {
 		n.ghName = n.githubUserName(ctx, login)
 	})
 	if n.ghName == "" {
 		return login
 	}
+
 	return n.ghName
 }
 
@@ -34,22 +36,28 @@ func (n *notifier) githubUserName(ctx context.Context, login string) string {
 	if err != nil {
 		return ""
 	}
+
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := n.client.Do(req)
 	if err != nil {
 		slog.Debug("slack: github deployer lookup failed", "error", err)
+
 		return ""
 	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		slog.Debug("slack: github deployer lookup failed", "status", resp.StatusCode)
+
 		return ""
 	}
+
 	var user struct {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return ""
 	}
+
 	return strings.TrimSpace(user.Name)
 }

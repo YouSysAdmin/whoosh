@@ -13,6 +13,7 @@ func (e *UnreachableError) Code() int     { return CodeUnreachable }
 // IsUnreachable reports whether err is, or wraps, an UnreachableError.
 func IsUnreachable(err error) bool {
 	_, ok := AsType[*UnreachableError](err)
+
 	return ok
 }
 

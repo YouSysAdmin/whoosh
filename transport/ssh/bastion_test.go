@@ -27,12 +27,15 @@ func startPair(t *testing.T) (bastion, target *sshtest.Server) {
 	if err != nil {
 		t.Fatalf("start bastion: %v", err)
 	}
+
 	t.Cleanup(bastion.Close)
 	target, err = sshtest.Start()
 	if err != nil {
 		t.Fatalf("start target: %v", err)
 	}
+
 	t.Cleanup(target.Close)
+
 	return bastion, target
 }
 
@@ -50,12 +53,14 @@ func TestDialThroughBastion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial through bastion: %v", err)
 	}
+
 	defer c.Close()
 
 	var out, errOut bytes.Buffer
 	if err := c.Run(t.Context(), "echo tunneled", &out, &errOut); err != nil {
 		t.Fatalf("run through bastion: %v", err)
 	}
+
 	if got := strings.TrimSpace(out.String()); got != "tunneled" {
 		t.Errorf("output = %q, want %q", got, "tunneled")
 	}
@@ -72,6 +77,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("start target %d: %v", i, err)
 		}
+
 		t.Cleanup(srv.Close)
 		targets[i] = srv
 	}
@@ -88,19 +94,24 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 				Options{Bastion: b})
 			if err != nil {
 				errs[i] = err
+
 				return
 			}
+
 			defer c.Close()
 			var out, errOut bytes.Buffer
 			if err := c.Run(t.Context(), fmt.Sprintf("echo host-%d", i), &out, &errOut); err != nil {
 				errs[i] = err
+
 				return
 			}
+
 			if got, want := strings.TrimSpace(out.String()), fmt.Sprintf("host-%d", i); got != want {
 				errs[i] = fmt.Errorf("output = %q, want %q", got, want)
 			}
 		})
 	}
+
 	wg.Wait()
 	for i, err := range errs {
 		if err != nil {
@@ -117,6 +128,7 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
 
@@ -127,6 +139,7 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("dial through a dead bastion succeeded")
 	}
+
 	if !strings.Contains(err.Error(), "bastion 127.0.0.1") {
 		t.Errorf("error does not name the bastion: %v", err)
 	}
@@ -135,9 +148,11 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 	if err2 == nil {
 		t.Fatal("second dial through a dead bastion succeeded")
 	}
+
 	if !b.dialed {
 		t.Error("bastion not marked dialed after failure")
 	}
+
 	if b.err == nil {
 		t.Error("bastion failure not cached")
 	}
@@ -150,14 +165,17 @@ func TestDialThroughBastion_AuthRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	authorized, err := gossh.NewPublicKey(pub)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	bastionSrv, err := sshtest.Start(sshtest.WithAuthorizedKeys(authorized))
 	if err != nil {
 		t.Fatalf("start bastion: %v", err)
 	}
+
 	t.Cleanup(bastionSrv.Close)
 
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: writeTestKey(t)})
@@ -167,6 +185,7 @@ func TestDialThroughBastion_AuthRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("dial through an auth-rejecting bastion succeeded")
 	}
+
 	if !strings.Contains(err.Error(), "bastion "+bastionSrv.Host) {
 		t.Errorf("error does not name the bastion: %v", err)
 	}
@@ -192,10 +211,12 @@ func TestBastionClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial through bastion: %v", err)
 	}
+
 	c.Close()
 	if err := b.Close(); err != nil {
 		t.Errorf("first Close: %v", err)
 	}
+
 	if err := b.Close(); err != nil {
 		t.Errorf("second Close: %v", err)
 	}
@@ -216,12 +237,14 @@ func TestDialThroughBastion_HostKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("strict accept_new dial through bastion: %v", err)
 	}
+
 	c.Close()
 
 	data, err := os.ReadFile(khFile)
 	if err != nil {
 		t.Fatalf("known_hosts not created: %v", err)
 	}
+
 	for _, srv := range []*sshtest.Server{bastionSrv, targetSrv} {
 		want := knownhosts.Normalize(net.JoinHostPort(srv.Host, strconv.Itoa(srv.Port)))
 		if !strings.Contains(string(data), want) {
@@ -249,5 +272,6 @@ func TestBastionCancelledDialRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
 	}
+
 	defer c.Close()
 }

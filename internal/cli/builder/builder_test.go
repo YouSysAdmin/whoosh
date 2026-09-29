@@ -27,12 +27,15 @@ func TestParseModVer(t *testing.T) {
 			if err == nil {
 				t.Errorf("parseModVer(%q): want error, got %+v", c.in, got)
 			}
+
 			continue
 		}
+
 		if err != nil {
 			t.Errorf("parseModVer(%q): %v", c.in, err)
 			continue
 		}
+
 		if got.path != c.path || got.version != c.version {
 			t.Errorf("parseModVer(%q) = %+v, want {%q %q}", c.in, got, c.path, c.version)
 		}
@@ -55,6 +58,7 @@ func TestReplaceHelpers(t *testing.T) {
 		if got := replaceOldPath(c.spec); got != c.oldPth {
 			t.Errorf("replaceOldPath(%q) = %q, want %q", c.spec, got, c.oldPth)
 		}
+
 		if got := replaceIsFilesystem(c.spec); got != c.isFS {
 			t.Errorf("replaceIsFilesystem(%q) = %v, want %v", c.spec, got, c.isFS)
 		}
@@ -82,11 +86,13 @@ func TestBuild_IncludesPlugin(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping: shells out to `go build`")
 	}
+
 	// This test lives at internal/cli/builder, so the repo root is three levels up.
 	repoRoot, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	exampleDir := filepath.Join(repoRoot, "examples", "plugins/hello")
 	awsDir := filepath.Join(repoRoot, "plugins", "aws")
 	out := filepath.Join(t.TempDir(), "whoosh-custom")
@@ -112,6 +118,7 @@ func TestBuild_IncludesPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run built binary: %v", err)
 	}
+
 	for _, want := range []string{"aws", "hello"} {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("built binary `plugins` = %q, want it to contain %q", got, want)

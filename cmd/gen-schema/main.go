@@ -34,6 +34,7 @@ func main() {
 					},
 				}
 			}
+
 			return nil
 		},
 	}
@@ -52,10 +53,12 @@ func main() {
 	if err != nil {
 		fail("marshal schema: %v", err)
 	}
+
 	data = append(data, '\n')
 	if err := os.WriteFile(*out, data, 0o644); err != nil {
 		fail("write %s: %v", *out, err)
 	}
+
 	fmt.Printf("wrote %s\n", *out)
 }
 

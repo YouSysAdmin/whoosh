@@ -34,6 +34,7 @@ func (f *fakeEC2) DescribeInstances(_ context.Context, in *awsec2.DescribeInstan
 	if len(f.pages) > 0 {
 		return f.pages[f.calls-1], nil
 	}
+
 	return f.out, nil
 }
 
@@ -55,8 +56,10 @@ func (f *fakeASG) StartInstanceRefresh(_ context.Context, in *autoscaling.StartI
 		if f.startErrOnce {
 			f.startErr = nil
 		}
+
 		return nil, err
 	}
+
 	return &autoscaling.StartInstanceRefreshOutput{InstanceRefreshId: awssdk.String("ir-123")}, nil
 }
 
@@ -65,6 +68,7 @@ func (f *fakeASG) CancelInstanceRefresh(_ context.Context, _ *autoscaling.Cancel
 	if f.cancelErr != nil {
 		return nil, f.cancelErr
 	}
+
 	return &autoscaling.CancelInstanceRefreshOutput{}, nil
 }
 
@@ -73,14 +77,17 @@ func (f *fakeASG) DescribeInstanceRefreshes(_ context.Context, _ *autoscaling.De
 	if f.emptyDescribe {
 		return &autoscaling.DescribeInstanceRefreshesOutput{}, nil
 	}
+
 	status := astypes.InstanceRefreshStatusSuccessful
 	if len(f.statuses) > 0 {
 		idx := f.describeN - 1
 		if idx >= len(f.statuses) {
 			idx = len(f.statuses) - 1
 		}
+
 		status = f.statuses[idx]
 	}
+
 	return &autoscaling.DescribeInstanceRefreshesOutput{
 		InstanceRefreshes: []astypes.InstanceRefresh{{
 			InstanceRefreshId:  awssdk.String("ir-123"),
@@ -107,11 +114,13 @@ func (f *fakeLTEC2) DescribeLaunchTemplateVersions(_ context.Context, _ *awsec2.
 	for _, n := range f.versions {
 		vs = append(vs, ec2types.LaunchTemplateVersion{VersionNumber: awssdk.Int64(n)})
 	}
+
 	return &awsec2.DescribeLaunchTemplateVersionsOutput{LaunchTemplateVersions: vs}, nil
 }
 
 func (f *fakeLTEC2) CreateLaunchTemplateVersion(_ context.Context, in *awsec2.CreateLaunchTemplateVersionInput, _ ...func(*awsec2.Options)) (*awsec2.CreateLaunchTemplateVersionOutput, error) {
 	f.created = in
+
 	return &awsec2.CreateLaunchTemplateVersionOutput{
 		LaunchTemplateVersion: &ec2types.LaunchTemplateVersion{VersionNumber: awssdk.Int64(f.newVersion)},
 	}, nil
@@ -119,6 +128,7 @@ func (f *fakeLTEC2) CreateLaunchTemplateVersion(_ context.Context, in *awsec2.Cr
 
 func (f *fakeLTEC2) ModifyLaunchTemplate(_ context.Context, in *awsec2.ModifyLaunchTemplateInput, _ ...func(*awsec2.Options)) (*awsec2.ModifyLaunchTemplateOutput, error) {
 	f.modified = in
+
 	return &awsec2.ModifyLaunchTemplateOutput{}, nil
 }
 
@@ -127,6 +137,7 @@ func instance(privateIP string, tags map[string]string) ec2types.Instance {
 	for k, v := range tags {
 		t = append(t, ec2types.Tag{Key: awssdk.String(k), Value: awssdk.String(v)})
 	}
+
 	return ec2types.Instance{PrivateIpAddress: awssdk.String(privateIP), Tags: t}
 }
 
@@ -153,9 +164,11 @@ func TestEC2Inventory_AppendsHostsAndRoles(t *testing.T) {
 	if len(cfg.Hosts) != 3 {
 		t.Fatalf("want 3 hosts, got %d", len(cfg.Hosts))
 	}
+
 	if cfg.Hosts[1].Address != "10.0.0.1" || strings.Join(cfg.Hosts[1].Roles, ",") != "app,web" {
 		t.Errorf("discovered[0] = %+v", cfg.Hosts[1])
 	}
+
 	if cfg.Hosts[2].Address != "10.0.0.2" || strings.Join(cfg.Hosts[2].Roles, ",") != "db" {
 		t.Errorf("discovered[1] = %+v", cfg.Hosts[2])
 	}
@@ -164,6 +177,7 @@ func TestEC2Inventory_AppendsHostsAndRoles(t *testing.T) {
 	for _, f := range fe.input.Filters {
 		names = append(names, *f.Name)
 	}
+
 	slices.Sort(names)
 	if strings.Join(names, ",") != "instance-state-name,tag:Environment" {
 		t.Errorf("unexpected filters: %v", names)
@@ -180,6 +194,7 @@ func TestEC2Inventory_FallbackRoles(t *testing.T) {
 	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
+
 	if len(cfg.Hosts) != 1 || strings.Join(cfg.Hosts[0].Roles, ",") != "app" {
 		t.Fatalf("fallback roles not applied: %+v", cfg.Hosts)
 	}
@@ -195,9 +210,11 @@ func TestEC2Inventory_TagsScalarOrList(t *testing.T) {
 	}, &p); err != nil {
 		t.Fatalf("decode params: %v", err)
 	}
+
 	if got := []string(p.Tags["Environment"]); len(got) != 1 || got[0] != "uat" {
 		t.Errorf("scalar tag Environment = %v, want [uat]", got)
 	}
+
 	if got := []string(p.Tags["App"]); strings.Join(got, ",") != "mb,pacer" {
 		t.Errorf("list tag App = %v, want [mb pacer]", got)
 	}
@@ -208,12 +225,14 @@ func TestEC2Inventory_TagsScalarOrList(t *testing.T) {
 	if err := inv.appendHosts(t.Context(), &whoosh.DeployFile{}); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
+
 	var appValues []string
 	for _, f := range fe.input.Filters {
 		if f.Name != nil && *f.Name == "tag:App" {
 			appValues = f.Values
 		}
 	}
+
 	if strings.Join(appValues, ",") != "mb,pacer" {
 		t.Errorf("tag:App filter values = %v, want [mb pacer]", appValues)
 	}
@@ -235,9 +254,11 @@ func TestEC2Inventory_DeployTag(t *testing.T) {
 	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
+
 	if len(cfg.Hosts) != 3 {
 		t.Fatalf("want 3 hosts, got %d", len(cfg.Hosts))
 	}
+
 	// Only the tag-matching instance deploys; the rest are listed but disabled.
 	want := map[string]bool{"10.0.0.1": true, "10.0.0.2": false, "10.0.0.3": false}
 	for _, s := range cfg.Hosts {
@@ -245,6 +266,7 @@ func TestEC2Inventory_DeployTag(t *testing.T) {
 			t.Errorf("%s: Deploy is nil, want explicit %v", s.Address, want[s.Address])
 			continue
 		}
+
 		if *s.Deploy != want[s.Address] {
 			t.Errorf("%s: deploy=%v, want %v", s.Address, *s.Deploy, want[s.Address])
 		}
@@ -266,6 +288,7 @@ func TestEC2Inventory_RequiredTag(t *testing.T) {
 	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
+
 	want := map[string]bool{"10.0.0.1": true, "10.0.0.2": false}
 	for _, s := range cfg.Hosts {
 		if s.IsRequired() != want[s.Address] {
@@ -284,12 +307,15 @@ func TestEC2Inventory_NoDeployTagDefaultsTrue(t *testing.T) {
 	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
+
 	if len(cfg.Hosts) != 1 {
 		t.Fatalf("want 1 host, got %d", len(cfg.Hosts))
 	}
+
 	if cfg.Hosts[0].Deploy != nil {
 		t.Errorf("Deploy = %v, want nil (default true) when no deploy_tag set", *cfg.Hosts[0].Deploy)
 	}
+
 	if !cfg.Hosts[0].DeployEnabled() {
 		t.Errorf("DeployEnabled() = false, want true by default")
 	}
@@ -319,22 +345,27 @@ func TestEC2Inventory_StaticHostTakesPriority(t *testing.T) {
 	if len(cfg.Hosts) != 2 {
 		t.Fatalf("want 2 hosts (static + 1 new), got %d: %+v", len(cfg.Hosts), cfg.Hosts)
 	}
+
 	var seen int
 	for _, h := range cfg.Hosts {
 		if h.Address != "10.0.0.1" {
 			continue
 		}
+
 		seen++
 		if !h.DeployEnabled() {
 			t.Errorf("static 10.0.0.1 should keep deploy:true, got %v", h.Deploy)
 		}
+
 		if strings.Join(h.Roles, ",") != "app,db" {
 			t.Errorf("static 10.0.0.1 should keep its roles, got %v", h.Roles)
 		}
 	}
+
 	if seen != 1 {
 		t.Errorf("10.0.0.1 should appear exactly once, got %d", seen)
 	}
+
 	// The discovered host is tagged with its inventory feature as the source.
 	for _, h := range cfg.Hosts {
 		if h.Address == "10.0.0.2" && h.Source != FeatureInventory {
@@ -358,6 +389,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 		if host == "worker.example.com" {
 			return []string{"10.0.0.4"}, nil
 		}
+
 		return nil, fmt.Errorf("no such host %q", host)
 	}
 
@@ -367,9 +399,11 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts: %v", err)
 		}
+
 		if len(cfg.Hosts) != 2 {
 			t.Fatalf("want 2 hosts (fqdn + 10.0.0.5), got %d: %+v", len(cfg.Hosts), cfg.Hosts)
 		}
+
 		for _, h := range cfg.Hosts {
 			if h.Address == "10.0.0.4" {
 				t.Errorf("resolved duplicate 10.0.0.4 should be skipped, hosts: %+v", cfg.Hosts)
@@ -383,6 +417,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts: %v", err)
 		}
+
 		if len(cfg.Hosts) != 3 {
 			t.Fatalf("without the param both instances append, want 3 hosts, got %d: %+v", len(cfg.Hosts), cfg.Hosts)
 		}
@@ -394,6 +429,7 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts should not fail on a lookup error: %v", err)
 		}
+
 		if len(cfg.Hosts) != 3 {
 			t.Fatalf("unresolvable config host dedupes nothing, want 3 hosts, got %d: %+v", len(cfg.Hosts), cfg.Hosts)
 		}
@@ -404,12 +440,14 @@ func TestEC2Inventory_ResolveConfigHosts(t *testing.T) {
 		inv := &ec2Inventory{api: newFake(), params: ec2InventoryParams{ResolveConfigHosts: true},
 			lookupHost: func(ctx context.Context, host string) ([]string, error) {
 				called = true
+
 				return lookup(ctx, host)
 			}}
 		cfg := &whoosh.DeployFile{Hosts: []whoosh.Host{{Address: "10.0.0.4", Roles: []string{"db"}}}}
 		if err := inv.appendHosts(t.Context(), cfg); err != nil {
 			t.Fatalf("appendHosts: %v", err)
 		}
+
 		if called {
 			t.Error("an IP-literal address must not be resolved")
 		}
@@ -434,18 +472,23 @@ func TestEC2Inventory_Paginates(t *testing.T) {
 	if err := inv.appendHosts(t.Context(), cfg); err != nil {
 		t.Fatalf("appendHosts: %v", err)
 	}
+
 	if len(cfg.Hosts) != 2 {
 		t.Fatalf("want 2 hosts across pages, got %d: %+v", len(cfg.Hosts), cfg.Hosts)
 	}
+
 	if cfg.Hosts[0].Address != "10.0.0.1" || cfg.Hosts[1].Address != "10.0.0.2" {
 		t.Errorf("hosts = %+v, want 10.0.0.1 then 10.0.0.2", cfg.Hosts)
 	}
+
 	if fe.calls != 2 {
 		t.Fatalf("want 2 DescribeInstances calls, got %d", fe.calls)
 	}
+
 	if fe.inputs[0].NextToken != nil {
 		t.Errorf("first call NextToken = %v, want nil", *fe.inputs[0].NextToken)
 	}
+
 	if fe.inputs[1].NextToken == nil || *fe.inputs[1].NextToken != "page2" {
 		t.Errorf("second call NextToken = %v, want page2", fe.inputs[1].NextToken)
 	}
@@ -464,6 +507,7 @@ func TestASGRefresh_StartsRefresh(t *testing.T) {
 	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
+
 	if fa.input == nil || fa.input.AutoScalingGroupName == nil || *fa.input.AutoScalingGroupName != "my-asg" {
 		t.Fatalf("ASG name not passed: %+v", fa.input)
 	}
@@ -473,15 +517,18 @@ func TestASGRefresh_StartsRefresh(t *testing.T) {
 	if p == nil {
 		t.Fatal("Preferences not set")
 	}
+
 	if awssdk.ToInt32(p.MinHealthyPercentage) != 100 || awssdk.ToInt32(p.MaxHealthyPercentage) != 200 ||
 		awssdk.ToInt32(p.InstanceWarmup) != 300 || !awssdk.ToBool(p.SkipMatching) || awssdk.ToBool(p.AutoRollback) {
 		t.Errorf("default preferences wrong: min=%v max=%v warmup=%v skip=%v rollback=%v",
 			awssdk.ToInt32(p.MinHealthyPercentage), awssdk.ToInt32(p.MaxHealthyPercentage),
 			awssdk.ToInt32(p.InstanceWarmup), awssdk.ToBool(p.SkipMatching), awssdk.ToBool(p.AutoRollback))
 	}
+
 	if !strings.Contains(logbuf.String(), "ir-123") {
 		t.Fatalf("missing refresh id in slog output: %q", logbuf.String())
 	}
+
 	if !strings.Contains(logbuf.String(), "instance refresh complete") {
 		t.Fatalf("expected completion log after polling:\n%s", logbuf.String())
 	}
@@ -501,6 +548,7 @@ func TestASGRefresh_OverridesPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
+
 	p := fa.input.Preferences
 	if awssdk.ToInt32(p.MinHealthyPercentage) != 90 || awssdk.ToInt32(p.MaxHealthyPercentage) != 150 ||
 		awssdk.ToInt32(p.InstanceWarmup) != 120 || awssdk.ToBool(p.SkipMatching) || !awssdk.ToBool(p.AutoRollback) {
@@ -524,9 +572,11 @@ func TestASGRefresh_PollsUntilComplete(t *testing.T) {
 	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("run: %v\n%s", err, logbuf.String())
 	}
+
 	if fa.describeN != 3 {
 		t.Errorf("polled %d times, want 3 (pending, in-progress, successful)", fa.describeN)
 	}
+
 	if !strings.Contains(logbuf.String(), "status=InProgress") {
 		t.Errorf("expected periodic in-progress status in log:\n%s", logbuf.String())
 	}
@@ -546,6 +596,7 @@ func TestASGRefresh_SkipsWhenAlreadyInProgress(t *testing.T) {
 	if err := a.runRefresh(t.Context(), map[string]any{"name": "my-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("an already-running refresh should be skipped, not fail: %v", err)
 	}
+
 	if fa.describeN != 0 {
 		t.Errorf("should not poll when the refresh was not started, polled %d times", fa.describeN)
 	}
@@ -566,6 +617,7 @@ func TestASGRefresh_FailsOnCancelledStatus(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when the refresh ends in a Cancelled state")
 	}
+
 	if !strings.Contains(err.Error(), "Cancelled") {
 		t.Errorf("error = %v, want it to report the Cancelled status", err)
 	}
@@ -579,6 +631,7 @@ func TestASGRefresh_FailsWhenRefreshDisappears(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when the refresh can't be found")
 	}
+
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("error = %v, want a 'not found' message", err)
 	}
@@ -596,9 +649,11 @@ func TestASGRefresh_CancelStopsWaiting(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error after cancellation")
 	}
+
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("error = %v, want it to wrap context.Canceled", err)
 	}
+
 	if !strings.Contains(err.Error(), "continues in AWS") {
 		t.Errorf("error = %v, want it to note the refresh keeps running in AWS", err)
 	}
@@ -621,13 +676,16 @@ func TestASGRollback_CopiesPreviousVersionThenRefreshes(t *testing.T) {
 	if fe.created == nil || awssdk.ToString(fe.created.SourceVersion) != "2" {
 		t.Errorf("SourceVersion = %v, want 2 (previous of latest 3)", fe.created)
 	}
+
 	if awssdk.ToString(fe.created.LaunchTemplateId) != "lt-1" {
 		t.Errorf("LaunchTemplateId = %q, want lt-1", awssdk.ToString(fe.created.LaunchTemplateId))
 	}
+
 	// By default the copied (new latest) version becomes the default.
 	if fe.modified == nil || awssdk.ToString(fe.modified.DefaultVersion) != "4" {
 		t.Errorf("default version = %v, want 4 (the new copy)", fe.modified)
 	}
+
 	// Then a refresh is started onto it.
 	if fa.input == nil || awssdk.ToString(fa.input.AutoScalingGroupName) != "web-asg" {
 		t.Errorf("refresh not started for web-asg: %+v", fa.input)
@@ -647,9 +705,11 @@ func TestASGRollback_ResolvesLaunchTemplateFromASG(t *testing.T) {
 	if err := a.runRollback(t.Context(), map[string]any{"name": "web-asg"}, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runRollback: %v", err)
 	}
+
 	if awssdk.ToString(fe.created.LaunchTemplateId) != "lt-from-asg" {
 		t.Errorf("LT not resolved from ASG: %q", awssdk.ToString(fe.created.LaunchTemplateId))
 	}
+
 	if awssdk.ToString(fe.created.SourceVersion) != "5" {
 		t.Errorf("SourceVersion = %q, want 5 (second-highest of [5,7])", awssdk.ToString(fe.created.SourceVersion))
 	}
@@ -668,6 +728,7 @@ func TestASGRollback_SetDefaultFalseSkipsModify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runRollback: %v", err)
 	}
+
 	if fe.modified != nil {
 		t.Errorf("set_default: false should not modify the default version, got %+v", fe.modified)
 	}
@@ -684,6 +745,7 @@ func TestASGRollback_FailsWithSingleVersion(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error rolling back a launch template with only one version")
 	}
+
 	if fe.created != nil {
 		t.Error("must not create a version when there is no previous one")
 	}
@@ -717,9 +779,11 @@ func TestASGRollback_CancelsInFlightRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runRollback: %v", err)
 	}
+
 	if fa.cancelN != 1 {
 		t.Errorf("CancelInstanceRefresh called %d times, want 1", fa.cancelN)
 	}
+
 	if fa.input == nil {
 		t.Fatal("rollback did not start its own refresh after cancelling")
 	}

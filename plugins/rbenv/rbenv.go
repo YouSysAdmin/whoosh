@@ -90,48 +90,65 @@ func (p *plugin) Version() string { return pluginVersion }
 type params struct {
 	// Root is the rbenv install dir. "~" and "~/..." expand to "$HOME/...". Default "$HOME/.rbenv".
 	Root string `yaml:"root"`
+
 	// RbenvRepo / RubyBuildRepo are the git sources cloned when rbenv/ruby-build are absent.
 	RbenvRepo     string `yaml:"rbenv_repo"`
 	RubyBuildRepo string `yaml:"ruby_build_repo"`
+
 	// DefaultGems are gems installed into every Ruby built by rbenv, via the rbenv-default-gems plugin. Each entry is one
 	// line of the default-gems file: a gem name optionally followed by a version requirement or gem options, e.g.
 	// "bundler", "bcat ~>0.6", "rails --pre". When non-empty, the plugin is installed and $RBENV_ROOT/default-gems is
 	// (re)written from this list; when empty, neither happens.
 	DefaultGems []string `yaml:"default_gems"`
+
 	// DefaultGemsRepo is the git source for the rbenv-default-gems plugin (default the official repo).
 	DefaultGemsRepo string `yaml:"default_gems_repo"`
+
 	// Plugins are additional rbenv plugins to git-clone into $RBENV_ROOT/plugins/<name> (e.g. rbenv-vars, rbenv-ctags).
 	// ruby-build and rbenv-default-gems are handled by their own pinned options and need not be listed here.
 	Plugins []rbenvPlugin `yaml:"plugins"`
+
 	// Versions are the Ruby versions to ensure installed, unioned with any .ruby-version file.
 	Versions []string `yaml:"versions"`
+
 	// ReadRubyVersion also derives versions from .ruby-version (default true): read on the operator at load
 	// (RubyVersionFile) and from the previous release on each host ($CURRENT_PATH/.ruby-version).
 	ReadRubyVersion *bool `yaml:"read_ruby_version"`
+
 	// RubyVersionFile is the operator-side .ruby-version path read at load, relative to the Deployfile dir. Default
 	// ".ruby-version".
 	RubyVersionFile string `yaml:"ruby_version_file"`
+
 	// Prune uninstalls Ruby versions that are not in the desired set (default false - destructive, so opt-in).
 	Prune bool `yaml:"prune"`
+
 	// Global, when set, runs `rbenv global`; the version is always kept (never pruned).
 	Global string `yaml:"global"`
+
 	// Update git-pulls rbenv/ruby-build when they are already installed (default false).
 	Update bool `yaml:"update"`
+
 	// InstallRuby installs ruby-build and the Ruby versions (default true); false installs only rbenv.
 	InstallRuby *bool `yaml:"install_ruby"`
+
 	// Shells are the shell rc files rbenv init is registered in (default [bash, zsh]).
 	Shells []string `yaml:"shells"`
+
 	// BuildEnv is extra environment exported for the setup task, so it reaches ruby-build when it compiles Ruby - e.g.
 	// RUBY_CONFIGURE_OPTS: "--with-jemalloc --enable-yjit" or MAKEOPTS: "-j 1". Values are shell-expanded, so
 	// "-j $(nproc)" works. The plugin's own RBENV_* control vars always win over these.
 	BuildEnv map[string]string `yaml:"build_env"`
+
 	// Roles restricts the setup to hosts filling these roles (default: all deployable hosts).
 	Roles []string `yaml:"roles"`
+
 	// InjectPath prepends $RBENV_ROOT/bin and shims to whoosh's global PATH and exports RBENV_ROOT for every later task
 	// (default true).
 	InjectPath *bool `yaml:"inject_path"`
+
 	// TaskName overrides the contributed task's name (default "rbenv:setup").
 	TaskName string `yaml:"task_name"`
+
 	// Phase / When place the setup hook: When is "before" (default) or "after", Phase is the phase to anchor to (default
 	// "deploy:updated").
 	Phase string `yaml:"phase"`
@@ -144,15 +161,19 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := whoosh.DecodeParamsStrict(spec.Params, &pr); err != nil {
 		return fmt.Errorf("rbenv params: %w", err)
 	}
+
 	// The plugin has no per-feature actions: config lives entirely in params, so any actions: entry is a mistake.
 	for _, a := range spec.Actions {
 		return fmt.Errorf("rbenv: unknown feature %q under actions: (the plugin is configured via params: only)", a.Name)
 	}
+
 	// A misspelled when value would otherwise silently mean "before".
 	if pr.When != "" && !strings.EqualFold(pr.When, "before") && !strings.EqualFold(pr.When, "after") {
 		return fmt.Errorf("rbenv: when must be \"before\" or \"after\", got %q", pr.When)
 	}
+
 	reg.AddStartup(pr.startup)
+
 	return nil
 }
 
@@ -168,10 +189,12 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 		if cfg.Envs == nil {
 			cfg.Envs = map[string]string{}
 		}
+
 		cfg.Envs["RBENV_ROOT"] = root
 		path := cmp.Or(cfg.Envs["PATH"], "$PATH")
 		cfg.Envs["PATH"] = root + "/bin:" + root + "/shims:" + path
 	}
+
 	// Also expose it to templates as {{ .rbenv.root }}.
 	cfg.AddImport("rbenv", "root", root)
 
@@ -183,9 +206,11 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 			versions = append(versions, v)
 		}
 	}
+
 	if p.Global != "" {
 		versions = append(versions, p.Global)
 	}
+
 	versions = dedupe(versions)
 
 	shells := p.Shells
@@ -238,6 +263,7 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	} else {
 		cfg.AddHookBefore(phase, name)
 	}
+
 	return nil
 }
 
@@ -264,14 +290,17 @@ func readLocalRubyVersion(dir, file string) string {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(dir, file)
 	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
+
 	v := strings.TrimSpace(string(data))
 	if i := strings.IndexAny(v, " \t\r\n"); i >= 0 {
 		v = v[:i]
 	}
+
 	return strings.TrimPrefix(v, "ruby-")
 }
 
@@ -287,17 +316,21 @@ func renderExtraPlugins(plugins []rbenvPlugin) ([]string, error) {
 		if name == "" || repo == "" {
 			return nil, fmt.Errorf("rbenv: plugins[%d]: both 'name' and 'repo' are required", i)
 		}
+
 		for _, f := range [...]struct{ what, val string }{{"name", name}, {"repo", repo}, {"version", version}} {
 			if strings.ContainsAny(f.val, " \t\r\n") {
 				return nil, fmt.Errorf("rbenv: plugins[%d]: %s %q must not contain whitespace", i, f.what, f.val)
 			}
 		}
+
 		line := name + " " + repo
 		if version != "" {
 			line += " " + version
 		}
+
 		lines = append(lines, line)
 	}
+
 	return lines, nil
 }
 
@@ -310,9 +343,11 @@ func dedupe(in []string) []string {
 		if s == "" || seen[s] {
 			continue
 		}
+
 		seen[s] = true
 		out = append(out, s)
 	}
+
 	return out
 }
 
@@ -321,5 +356,6 @@ func boolStr(v bool) string {
 	if v {
 		return "1"
 	}
+
 	return "0"
 }

@@ -40,6 +40,7 @@ type secretsAPI interface {
 // secretsPlugin backs the aws:secrets:* actions.
 type secretsPlugin struct {
 	api secretsAPI
+
 	// defaults are the feature-level params (the `aws:secrets` actions: entry), layered under the to-dotenv task's `with:`
 	// (the task wins). The same entry's `prefixes` also drive the startup context-injection hook below.
 	defaults map[string]any
@@ -54,20 +55,24 @@ func Register(reg *whoosh.Registry, awsCfg awssdk.Config, fp map[string]map[stri
 	if err := reg.AddAction(actionSecretsEnvFile, p.runEnvironmentFile); err != nil {
 		return err
 	}
+
 	if cfg, ok := fp[Feature]; ok {
 		// The feature entry serves two surfaces (startup hook + to-dotenv defaults), so unknown keys are rejected
 		// against their union - a typo would otherwise silently disable the feature it was meant to configure.
 		if err := whoosh.DecodeParamsStrict(cfg, &secretsFeatureParams{}); err != nil {
 			return fmt.Errorf("%s params: %w", Feature, err)
 		}
+
 		var cp secretsContextParams
 		if err := whoosh.DecodeParams(cfg, &cp); err != nil {
 			return err
 		}
+
 		if len(cp.Prefixes) > 0 {
 			reg.AddStartup(p.startup(cp))
 		}
 	}
+
 	return nil
 }
 
@@ -95,17 +100,21 @@ type secretsEnvFileParams struct {
 	// A prefix ending in "/" lists every secret whose name starts with it, one without a trailing slash is a single secret
 	// name.
 	Prefixes []string `yaml:"prefixes"`
+
 	// Path is where the env file is written (on the task's hosts when an executor host writer is present, else
 	// operator-side). Relative -> the release dir.
 	Path string `yaml:"path"`
+
 	// JSON controls how a secret's value becomes env vars.
 	// Unset (the default) = auto-detect: a value that parses as a JSON object is expanded into one var per key, anything
 	// else becomes a single var. true = require a JSON object (error otherwise). false = never parse, the whole value is
 	// one var.
 	JSON *bool `yaml:"json"`
+
 	// FullKeyPath keeps the full secret name as the env key (normalized) for non-expanded (single-value) secrets, by
 	// default only the last path segment is used (/app/prod/DB_URL -> DB_URL). Ignored for JSON-expanded secrets.
 	FullKeyPath bool `yaml:"full_key_path"`
+
 	// Multiline keeps real newlines inside quoted values (default true), which the dotenv/Rails gems require for values
 	// like PEM keys and certs. Set false to collapse newlines to a literal \n (single-line entries) instead.
 	Multiline *bool `yaml:"multiline"`
@@ -116,9 +125,11 @@ type secretsEnvFileParams struct {
 type secretsContextParams struct {
 	// Prefixes are the secret names/paths to load (trailing "/" = a set).
 	Prefixes []string `yaml:"prefixes"`
+
 	// Namespace is the template namespace the values land under (default "secrets"), exposed as {{ .<namespace>.<key> }}
 	// and $<NAMESPACE>_<KEY>.
 	Namespace string `yaml:"namespace"`
+
 	// JSON controls JSON-object expansion (see secretsEnvFileParams.JSON).
 	JSON *bool `yaml:"json"`
 }
@@ -130,6 +141,7 @@ type secretsContextParams struct {
 // Each value is registered with redact so it's masked wherever whoosh prints it.
 func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
 	namespace := cmp.Or(p.Namespace, "secrets")
+
 	return func(ctx context.Context, cfg *whoosh.DeployFile) error {
 		count := 0
 		for _, prefix := range p.Prefixes {
@@ -137,26 +149,32 @@ func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
 			if err != nil {
 				return fmt.Errorf("secrets %s: %w", prefix, err)
 			}
+
 			for _, sec := range secs {
 				obj, expanded, err := expandSecret(sec.value, p.JSON)
 				if err != nil {
 					return fmt.Errorf("secrets %s: %w", sec.name, err)
 				}
+
 				if expanded {
 					for k, v := range obj {
 						cfg.AddImport(namespace, k, v)
 						whoosh.AddSecret(v)
 						count++
 					}
+
 					continue
 				}
+
 				key := dotenv.LastSegment(sec.name)
 				cfg.AddImport(namespace, key, sec.value)
 				whoosh.AddSecret(sec.value)
 				count++
 			}
 		}
+
 		slog.Info("loaded Secrets Manager secrets into context", "namespace", namespace, "secrets", count, "prefixes", len(p.Prefixes))
+
 		return nil
 	}
 }
@@ -169,9 +187,11 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 	if err := params.DecodeFeature(s.defaults, raw, &p); err != nil {
 		return fmt.Errorf("aws:secrets:to-dotenv params: %w", err)
 	}
+
 	if len(p.Prefixes) == 0 {
 		return fmt.Errorf("aws:secrets:to-dotenv: 'prefixes' is required")
 	}
+
 	if p.Path == "" {
 		return fmt.Errorf("aws:secrets:to-dotenv: 'path' is required")
 	}
@@ -182,11 +202,13 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 		if err != nil {
 			return fmt.Errorf("secrets %s: %w", prefix, err)
 		}
+
 		for _, sec := range secs {
 			obj, expanded, err := expandSecret(sec.value, p.JSON)
 			if err != nil {
 				return fmt.Errorf("secrets %s: %w", sec.name, err)
 			}
+
 			if expanded {
 				for k, v := range obj {
 					env[dotenv.NormalizeKey(k)] = v
@@ -194,18 +216,22 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 					// later command prints them (e.g. an app dumping its env).
 					whoosh.AddSecret(v)
 				}
+
 				continue
 			}
+
 			key := sec.name
 			if !p.FullKeyPath {
 				key = dotenv.LastSegment(key)
 			}
+
 			env[dotenv.NormalizeKey(key)] = sec.value
 			whoosh.AddSecret(sec.value)
 		}
 	}
 
 	content := []byte(dotenv.Render(env, params.Or(p.Multiline, true)))
+
 	// Fetched once, operator-side. The write-out (hosts-first, operator fallback) is shared with aws:ssm.
 	return envfile.Write(ctx, p.Path, content,
 		"rendered env file from Secrets Manager on hosts", "wrote env file from Secrets Manager",
@@ -229,6 +255,7 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 			if err != nil {
 				return nil, err
 			}
+
 			for _, e := range resp.SecretList {
 				// The name filter is a prefix match server-side, re-check locally so the set is exactly
 				// "names starting with this prefix".
@@ -236,11 +263,14 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 					names = append(names, name)
 				}
 			}
+
 			if resp.NextToken == nil || *resp.NextToken == "" {
 				break
 			}
+
 			token = resp.NextToken
 		}
+
 		// Values are fetched with bounded concurrency - a large prefix would otherwise cost one serial round-trip
 		// per secret. The returned slice keeps the listed name order.
 		type slot struct {
@@ -262,34 +292,43 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 					if firstErr == nil {
 						firstErr = err
 					}
+
 					mu.Unlock()
+
 					return
 				}
+
 				if ok {
 					slots[idx] = slot{sec: rawSecret{name: name, value: v}, ok: true}
 				}
 			})
 		}
+
 		wg.Wait()
 		if firstErr != nil {
 			return nil, firstErr
 		}
+
 		out := make([]rawSecret, 0, len(names))
 		for _, sl := range slots {
 			if sl.ok {
 				out = append(out, sl.sec)
 			}
 		}
+
 		return out, nil
 	}
+
 	// No trailing slash: a single secret.
 	v, ok, err := s.getValue(ctx, prefix)
 	if err != nil {
 		return nil, err
 	}
+
 	if !ok {
 		return nil, nil
 	}
+
 	return []rawSecret{{name: prefix, value: v}}, nil
 }
 
@@ -302,14 +341,18 @@ func (s *secretsPlugin) getValue(ctx context.Context, id string) (string, bool, 
 		if _, ok := errors.AsType[*smtypes.ResourceNotFoundException](err); ok {
 			return "", false, nil
 		}
+
 		return "", false, err
 	}
+
 	if resp.SecretString != nil {
 		return *resp.SecretString, true, nil
 	}
+
 	if resp.SecretBinary != nil {
 		return string(resp.SecretBinary), true, nil
 	}
+
 	return "", true, nil
 }
 
@@ -321,17 +364,21 @@ func expandSecret(value string, jsonMode *bool) (map[string]string, bool, error)
 	if jsonMode != nil && !*jsonMode {
 		return nil, false, nil
 	}
+
 	var obj map[string]any
 	if err := json.Unmarshal([]byte(value), &obj); err == nil && obj != nil {
 		out := make(map[string]string, len(obj))
 		for k, v := range obj {
 			out[k] = scalarToString(v)
 		}
+
 		return out, true, nil
 	}
+
 	if jsonMode != nil && *jsonMode {
 		return nil, false, fmt.Errorf("value is not a JSON object (json: true requires one)")
 	}
+
 	return nil, false, nil
 }
 
@@ -345,6 +392,7 @@ func scalarToString(v any) string {
 		return ""
 	default:
 		b, _ := json.Marshal(t)
+
 		return string(b)
 	}
 }

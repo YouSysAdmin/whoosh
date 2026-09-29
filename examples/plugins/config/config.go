@@ -52,8 +52,10 @@ func (p *configPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) e
 	if err := whoosh.DecodeParams(spec.Params, &cp); err != nil {
 		return fmt.Errorf("%s params: %w", pluginName, err)
 	}
+
 	p.token = cp.Token
 	reg.AddStartup(p.inject)
+
 	return reg.AddAction(actionShow, p.show)
 }
 
@@ -65,11 +67,13 @@ func (p *configPlugin) inject(_ context.Context, cfg *whoosh.DeployFile) error {
 		whoosh.AddSecret(p.token)
 		cfg.AddImport(namespace, "token", p.token)
 	}
+
 	// Read a stage var (set under `vars:` in the Deployfile) and re-expose it under our namespace,
 	// so tasks can use {{ .example.environment }} / $EXAMPLE_ENVIRONMENT.
 	if env, ok := cfg.Vars["environment"].(string); ok {
 		cfg.AddImport(namespace, "environment", env)
 	}
+
 	return nil
 }
 
@@ -77,5 +81,6 @@ func (p *configPlugin) inject(_ context.Context, cfg *whoosh.DeployFile) error {
 // The token prints masked in real output because it was registered with AddSecret.
 func (p *configPlugin) show(_ context.Context, _ map[string]any, out io.Writer) error {
 	fmt.Fprintf(out, "[example-config] token=%s\n", p.token)
+
 	return nil
 }

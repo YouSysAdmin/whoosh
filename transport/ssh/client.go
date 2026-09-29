@@ -51,6 +51,7 @@ func (t Target) addr() string {
 	if port == 0 {
 		port = DefaultPort
 	}
+
 	return net.JoinHostPort(t.Host, strconv.Itoa(port))
 }
 
@@ -58,25 +59,31 @@ func (t Target) addr() string {
 type Options struct {
 	StrictHostKey  bool   // verify the host key against KnownHostsFile (false accepts any key)
 	KnownHostsFile string // known_hosts path used for verification
+
 	// AcceptNew, together with StrictHostKey, trusts a host seen for the first time (OpenSSH StrictHostKeyChecking=accept-new):
 	// its key is appended to KnownHostsFile - created along with its parent dir when missing - and the connection proceeds.
 	// A key that conflicts with an existing entry still fails. No effect without StrictHostKey.
 	AcceptNew      bool
 	ConnectTimeout time.Duration // bound on the TCP connect + SSH handshake (zero uses the default)
+
 	// KeepaliveInterval/KeepaliveMaxFails detect a host that vanishes mid-command.
 	// Zero uses the defaults, a negative interval disables keepalive.
 	KeepaliveInterval time.Duration
 	KeepaliveMaxFails int
+
 	// ForwardAgent forwards the operator's local ssh-agent (SSH_AUTH_SOCK) to each host, so commands there (notably git)
 	// authenticate with the operator's keys.
 	ForwardAgent bool
+
 	// ForwardKey forwards only the key at this path via an in-memory agent (the key is never written to the host).
 	// Takes precedence over ForwardAgent.
 	ForwardKey string
+
 	// Agent is the builtin in-memory ssh-agent (from NewAgent). When set, its keys are offered to every host and the
 	// system agent (SSH_AUTH_SOCK) is not consulted for authentication. With ForwardAgent it is also the agent forwarded
 	// to the hosts (ForwardKey still takes precedence).
 	Agent agent.Agent
+
 	// Bastion, when set, tunnels every connection through this jump host (one shared SSH connection, one
 	// direct-tcpip channel per target). Nil connects directly.
 	Bastion *Bastion
@@ -97,6 +104,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Auth only happens during the handshake, so the agent socket (if one was opened) is released as soon as the
 	// dial resolves.
 	defer authCleanup()
@@ -111,6 +119,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 	if timeout == 0 {
 		timeout = DefaultConnectTimeout
 	}
+
 	// One budget covers the whole connect: TCP dial (or the bastion channel open) and the SSH handshake share the
 	// deadline instead of each getting the full timeout.
 	deadline := time.Now().Add(timeout)
@@ -140,6 +149,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 			return nil, connectError(err)
 		}
 	}
+
 	stop := handshakeWatchdog(ctx, netConn, time.Until(deadline))
 	conn, chans, reqs, err := ssh.NewClientConn(netConn, t.addr(), cfg)
 	if interrupted := stop(); interrupted {
@@ -147,14 +157,18 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 		if conn != nil {
 			_ = conn.Close()
 		}
+
 		_ = netConn.Close()
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("ssh handshake: %w", ctx.Err())
 		}
+
 		return nil, fmt.Errorf("ssh handshake: timeout after %s", timeout)
 	}
+
 	if err != nil {
 		_ = netConn.Close()
+
 		return nil, fmt.Errorf("ssh handshake: %w", err)
 	}
 
@@ -162,11 +176,15 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 	if opts.ForwardAgent || opts.ForwardKey != "" {
 		if err := setupForwarding(client.conn, opts); err != nil {
 			_ = client.Close()
+
 			return nil, err
 		}
+
 		client.forward = true
 	}
+
 	client.startKeepalive(opts)
+
 	return client, nil
 }
 
@@ -177,13 +195,16 @@ func (c *Client) startKeepalive(opts Options) {
 	if interval == 0 {
 		interval = DefaultKeepaliveInterval
 	}
+
 	if interval < 0 {
 		return // explicitly disabled
 	}
+
 	maxFails := opts.KeepaliveMaxFails
 	if maxFails <= 0 {
 		maxFails = DefaultKeepaliveMaxFails
 	}
+
 	go c.keepalive(interval, maxFails)
 }
 
@@ -201,8 +222,10 @@ func (c *Client) keepalive(interval time.Duration, maxFails int) {
 				fails = 0
 				continue
 			}
+
 			if fails++; fails >= maxFails {
 				_ = c.conn.Close() // makes a blocked sess.Wait() return an error
+
 				return
 			}
 		}
@@ -241,6 +264,7 @@ func setupForwarding(conn *ssh.Client, opts Options) error {
 		if err != nil {
 			return err
 		}
+
 		return agent.ForwardToAgent(conn, kr)
 	}
 
@@ -252,6 +276,7 @@ func setupForwarding(conn *ssh.Client, opts Options) error {
 	if err != nil {
 		return err
 	}
+
 	return agent.ForwardToRemote(conn, sock)
 }
 
@@ -263,12 +288,15 @@ func keyringFromFile(path string) (agent.Agent, error) {
 		if isEncryptedKeyError(err) {
 			return nil, fmt.Errorf("%w (encrypted keys must use forward_agent)", err)
 		}
+
 		return nil, err
 	}
+
 	kr := agent.NewKeyring()
 	if err := addKey(kr, "forward_key", path, key); err != nil {
 		return nil, fmt.Errorf("load forward_key %s: %w", path, err)
 	}
+
 	return kr, nil
 }
 
@@ -278,6 +306,7 @@ func localAgentSocket() (string, error) {
 	if sock == "" {
 		return "", fmt.Errorf("forward_agent set but no ssh-agent available (SSH_AUTH_SOCK is unset)")
 	}
+
 	return sock, nil
 }
 
@@ -286,6 +315,7 @@ func localAgentSocket() (string, error) {
 // Callers use it to tell a genuine command failure apart from an unreachable host.
 func IsExitError(err error) bool {
 	_, ok := errors.AsType[*ssh.ExitError](err)
+
 	return ok
 }
 
@@ -310,6 +340,7 @@ func handshakeWatchdog(ctx context.Context, netConn net.Conn, timeout time.Durat
 		case <-ctx.Done():
 		case <-timer.C:
 		}
+
 		mu.Lock()
 		defer mu.Unlock()
 		select {
@@ -317,13 +348,16 @@ func handshakeWatchdog(ctx context.Context, netConn net.Conn, timeout time.Durat
 			return // handshake finished first, leave the connection alone
 		default:
 		}
+
 		fired = true
 		_ = netConn.Close()
 	}()
+
 	return func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		close(done)
+
 		return fired
 	}
 }
@@ -338,13 +372,16 @@ func connectError(err error) error {
 		if op, ok := errors.AsType[*net.OpError](err); ok && op.Err != nil {
 			return fmt.Errorf("connection timed out: %w", op.Err)
 		}
+
 		return fmt.Errorf("connection timed out: %w", err)
 	}
+
 	// Unwrap *net.OpError to drop the "dial tcp <addr>:" prefix, leaving the underlying cause (e.g.
 	// "connect: connection refused").
 	if op, ok := errors.AsType[*net.OpError](err); ok && op.Err != nil {
 		return op.Err
 	}
+
 	return err
 }
 
@@ -355,6 +392,7 @@ func (c *Client) Run(ctx context.Context, cmd string, stdout, stderr io.Writer) 
 	if err != nil {
 		return fmt.Errorf("new session: %w", err)
 	}
+
 	defer sess.Close()
 
 	sess.Stdout = stdout
@@ -379,6 +417,7 @@ func (c *Client) Run(ctx context.Context, cmd string, stdout, stderr io.Writer) 
 	case <-ctx.Done():
 		_ = sess.Signal(ssh.SIGKILL)
 		_ = sess.Close()
+
 		return ctx.Err()
 	case err := <-done:
 		return err
@@ -392,9 +431,11 @@ func (c *Client) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
 	}
+
 	if c.done != nil {
 		c.closeOnce.Do(func() { close(c.done) })
 	}
+
 	return c.conn.Close()
 }
 
@@ -409,6 +450,7 @@ func authMethods(identityFile, passphrase string, ag agent.Agent) (methods []ssh
 		if err != nil {
 			return nil, cleanup, err
 		}
+
 		methods = append(methods, ssh.PublicKeys(signer))
 	}
 
@@ -436,8 +478,10 @@ func authMethods(identityFile, passphrase string, ag agent.Agent) (methods []ssh
 		if agentErr != nil {
 			return nil, cleanup, fmt.Errorf("no SSH auth available: ssh-agent (SSH_AUTH_SOCK) unreachable: %w (set ssh.identity_file / ssh.identities or restart the agent)", agentErr)
 		}
+
 		return nil, cleanup, fmt.Errorf("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
 	}
+
 	return methods, cleanup, nil
 }
 
@@ -446,10 +490,12 @@ func loadIdentity(path, passphrase string) (ssh.Signer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
 		return nil, fmt.Errorf("parse identity %s: %w", path, err)
 	}
+
 	return signer, nil
 }
 
@@ -457,28 +503,34 @@ func hostKeyCallback(opts Options) (ssh.HostKeyCallback, error) {
 	if !opts.StrictHostKey {
 		return ssh.InsecureIgnoreHostKey(), nil
 	}
+
 	khFile := opts.KnownHostsFile
 	if khFile == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, err
 		}
+
 		khFile = filepath.Join(home, ".ssh", "known_hosts")
 	} else {
 		khFile = expandHome(khFile)
 	}
+
 	if opts.AcceptNew {
 		if err := ensureKnownHosts(khFile); err != nil {
 			return nil, fmt.Errorf("known_hosts %s: %w", khFile, err)
 		}
 	}
+
 	cb, err := knownhosts.New(khFile)
 	if err != nil {
 		return nil, fmt.Errorf("known_hosts %s: %w (set ssh.strict_host_key: false to skip verification)", khFile, err)
 	}
+
 	if opts.AcceptNew {
 		return acceptNewCallback(khFile, cb), nil
 	}
+
 	return cb, nil
 }
 
@@ -490,13 +542,16 @@ func ensureKnownHosts(path string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
+
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
+
 	return f.Close()
 }
 
@@ -519,6 +574,7 @@ func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback 
 		if !ok || len(kerr.Want) > 0 {
 			return err // nil (host already known), a conflicting key, or an unrelated failure
 		}
+
 		host := knownhosts.Normalize(hostname)
 		line := knownhosts.Line([]string{host}, key)
 		hostKey := path + "\n" + host
@@ -529,24 +585,31 @@ func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback 
 			if prev == line {
 				return nil // a parallel dial already recorded the same key
 			}
+
 			return fmt.Errorf("ssh: host key mismatch for %s: key %s conflicts with the one recorded by a parallel connection", hostname, ssh.FingerprintSHA256(key))
 		}
+
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
 			return fmt.Errorf("known_hosts %s: record new host key: %w", path, err)
 		}
+
 		_, werr := f.WriteString(line + "\n")
 		if cerr := f.Close(); werr == nil {
 			werr = cerr
 		}
+
 		if werr != nil {
 			return fmt.Errorf("known_hosts %s: record new host key: %w", path, werr)
 		}
+
 		if acceptNewMu.recorded == nil {
 			acceptNewMu.recorded = map[string]string{}
 		}
+
 		acceptNewMu.recorded[hostKey] = line
 		slog.Info("accepted new host key", "host", hostname, "fingerprint", ssh.FingerprintSHA256(key), "known_hosts", path)
+
 		return nil
 	}
 }
@@ -557,5 +620,6 @@ func expandHome(p string) string {
 			return filepath.Join(home, p[2:])
 		}
 	}
+
 	return p
 }

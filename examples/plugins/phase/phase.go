@@ -41,6 +41,7 @@ type phasePlugin struct{}
 // Configure registers the startup hook that adds the task and the custom phase.
 func (p *phasePlugin) Configure(_ whoosh.PluginSpec, reg *whoosh.Registry) error {
 	reg.AddStartup(p.install)
+
 	return nil
 }
 
@@ -60,5 +61,6 @@ func (p *phasePlugin) install(_ context.Context, cfg *whoosh.DeployFile) error {
 		After: "deploy:published",
 		Task:  taskMigrate,
 	})
+
 	return nil
 }

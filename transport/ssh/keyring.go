@@ -40,12 +40,15 @@ func NewAgent(ids []Identity) (agent.Agent, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		slog.Debug("ssh identity loaded", "identity", id.Name, "keys", n)
 		total += n
 	}
+
 	if total == 0 {
 		return nil, fmt.Errorf("ssh identities: no usable private keys found")
 	}
+
 	return kr, nil
 }
 
@@ -56,9 +59,11 @@ func addIdentity(kr agent.Agent, id Identity) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("ssh identity %q: %w", id.Name, err)
 		}
+
 		if err := addKey(kr, id.Name, "inline", key); err != nil {
 			return 0, fmt.Errorf("ssh identity %q: %w", id.Name, err)
 		}
+
 		return 1, nil
 	}
 
@@ -67,6 +72,7 @@ func addIdentity(kr agent.Agent, id Identity) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("ssh identity %q: %w", id.Name, err)
 	}
+
 	if info.IsDir() {
 		return addDir(kr, id, path)
 	}
@@ -75,9 +81,11 @@ func addIdentity(kr agent.Agent, id Identity) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("ssh identity %q: %w", id.Name, err)
 	}
+
 	if err := addKey(kr, id.Name, path, key); err != nil {
 		return 0, fmt.Errorf("ssh identity %q: %s: %w", id.Name, id.Path, err)
 	}
+
 	return 1, nil
 }
 
@@ -91,17 +99,22 @@ func addDir(kr agent.Agent, id Identity, dir string) (int, error) {
 		if skipKeyFileName(name) {
 			return
 		}
+
 		// Stat resolves symlinks, so a symlink to a key file still loads while sockets and other oddities are skipped.
 		info, err := os.Stat(path)
 		if err != nil || !info.Mode().IsRegular() || info.Size() > maxKeyFileSize {
 			slog.Debug("ssh identity scan: skipping non-key file", "identity", id.Name, "file", path)
+
 			return
 		}
+
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			slog.Debug("ssh identity scan: skipping unreadable file", "identity", id.Name, "file", path, "error", err)
+
 			return
 		}
+
 		key, err := parsePrivateKey(raw, id.Passphrase)
 		if err != nil {
 			if isEncryptedKeyError(err) {
@@ -109,12 +122,16 @@ func addDir(kr agent.Agent, id Identity, dir string) (int, error) {
 			} else {
 				slog.Debug("ssh identity scan: skipping non-key file", "identity", id.Name, "file", path)
 			}
+
 			return
 		}
+
 		if err := addKey(kr, id.Name, path, key); err != nil {
 			slog.Warn("ssh identity scan: skipping key", "identity", id.Name, "file", path, "error", err)
+
 			return
 		}
+
 		count++
 	}
 
@@ -123,14 +140,17 @@ func addDir(kr agent.Agent, id Identity, dir string) (int, error) {
 			if err != nil {
 				return err
 			}
+
 			if !d.IsDir() {
 				loadFile(path)
 			}
+
 			return nil
 		})
 		if err != nil {
 			return 0, fmt.Errorf("ssh identity %q: scan %s: %w", id.Name, id.Path, err)
 		}
+
 		return count, nil
 	}
 
@@ -138,11 +158,13 @@ func addDir(kr agent.Agent, id Identity, dir string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("ssh identity %q: scan %s: %w", id.Name, id.Path, err)
 	}
+
 	for _, e := range entries {
 		if !e.IsDir() {
 			loadFile(filepath.Join(dir, e.Name()))
 		}
 	}
+
 	return count, nil
 }
 
@@ -164,16 +186,20 @@ func parsePrivateKey(raw []byte, passphrase string) (any, error) {
 	if err == nil {
 		return key, nil
 	}
+
 	if _, ok := errors.AsType[*ssh.PassphraseMissingError](err); !ok {
 		return nil, err
 	}
+
 	if passphrase == "" {
 		return nil, fmt.Errorf("%w, set passphrase", errEncryptedKey)
 	}
+
 	key, err = ssh.ParseRawPrivateKeyWithPassphrase(raw, []byte(passphrase))
 	if err != nil {
 		return nil, fmt.Errorf("%w, decrypt failed: %v", errEncryptedKey, err)
 	}
+
 	return key, nil
 }
 
@@ -189,10 +215,12 @@ func loadKeyFile(label, path, passphrase string) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s %s: %w", label, path, err)
 	}
+
 	key, err := parsePrivateKey(raw, passphrase)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s %s: %w", label, path, err)
 	}
+
 	return key, nil
 }
 

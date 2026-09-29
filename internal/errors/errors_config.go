@@ -13,6 +13,7 @@ func (e *ConfigError) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Msg, e.Err)
 	}
+
 	return e.Msg
 }
 func (e *ConfigError) Unwrap() error { return e.Err }
@@ -37,6 +38,7 @@ func (e *VersionError) Error() string {
 	if e.TooNew {
 		return fmt.Sprintf("Deployfile version %s needs a newer whoosh (this build supports up to %s), upgrade the tool", e.Have, e.Max)
 	}
+
 	return fmt.Sprintf("Deployfile version %s is no longer supported, this whoosh needs version >= %s", e.Have, e.Min)
 }
 func (e *VersionError) Code() int { return CodeConfig }

@@ -35,6 +35,7 @@ type ssmAPI interface {
 // ssmPlugin backs the aws:ssm:* actions.
 type ssmPlugin struct {
 	api ssmAPI
+
 	// defaults are the feature-level params (the `aws:ssm` actions: entry), layered under the to-dotenv task's `with:`
 	// (the task wins). The same entry's `prefixes` also drive the startup context-injection hook below.
 	defaults map[string]any
@@ -49,20 +50,24 @@ func Register(reg *whoosh.Registry, awsCfg awssdk.Config, fp map[string]map[stri
 	if err := reg.AddAction(actionSSMEnvFile, p.runEnvironmentFile); err != nil {
 		return err
 	}
+
 	if cfg, ok := fp[Feature]; ok {
 		// The feature entry serves two surfaces (startup hook + to-dotenv defaults), so unknown keys are rejected
 		// against their union - a typo would otherwise silently disable the feature it was meant to configure.
 		if err := whoosh.DecodeParamsStrict(cfg, &ssmFeatureParams{}); err != nil {
 			return fmt.Errorf("%s params: %w", Feature, err)
 		}
+
 		var cp ssmContextParams
 		if err := whoosh.DecodeParams(cfg, &cp); err != nil {
 			return err
 		}
+
 		if len(cp.Prefixes) > 0 {
 			reg.AddStartup(p.startup(cp))
 		}
 	}
+
 	return nil
 }
 
@@ -85,16 +90,21 @@ type ssmEnvFileParams struct {
 	// Each is fetched recursively (every parameter under it); a prefix that is itself a single parameter (a leaf) is
 	// fetched directly too, so "/app/prod" and "/shared/github-key" both work.
 	Prefixes []string `yaml:"prefixes"`
+
 	// Path is where the env file is written, on the machine running whoosh (actions run operator-side).
 	// Relative paths resolve against its cwd.
 	Path string `yaml:"path"`
+
 	// Recursive walks the whole tree under each prefix (default true).
 	Recursive *bool `yaml:"recursive"`
+
 	// Decrypt decrypts SecureString parameters (default true).
 	Decrypt *bool `yaml:"decrypt"`
+
 	// FullKeyPath keeps the full parameter path as the env key (normalized); by default only the last path segment is used
 	// (/app/prod/DB_URL -> DB_URL).
 	FullKeyPath bool `yaml:"full_key_path"`
+
 	// Multiline keeps real newlines inside quoted values (default true), which the dotenv/Rails gems require for values
 	// like PEM keys and certs. Set false to collapse newlines to a literal \n (single-line entries) instead.
 	Multiline *bool `yaml:"multiline"`
@@ -105,11 +115,14 @@ type ssmEnvFileParams struct {
 type ssmContextParams struct {
 	// Prefixes are the SSM paths to load (recursively); a leaf path works too.
 	Prefixes []string `yaml:"prefixes"`
+
 	// Namespace is the template namespace the values land under (default "ssm"), exposed as {{ .<namespace>.<key> }} and
 	// $<NAMESPACE>_<KEY>.
 	Namespace string `yaml:"namespace"`
+
 	// Recursive walks the whole tree under each prefix (default true).
 	Recursive *bool `yaml:"recursive"`
+
 	// Decrypt decrypts SecureString parameters (default true).
 	Decrypt *bool `yaml:"decrypt"`
 }
@@ -129,6 +142,7 @@ func (s *ssmPlugin) startup(p ssmContextParams) whoosh.StartupFunc {
 			if err != nil {
 				return fmt.Errorf("ssm %s: %w", prefix, err)
 			}
+
 			for name, value := range params {
 				key := dotenv.LastSegment(name)
 				cfg.AddImport(namespace, key, value)
@@ -136,7 +150,9 @@ func (s *ssmPlugin) startup(p ssmContextParams) whoosh.StartupFunc {
 				count++
 			}
 		}
+
 		slog.Info("loaded SSM parameters into context", "namespace", namespace, "params", count, "prefixes", len(p.Prefixes))
+
 		return nil
 	}
 }
@@ -148,12 +164,15 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 	if err := params.DecodeFeature(s.defaults, raw, &p); err != nil {
 		return fmt.Errorf("aws:ssm:to-dotenv params: %w", err)
 	}
+
 	if len(p.Prefixes) == 0 {
 		return fmt.Errorf("aws:ssm:to-dotenv: 'prefixes' is required")
 	}
+
 	if p.Path == "" {
 		return fmt.Errorf("aws:ssm:to-dotenv: 'path' is required")
 	}
+
 	recursive := params.Or(p.Recursive, true)
 	decrypt := params.Or(p.Decrypt, true)
 
@@ -163,11 +182,13 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 		if err != nil {
 			return fmt.Errorf("ssm %s: %w", prefix, err)
 		}
+
 		for name, value := range params {
 			key := name
 			if !p.FullKeyPath {
 				key = dotenv.LastSegment(name)
 			}
+
 			env[dotenv.NormalizeKey(key)] = value
 			// Register for redaction like the startup import path, so the values stay masked if a later
 			// command prints them (e.g. an app dumping its env).
@@ -176,6 +197,7 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 	}
 
 	content := []byte(dotenv.Render(env, params.Or(p.Multiline, true)))
+
 	// Fetched once, operator-side. The write-out (hosts-first, operator fallback) is shared with aws:secrets.
 	return envfile.Write(ctx, p.Path, content,
 		"rendered env file from SSM on hosts", "wrote env file from SSM",
@@ -202,16 +224,21 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 			if err != nil {
 				return nil, err
 			}
+
 			for _, prm := range resp.Parameters {
 				out[awssdk.ToString(prm.Name)] = awssdk.ToString(prm.Value)
 			}
+
 			if resp.NextToken == nil || *resp.NextToken == "" {
 				break
 			}
+
 			token = resp.NextToken
 		}
+
 		return out, nil
 	}
+
 	// No trailing slash: a single parameter.
 	resp, err := s.api.GetParameter(ctx, &awsssm.GetParameterInput{
 		Name:           awssdk.String(prefix),
@@ -221,8 +248,11 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 		if _, ok := errors.AsType[*ssmtypes.ParameterNotFound](err); ok {
 			return out, nil // the named parameter doesn't exist
 		}
+
 		return nil, err
 	}
+
 	out[awssdk.ToString(resp.Parameter.Name)] = awssdk.ToString(resp.Parameter.Value)
+
 	return out, nil
 }

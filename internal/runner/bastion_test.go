@@ -17,11 +17,13 @@ func TestCluster_Bastion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start bastion: %v", err)
 	}
+
 	defer bastionSrv.Close()
 	targetSrv, err := sshtest.Start()
 	if err != nil {
 		t.Fatalf("start target: %v", err)
 	}
+
 	defer targetSrv.Close()
 
 	b := ssh.NewBastion(ssh.Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})

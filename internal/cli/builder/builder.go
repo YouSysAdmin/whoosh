@@ -49,12 +49,15 @@ func parseModVer(s string) (modVer, error) {
 	if s == "" {
 		return modVer{}, fmt.Errorf("empty module")
 	}
+
 	if path, ver, ok := strings.Cut(s, "@"); ok {
 		if path == "" || ver == "" {
 			return modVer{}, fmt.Errorf("invalid module@version %q", s)
 		}
+
 		return modVer{path: path, version: ver}, nil
 	}
+
 	return modVer{path: s}, nil
 }
 
@@ -65,7 +68,9 @@ func replaceOldPath(spec string) string {
 	if before, _, ok := strings.Cut(spec, "="); ok {
 		left = before
 	}
+
 	left, _, _ = strings.Cut(strings.TrimSpace(left), "@")
+
 	return left
 }
 
@@ -78,7 +83,9 @@ func replaceIsFilesystem(spec string) bool {
 	if !ok {
 		return false
 	}
+
 	rhs := strings.TrimSpace(after)
+
 	return strings.HasPrefix(rhs, "./") || strings.HasPrefix(rhs, "../") ||
 		strings.HasPrefix(rhs, ".\\") || strings.HasPrefix(rhs, "..\\") ||
 		filepath.IsAbs(rhs)
@@ -101,6 +108,7 @@ func runBuild(opts buildOptions) error {
 		if err != nil {
 			return fmt.Errorf("--with %q: %w", w, err)
 		}
+
 		plugins = append(plugins, mv)
 	}
 
@@ -116,6 +124,7 @@ func runBuild(opts buildOptions) error {
 	if err != nil {
 		return fmt.Errorf("create build dir: %w", err)
 	}
+
 	if opts.keep {
 		slog.Info("keeping build dir", "dir", dir)
 	} else {
@@ -132,27 +141,32 @@ func runBuild(opts buildOptions) error {
 	if err := run("mod", "init", "whoosh.custom"); err != nil {
 		return err
 	}
+
 	// Replaces first, so version resolution below honors local/forked modules.
 	for _, r := range opts.replaces {
 		if err := run("mod", "edit", "-replace="+r); err != nil {
 			return err
 		}
 	}
+
 	// Pin whoosh itself unless it's served from a local replace.
 	if !fsReplaced[whooshModule] {
 		if err := run("get", whooshModule+"@"+versionOrLatest(opts.whooshVersion)); err != nil {
 			return err
 		}
 	}
+
 	// Pin each plugin module unless locally replaced.
 	for _, p := range plugins {
 		if fsReplaced[p.path] {
 			continue
 		}
+
 		if err := run("get", p.path+"@"+versionOrLatest(p.version)); err != nil {
 			return err
 		}
 	}
+
 	// Resolve the remaining graph + write go.sum.
 	if err := run("mod", "tidy"); err != nil {
 		return err
@@ -162,11 +176,14 @@ func runBuild(opts buildOptions) error {
 	if opts.tags != "" {
 		buildArgs = append(buildArgs, "-tags", opts.tags)
 	}
+
 	buildArgs = append(buildArgs, ".")
 	if err := run(buildArgs...); err != nil {
 		return err
 	}
+
 	slog.Info("built binary", "path", absOutput)
+
 	return nil
 }
 
@@ -174,6 +191,7 @@ func versionOrLatest(v string) string {
 	if v == "" {
 		return "latest"
 	}
+
 	return v
 }
 
@@ -185,6 +203,7 @@ func ldflags(opts buildOptions) string {
 	if ver != "" && ver != "latest" {
 		flags += " -X " + whooshModule + "/internal/version.Version=" + ver
 	}
+
 	return flags
 }
 
@@ -192,6 +211,7 @@ func runGo(goBin, dir string, verbose bool, args ...string) error {
 	if verbose {
 		slog.Info("exec", "cmd", goBin+" "+strings.Join(args, " "))
 	}
+
 	cmd := exec.Command(goBin, args...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ() // GOOS/GOARCH/GOPRIVATE/netrc/etc.
@@ -200,6 +220,7 @@ func runGo(goBin, dir string, verbose bool, args ...string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go %s: %w", strings.Join(args, " "), err)
 	}
+
 	return nil
 }
 
@@ -215,7 +236,9 @@ func generateMain(plugins []modVer) string {
 	for _, p := range plugins {
 		b.WriteString("\t_ \"" + p.path + "\"\n")
 	}
+
 	b.WriteString(")\n\n")
 	b.WriteString("func main() { entrypoint.Main() }\n")
+
 	return b.String()
 }

@@ -29,6 +29,7 @@ func TestRender_Escaping(t *testing.T) {
 	if got, want := Render(env, false), `A="quote \" and back\\slash"`+"\n"+`B="line1\nline2"`+"\n"+"C=\n"+`D="pa\$\$word \${REF}"`+"\n"; got != want {
 		t.Fatalf("Render(escaped):\n got: %q\nwant: %q", got, want)
 	}
+
 	// Multiline (default): real newlines are kept inside the quotes.
 	if got, want := Render(env, true), `A="quote \" and back\\slash"`+"\n"+"B=\"line1\nline2\"\n"+"C=\n"+`D="pa\$\$word \${REF}"`+"\n"; got != want {
 		t.Fatalf("Render(multiline):\n got: %q\nwant: %q", got, want)

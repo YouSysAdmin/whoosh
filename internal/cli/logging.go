@@ -44,14 +44,17 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 	if logState.base == nil {
 		logState.base = root.OutOrStdout()
 	}
+
 	if logState.file != nil {
 		_ = logState.file.Close()
 		logState.file = nil
 	}
+
 	if logState.output != nil {
 		_ = logState.output.Close()
 		logState.output = nil
 	}
+
 	root.SetOut(logState.base)
 
 	primary := logger.Sink{Level: level, Output: output, Format: format, Color: color}
@@ -62,16 +65,19 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 		if err != nil {
 			return err
 		}
+
 		logState.output = f
 		primary.Writer = f
 		primary.Output = ""
 	}
+
 	sinks := []logger.Sink{primary}
 	if file != "" {
 		f, err := logger.OpenAppend(file)
 		if err != nil {
 			return err
 		}
+
 		logState.file = f
 		// Fan the narrative into the same open file (never colorized).
 		sinks = append(sinks, logger.Sink{Level: level, Writer: f, Format: fileFormat})
@@ -86,7 +92,9 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 	if err != nil {
 		return err
 	}
+
 	slog.SetDefault(l)
+
 	return nil
 }
 
@@ -106,18 +114,23 @@ func applyLogConfig(cmd *cobra.Command, lc *ast.Log) error {
 	if fs.Changed("log-level") {
 		lc.Level, _ = fs.GetString("log-level")
 	}
+
 	if fs.Changed("log-format") {
 		lc.Format, _ = fs.GetString("log-format")
 	}
+
 	if fs.Changed("log-output") {
 		lc.Output, _ = fs.GetString("log-output")
 	}
+
 	if fs.Changed("log-file") {
 		lc.File, _ = fs.GetString("log-file")
 	}
+
 	if fs.Changed("log-file-format") {
 		lc.FileFormat, _ = fs.GetString("log-file-format")
 	}
+
 	if fs.Changed("log-color") {
 		v, _ := fs.GetBool("log-color")
 		lc.Color = &v
@@ -134,7 +147,9 @@ func applyLogConfig(cmd *cobra.Command, lc *ast.Log) error {
 	); err != nil {
 		return err
 	}
+
 	applyMasking(level)
+
 	return nil
 }
 
@@ -158,8 +173,10 @@ func logStr(cmd *cobra.Command, flag, cfgVal string) string {
 	fs := cmd.Root().PersistentFlags()
 	if cfgVal == "" || fs.Changed(flag) {
 		v, _ := fs.GetString(flag)
+
 		return v
 	}
+
 	return cfgVal
 }
 
@@ -168,7 +185,9 @@ func logBool(cmd *cobra.Command, flag string, cfgVal *bool) bool {
 	fs := cmd.Root().PersistentFlags()
 	if cfgVal == nil || fs.Changed(flag) {
 		v, _ := fs.GetBool(flag)
+
 		return v
 	}
+
 	return *cfgVal
 }

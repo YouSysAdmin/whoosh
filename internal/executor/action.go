@@ -21,17 +21,22 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 	if err != nil {
 		return fmt.Errorf("action %q: %w", task.Action, err)
 	}
+
 	if e.dryRun {
 		e.echoDryRun("", fmt.Sprintf("action %s with %v", task.Action, with))
+
 		return nil
 	}
+
 	if e.reg == nil {
 		return fmt.Errorf("action %q: no plugins loaded", task.Action)
 	}
+
 	fn, ok := e.reg.Action(task.Action)
 	if !ok {
 		return fmt.Errorf("unknown action %q (no loaded plugins registers it)", task.Action)
 	}
+
 	// Provide a host-file writer and a host-command runner bound to the task's hosts, so an action can render generated
 	// content (e.g. an SSM env file) onto them or run commands (e.g. systemctl) on them rather than the operator machine.
 	// Actions that don't need them ignore them.
@@ -45,8 +50,10 @@ func (e *Executor) runAction(ctx context.Context, task *ast.Task) error {
 		if _, ok := werrors.AsType[werrors.Error](err); ok {
 			return err
 		}
+
 		return &werrors.PluginError{Msg: fmt.Sprintf("action %q", task.Action), Err: err}
 	}
+
 	return nil
 }
 
@@ -61,12 +68,15 @@ type hostCommandRunner struct {
 func (r *hostCommandRunner) RunCommand(ctx context.Context, cmd string) error {
 	if len(r.hosts) == 0 {
 		slog.Warn("no hosts match the action task; nothing to run", "cmd", cmd)
+
 		return nil
 	}
+
 	// Echo the command per host so the console and the --log-file transcript show what was sent.
 	for _, h := range r.hosts {
 		r.e.echoExec(h.Address, cmd)
 	}
+
 	return r.e.runOnTargets(ctx, r.e.taskTargets(r.task, r.hosts), func(string) string { return cmd })
 }
 
@@ -82,8 +92,10 @@ func (c *hostCommandCapturer) CaptureCommand(ctx context.Context, cmd string) (s
 	if len(c.hosts) == 0 {
 		return "", fmt.Errorf("no hosts match the action task; nothing to capture")
 	}
+
 	target := c.e.taskTargets(c.task, c.hosts[:1])[0]
 	c.e.echoExec(c.hosts[0].Address, cmd)
+
 	return c.e.cluster.Capture(ctx, target, cmd)
 }
 
@@ -99,8 +111,10 @@ type hostFileWriter struct {
 func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []byte) error {
 	if len(w.hosts) == 0 {
 		slog.Warn("no hosts match the action task; nothing to render", "path", path)
+
 		return nil
 	}
+
 	cmds := make(map[string]string, len(w.hosts))
 	for _, h := range w.hosts {
 		full := path
@@ -109,8 +123,10 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 			if err != nil {
 				return err
 			}
+
 			full = pathpkg.Join(dir, path)
 		}
+
 		cmds[h.Address] = writeFileCmd(full, content)
 		// Per-host progress, treated like command output: a structured record in log mode, else a green-prefixed raw line.
 		msg := fmt.Sprintf("rendering %s (%d bytes)", full, len(content))
@@ -120,6 +136,7 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 			fmt.Fprintf(w.e.out, "%s %s\n", runner.HostLabel(h.Address, w.e.color), msg)
 		}
 	}
+
 	return w.e.runOnTargets(ctx, w.e.taskTargets(w.task, w.hosts), func(h string) string { return cmds[h] })
 }
 
@@ -130,6 +147,7 @@ func (e *Executor) runOnTargets(ctx context.Context, targets []runner.Target, cm
 	if runner.Failed(results) {
 		return firstError(results)
 	}
+
 	return nil
 }
 
@@ -142,5 +160,6 @@ func (e *Executor) renderParams(in map[string]any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return varstmpl.RenderParams(in, c, !e.dryRun)
 }

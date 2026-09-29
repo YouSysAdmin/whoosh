@@ -26,6 +26,7 @@ env_files:
 	if err := os.WriteFile(filepath.Join(dir, "base.env"), []byte("FOO=base\nBAR=base\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, "override.env"), []byte("BAR=override\nBAZ=secret-baz-value\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +35,7 @@ env_files:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	// Later files override earlier ones; a missing file is skipped silently.
 	want := map[string]string{"FOO": "base", "BAR": "override", "BAZ": "secret-baz-value"}
 	for k, v := range want {
@@ -48,9 +50,11 @@ env_files:
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if strings.Contains(string(blob), "secret-baz-value") {
 		t.Errorf("env-file value leaked into serialized config:\n%s", blob)
 	}
+
 	if !strings.Contains(string(blob), "base.env") {
 		t.Errorf("env_files paths should appear in config; got:\n%s", blob)
 	}
@@ -74,12 +78,15 @@ log:
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.Log.Level != "info" {
 		t.Errorf("log.level = %q, want info (from base)", cfg.Log.Level)
 	}
+
 	if cfg.Log.Format != "json" {
 		t.Errorf("log.format = %q, want json (stage overrides base)", cfg.Log.Format)
 	}
+
 	if cfg.Log.File != "deploy.log" {
 		t.Errorf("log.file = %q, want deploy.log (from stage)", cfg.Log.File)
 	}

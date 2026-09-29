@@ -24,15 +24,19 @@ func checkVersion(raw string) error {
 	if raw == "" {
 		return nil
 	}
+
 	v, err := semver.NewVersion(raw)
 	if err != nil {
 		return &errors.ConfigError{Msg: fmt.Sprintf("invalid version %q", raw), Err: err}
 	}
+
 	if v.LessThan(MinSchemaVersion) {
 		return &errors.VersionError{Have: v.String(), Min: MinSchemaVersion.String(), TooOld: true}
 	}
+
 	if v.GreaterThan(SchemaVersion) {
 		return &errors.VersionError{Have: v.String(), Max: SchemaVersion.String(), TooNew: true}
 	}
+
 	return nil
 }

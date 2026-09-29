@@ -33,10 +33,12 @@ func Load(deployfilePath, stage string) (*ast.DeployFile, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	stageCfg, err := resolveIncludes(sp, nil, seen)
 	if err != nil {
 		return nil, err
 	}
+
 	if stageCfg == nil { // the stage file itself was already merged as an include of the Deployfile
 		stageCfg = &ast.DeployFile{}
 	}
@@ -49,9 +51,11 @@ func Load(deployfilePath, stage string) (*ast.DeployFile, error) {
 	if err := loadEnvFiles(cfg); err != nil {
 		return nil, err
 	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+
 	return cfg, nil
 }
 
@@ -62,24 +66,31 @@ func loadEnvFiles(c *ast.DeployFile) error {
 	if len(c.EnvFiles) == 0 {
 		return nil
 	}
+
 	values := map[string]string{}
 	for _, p := range c.EnvFiles {
 		if p == "" {
 			continue
 		}
+
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(c.Dir, p)
 		}
+
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			continue
 		}
+
 		kv, err := godotenv.Read(p)
 		if err != nil {
 			return fmt.Errorf("read env file %s: %w", p, err)
 		}
+
 		maps.Copy(values, kv)
 	}
+
 	c.EnvFileValues = values
+
 	return nil
 }
 
@@ -89,12 +100,14 @@ func readConfig(path string) (*ast.DeployFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
+
 	var c ast.DeployFile
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&c); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
+
 	return &c, nil
 }
 
@@ -110,18 +123,22 @@ func resolveIncludes(path string, chain []string, seen map[string]bool) (*ast.De
 	if err != nil {
 		return nil, err
 	}
+
 	if slices.Contains(chain, abs) {
 		return nil, fmt.Errorf("circular include: %s (via %v)", abs, chain)
 	}
+
 	if seen[abs] {
 		return nil, nil
 	}
+
 	seen[abs] = true
 
 	self, err := readConfig(path)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(self.Include) == 0 {
 		return self, nil
 	}
@@ -134,17 +151,22 @@ func resolveIncludes(path string, chain []string, seen map[string]bool) (*ast.De
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(dir, p)
 		}
+
 		incCfg, err := resolveIncludes(p, chain, seen)
 		if err != nil {
 			return nil, err
 		}
+
 		if incCfg == nil { // already merged via an earlier include (diamond)
 			continue
 		}
+
 		merged = ast.Merge(merged, incCfg)
 	}
+
 	merged = ast.Merge(merged, self) // the declaring file wins over its includes
 	merged.Include = nil             // resolved; don't leak into `config`/{{.config}}
+
 	return merged, nil
 }
 
@@ -156,12 +178,15 @@ func ScriptsLocation(c *ast.DeployFile) string {
 		if filepath.IsAbs(c.ScriptsDir) {
 			return c.ScriptsDir
 		}
+
 		return filepath.Join(c.Dir, c.ScriptsDir)
 	}
+
 	for _, sd := range StageDirs {
 		if fi, err := os.Stat(filepath.Join(c.Dir, sd)); err == nil && fi.IsDir() {
 			return filepath.Join(c.Dir, sd, "scripts")
 		}
 	}
+
 	return filepath.Join(c.Dir, StageDirs[0], "scripts")
 }

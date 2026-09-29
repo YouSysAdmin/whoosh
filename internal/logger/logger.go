@@ -32,14 +32,18 @@ var (
 type Sink struct {
 	// Level is DEBUG, INFO (default), WARN or ERROR.
 	Level string
+
 	// Output is "stdout" (default), "stderr", or a file path. Ignored when Writer is set.
 	Output string
+
 	// Writer, when non-nil, is used as the destination directly (Output ignored).
 	// This lets a caller share one already-opened file between this sink and another writer - e.g. fan the narrative into
 	// the same file that command output is tee'd to, so both land in one transcript.
 	Writer io.Writer
+
 	// Format is "text" (default) or "json".
 	Format string
+
 	// Color requests ANSI colors (text format only).
 	// It is honored only when the resolved output is an interactive terminal - writing escapes into a file or pipe would
 	// corrupt it - so a file sink with Color set still gets plain text.
@@ -55,17 +59,21 @@ func New(sinks ...Sink) (*slog.Logger, error) {
 	if len(sinks) == 0 {
 		return nil, fmt.Errorf("logger: at least one sink is required")
 	}
+
 	handlers := make([]slog.Handler, 0, len(sinks))
 	for _, s := range sinks {
 		h, err := buildHandler(s)
 		if err != nil {
 			return nil, err
 		}
+
 		handlers = append(handlers, h)
 	}
+
 	if len(handlers) == 1 {
 		return slog.New(handlers[0]), nil
 	}
+
 	return slog.New(slog.NewMultiHandler(handlers...)), nil
 }
 
@@ -76,10 +84,12 @@ func buildHandler(s Sink) (slog.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out, err := resolveWriter(s)
 	if err != nil {
 		return nil, err
 	}
+
 	opts := &slog.HandlerOptions{Level: level}
 
 	format := cmp.Or(s.Format, "text")
@@ -94,6 +104,7 @@ func buildHandler(s Sink) (slog.Handler, error) {
 				return maskingHandler{&ColorHandler{output: f, level: level}}, nil
 			}
 		}
+
 		return maskingHandler{slog.NewTextHandler(out, opts)}, nil
 	default:
 		return nil, fmt.Errorf("invalid log format: %s", format)
@@ -112,11 +123,14 @@ func (m maskingHandler) Handle(ctx context.Context, r slog.Record) error {
 	if !masking.Enabled() {
 		return m.h.Handle(ctx, r)
 	}
+
 	nr := slog.NewRecord(r.Time, r.Level, masking.String(r.Message), r.PC)
 	r.Attrs(func(a slog.Attr) bool {
 		nr.AddAttrs(maskAttr(a))
+
 		return true
 	})
+
 	return m.h.Handle(ctx, nr)
 }
 
@@ -126,6 +140,7 @@ func (m maskingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	for i, a := range attrs {
 		masked[i] = maskAttr(a)
 	}
+
 	return maskingHandler{m.h.WithAttrs(masked)}
 }
 
@@ -137,6 +152,7 @@ func (m maskingHandler) WithGroup(name string) slog.Handler {
 // strings, which also renders them faithfully in JSON mode). Numeric and other kinds pass through untouched.
 func maskAttr(a slog.Attr) slog.Attr {
 	a.Value = maskValue(a.Value.Resolve())
+
 	return a
 }
 
@@ -150,6 +166,7 @@ func maskValue(v slog.Value) slog.Value {
 		for i, a := range group {
 			masked[i] = maskAttr(a)
 		}
+
 		return slog.GroupValue(masked...)
 	case slog.KindAny:
 		switch t := v.Any().(type) {
@@ -158,6 +175,7 @@ func maskValue(v slog.Value) slog.Value {
 		case fmt.Stringer:
 			return slog.StringValue(masking.String(t.String()))
 		}
+
 		return v
 	default:
 		return v
@@ -169,6 +187,7 @@ func resolveWriter(s Sink) (io.Writer, error) {
 	if s.Writer != nil {
 		return s.Writer, nil
 	}
+
 	return openOutput(s.Output)
 }
 
@@ -215,6 +234,7 @@ func isTerminal(f *os.File) bool {
 	if err != nil {
 		return false
 	}
+
 	return info.Mode()&os.ModeCharDevice != 0
 }
 
@@ -223,6 +243,7 @@ func isTerminal(f *os.File) bool {
 // use it to decide whether colorizing output is safe.
 func IsTerminal(w io.Writer) bool {
 	f, ok := w.(*os.File)
+
 	return ok && isTerminal(f)
 }
 
@@ -283,11 +304,13 @@ func (c *ColorHandler) Handle(_ context.Context, r slog.Record) error {
 	r.Attrs(func(a slog.Attr) bool {
 		a.Value = a.Value.Resolve()
 		writeAttr(&buf, c.attrKey(a), a.Value)
+
 		return true
 	})
 
 	buf.WriteString("\n")
 	_, err := c.output.Write(buf.Bytes())
+
 	return err
 }
 
@@ -298,6 +321,7 @@ func (c *ColorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 	// Append new attrs
 	newHandler.attrs = append(append([]slog.Attr{}, c.attrs...), attrs...)
+
 	return &newHandler
 }
 
@@ -309,6 +333,7 @@ func (c *ColorHandler) WithGroup(name string) slog.Handler {
 	} else {
 		newHandler.group = name
 	}
+
 	return &newHandler
 }
 
@@ -317,6 +342,7 @@ func (c *ColorHandler) attrKey(a slog.Attr) string {
 	if c.group != "" {
 		return c.group + "." + a.Key
 	}
+
 	return a.Key
 }
 

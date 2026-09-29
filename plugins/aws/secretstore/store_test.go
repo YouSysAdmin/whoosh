@@ -23,6 +23,7 @@ type fakeHostWriter struct {
 
 func (f *fakeHostWriter) WriteFile(_ context.Context, path string, content []byte) error {
 	f.path, f.content = path, content
+
 	return nil
 }
 
@@ -38,23 +39,28 @@ func (f *fakeSecrets) ListSecrets(_ context.Context, in *secretsmanager.ListSecr
 	if f.listCalls == nil {
 		f.listCalls = map[string]int{}
 	}
+
 	var prefix string
 	if len(in.Filters) > 0 && len(in.Filters[0].Values) > 0 {
 		prefix = in.Filters[0].Values[0]
 	}
+
 	idx := f.listCalls[prefix]
 	f.listCalls[prefix]++
 	pages := f.listPages[prefix]
 	if idx >= len(pages) {
 		return &secretsmanager.ListSecretsOutput{}, nil
 	}
+
 	out := &secretsmanager.ListSecretsOutput{}
 	for _, name := range pages[idx] {
 		out.SecretList = append(out.SecretList, smtypes.SecretListEntry{Name: awssdk.String(name)})
 	}
+
 	if idx+1 < len(pages) {
 		out.NextToken = awssdk.String(fmt.Sprintf("tok-%d", idx+1))
 	}
+
 	return out, nil
 }
 
@@ -64,6 +70,7 @@ func (f *fakeSecrets) GetSecretValue(_ context.Context, in *secretsmanager.GetSe
 	if !ok {
 		return nil, &smtypes.ResourceNotFoundException{}
 	}
+
 	return &secretsmanager.GetSecretValueOutput{Name: awssdk.String(name), SecretString: awssdk.String(v)}, nil
 }
 
@@ -99,6 +106,7 @@ func TestSecretsEnvironmentFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	want := `API_KEY="abc"` + "\n" +
 		`DATABASE_URL="postgres://u:p@h/db"` + "\n" +
 		`GITHUB_AUTH_KEY="ghp_abc123"` + "\n" +
@@ -112,6 +120,7 @@ func TestSecretsEnvironmentFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Errorf("env file mode = %v, want 0600", perm)
 	}
@@ -120,6 +129,7 @@ func TestSecretsEnvironmentFile(t *testing.T) {
 	if fake.listCalls["myapp/prod/"] != 2 {
 		t.Errorf("expected 2 ListSecrets calls for myapp/prod/, got %d", fake.listCalls["myapp/prod/"])
 	}
+
 	if fake.listCalls["shared/github-auth-key"] != 0 {
 		t.Errorf("a no-slash prefix must not call ListSecrets, got %d", fake.listCalls["shared/github-auth-key"])
 	}
@@ -141,6 +151,7 @@ func TestSecretsEnvironmentFile_JSONOverride(t *testing.T) {
 	if err := s.runEnvironmentFile(t.Context(), with, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runEnvironmentFile: %v", err)
 	}
+
 	got, _ := os.ReadFile(path)
 	if want := `CONFIG="{\"A\":\"b\"}"` + "\n"; string(got) != want {
 		t.Fatalf("json:false:\n got: %q\nwant: %q", got, want)
@@ -160,6 +171,7 @@ func TestSecretsEnvironmentFile_Validation(t *testing.T) {
 	if err := s.runEnvironmentFile(t.Context(), map[string]any{"path": "x"}, &bytes.Buffer{}); err == nil {
 		t.Error("missing prefixes should error")
 	}
+
 	if err := s.runEnvironmentFile(t.Context(), map[string]any{"prefixes": []any{"/a"}}, &bytes.Buffer{}); err == nil {
 		t.Error("missing path should error")
 	}
@@ -180,9 +192,11 @@ func TestSecretsEnvironmentFile_RendersOnHosts(t *testing.T) {
 	if err := s.runEnvironmentFile(ctx, with, &bytes.Buffer{}); err != nil {
 		t.Fatalf("runEnvironmentFile: %v", err)
 	}
+
 	if hw.path != "config/app.env" {
 		t.Errorf("host path = %q, want config/app.env", hw.path)
 	}
+
 	want := `DB="x"` + "\n" + `TOKEN="y"` + "\n"
 	if string(hw.content) != want {
 		t.Errorf("host content = %q, want %q", hw.content, want)
@@ -205,16 +219,20 @@ func TestSecretsStartup_LoadsContext(t *testing.T) {
 	if err := s.startup(secretsContextParams{Prefixes: []string{"myapp/prod/"}})(t.Context(), cfg); err != nil {
 		t.Fatalf("startup: %v", err)
 	}
+
 	if got := cfg.Imports["secrets"]["DB_URL"]; got != "postgres://h/db" {
 		t.Errorf(`Imports["secrets"]["DB_URL"] = %q, want "postgres://h/db"`, got)
 	}
+
 	if got := cfg.Imports["secrets"]["SECRET"]; got != "topsecretval" {
 		t.Errorf(`Imports["secrets"]["SECRET"] = %q, want "topsecretval"`, got)
 	}
+
 	// A non-JSON secret is keyed by its last name segment (like the SSM startup).
 	if got := cfg.Imports["secrets"]["token"]; got != "plain-token-value" {
 		t.Errorf(`Imports["secrets"]["token"] = %q, want "plain-token-value"`, got)
 	}
+
 	// The value was registered for masking, so it's masked in any output.
 	if red := whoosh.Masking("x=topsecretval"); strings.Contains(red, "topsecretval") {
 		t.Errorf("secret value not registered for redaction: %q", red)

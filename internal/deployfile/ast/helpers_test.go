@@ -19,6 +19,7 @@ func TestDeployFile_AddHooks_LazyInitAndAppend(t *testing.T) {
 	if got := c.Hooks.Before["deploy:updating"]; len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("AddHookBefore = %v, want [a b]", got)
 	}
+
 	if got := c.Hooks.After["deploy:published"]; len(got) != 2 || got[0] != "c" || got[1] != "d" {
 		t.Fatalf("AddHookAfter should append: got %v, want [c d]", got)
 	}
@@ -36,9 +37,11 @@ func TestPluginSpec_IsEnabled(t *testing.T) {
 	if !(PluginSpec{}).IsEnabled() {
 		t.Error("omitted Enabled should be enabled")
 	}
+
 	if !(PluginSpec{Enabled: new(true)}).IsEnabled() {
 		t.Error("Enabled=true should be enabled")
 	}
+
 	if (PluginSpec{Enabled: new(false)}).IsEnabled() {
 		t.Error("Enabled=false should be disabled")
 	}
@@ -51,6 +54,7 @@ func TestMerge_SSHForwardAgentTriState(t *testing.T) {
 	if out := Merge(base, &DeployFile{}); out.SSH.ForwardAgent == nil || !*out.SSH.ForwardAgent {
 		t.Errorf("unset override should keep base forward_agent=true, got %v", out.SSH.ForwardAgent)
 	}
+
 	if out := Merge(base, &DeployFile{SSH: SSH{ForwardAgent: new(false)}}); out.SSH.ForwardAgent == nil || *out.SSH.ForwardAgent {
 		t.Errorf("explicit false override should disable forward_agent, got %v", out.SSH.ForwardAgent)
 	}
@@ -62,6 +66,7 @@ func TestMerge_SSHAcceptNewTriState(t *testing.T) {
 	if out := Merge(base, &DeployFile{}); out.SSH.AcceptNew == nil || !*out.SSH.AcceptNew {
 		t.Errorf("unset override should keep base accept_new=true, got %v", out.SSH.AcceptNew)
 	}
+
 	if out := Merge(base, &DeployFile{SSH: SSH{AcceptNew: new(false)}}); out.SSH.AcceptNew == nil || *out.SSH.AcceptNew {
 		t.Errorf("explicit false override should disable accept_new, got %v", out.SSH.AcceptNew)
 	}
@@ -74,6 +79,7 @@ func TestMerge_CustomPhasesConcatenate(t *testing.T) {
 	if len(out.CustomPhases) != 2 || out.CustomPhases[0].Name != "deploy:a" || out.CustomPhases[1].Name != "deploy:b" {
 		t.Fatalf("merged custom phases = %+v, want [deploy:a deploy:b]", out.CustomPhases)
 	}
+
 	// Merge must not alias the inputs' backing arrays.
 	base.CustomPhases[0].Name = "mutated"
 	if out.CustomPhases[0].Name != "deploy:a" {
@@ -105,6 +111,7 @@ func TestValidate_RejectsMalformedLinkedPath(t *testing.T) {
 			t.Errorf("linked_files %q should be rejected", bad)
 		}
 	}
+
 	// A bare path and a well-formed rewrite both validate.
 	c := base
 	c.LinkedFiles = []string{"config/database.yml", "config/database.yml:config/new.yml"}
@@ -117,9 +124,11 @@ func TestLog_RawOutput(t *testing.T) {
 	if !(Log{}).RawOutput() {
 		t.Fatal("unset raw_remote_log should default to raw (true)")
 	}
+
 	if !(Log{RawRemoteLog: new(true)}).RawOutput() {
 		t.Fatal("raw_remote_log: true should be raw")
 	}
+
 	if (Log{RawRemoteLog: new(false)}).RawOutput() {
 		t.Fatal("raw_remote_log: false should route through the logger")
 	}
@@ -131,12 +140,15 @@ func TestLog_RawOutput_FormatDefault(t *testing.T) {
 	if (Log{Format: "json"}).RawOutput() {
 		t.Fatal("json format should default to routing output through the logger (not raw)")
 	}
+
 	if (Log{Format: "JSON"}).RawOutput() {
 		t.Fatal("json format check should be case-insensitive")
 	}
+
 	if !(Log{Format: "text"}).RawOutput() {
 		t.Fatal("text format should default to raw")
 	}
+
 	// An explicit raw_remote_log: true wins even under json format (operator opted into raw).
 	if !(Log{Format: "json", RawRemoteLog: new(true)}).RawOutput() {
 		t.Fatal("explicit raw_remote_log: true should stay raw even for json format")
@@ -149,6 +161,7 @@ func TestMerge_RawRemoteLogOverrides(t *testing.T) {
 	if out.Log.RawOutput() {
 		t.Fatal("stage raw_remote_log: false did not override the base")
 	}
+
 	// An unset stage value leaves the base setting intact.
 	out = Merge(&DeployFile{Log: Log{RawRemoteLog: new(false)}}, &DeployFile{})
 	if out.Log.RawOutput() {

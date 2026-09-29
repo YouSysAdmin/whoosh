@@ -18,9 +18,11 @@ func TestDecodeInventoryParams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeParams: %v", err)
 	}
+
 	if !ip.ResolveConfigHosts {
 		t.Error("resolve_config_hosts should decode to true")
 	}
+
 	if len(ip.Tags["Environment"]) != 1 || ip.Tags["Environment"][0] != "uat" {
 		t.Errorf("tags = %v", ip.Tags)
 	}
@@ -43,12 +45,15 @@ func TestDecodeFeatureParams_DefaultsThenWith(t *testing.T) {
 	if err := params.DecodeFeature(defaults, with, &ap); err != nil {
 		t.Fatalf("DecodeFeature: %v", err)
 	}
+
 	if ap.NamePrefix != "task-prefix" {
 		t.Errorf("NamePrefix = %q, want task-prefix (task wins)", ap.NamePrefix)
 	}
+
 	if ap.SourceTags["Application"] != "managebac" || ap.SourceTags["Role"] != "AMICreator" {
 		t.Errorf("SourceTags = %v, want {Application:managebac, Role:AMICreator}", ap.SourceTags)
 	}
+
 	if ap.LaunchTemplate == nil || ap.LaunchTemplate.ASG != "my-asg" {
 		t.Errorf("LaunchTemplate = %+v, want default {asg: my-asg}", ap.LaunchTemplate)
 	}
@@ -58,6 +63,7 @@ func TestDecodeFeatureParams_DefaultsThenWith(t *testing.T) {
 	if err := params.DecodeFeature(defaults, nil, &only); err != nil {
 		t.Fatalf("DecodeFeature(defaults, nil): %v", err)
 	}
+
 	if only.NamePrefix != "default-prefix" || only.SourceTags["Application"] != "managebac" {
 		t.Errorf("defaults-only = %+v", only)
 	}

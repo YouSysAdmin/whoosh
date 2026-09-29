@@ -10,9 +10,11 @@ func (c *DeployFile) AsMap() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var m map[string]any
 	if err := yaml.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
+
 	return m, nil
 }

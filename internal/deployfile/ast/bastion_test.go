@@ -20,6 +20,7 @@ func TestMerge_SSHBastion(t *testing.T) {
 	if out.SSH.Bastion.Address != "jump.stage" {
 		t.Errorf("override bastion should win, got %+v", out.SSH.Bastion)
 	}
+
 	if out.SSH.Bastion.User != "" {
 		t.Errorf("override bastion should replace wholesale, kept base user %q", out.SSH.Bastion.User)
 	}
@@ -60,10 +61,12 @@ func TestMarshalYAML_RedactsBastionPassphrase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	dump := string(data)
 	if strings.Contains(dump, "jumphunter2") {
 		t.Errorf("config dump leaks the bastion passphrase:\n%s", dump)
 	}
+
 	for _, want := range []string{"address: jump.example.com", "user: jump", "identity_file: ~/.ssh/jump", "[MASKED]"} {
 		if !strings.Contains(dump, want) {
 			t.Errorf("config dump missing %q:\n%s", want, dump)

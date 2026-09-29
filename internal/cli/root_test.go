@@ -63,23 +63,29 @@ func TestRenderVars(t *testing.T) {
 	if err := renderVars(cfg); err != nil {
 		t.Fatalf("renderVars: %v", err)
 	}
+
 	if cfg.Vars["app_version"] != "v1.2.3" {
 		t.Errorf("app_version = %v, want v1.2.3", cfg.Vars["app_version"])
 	}
+
 	if cfg.Vars["webhook"] != "hook-url" {
 		t.Errorf("webhook (env_files fallback) = %v, want hook-url", cfg.Vars["webhook"])
 	}
+
 	if cfg.Vars["stage_name"] != "uat" {
 		t.Errorf("stage_name = %v, want uat", cfg.Vars["stage_name"])
 	}
+
 	if cfg.Vars["keep"] != "7" {
 		t.Errorf("keep (keep_releases) = %v, want 7", cfg.Vars["keep"])
 	}
+
 	nested, _ := cfg.Vars["nested"].(map[string]any)
 	list, _ := nested["list"].([]any)
 	if len(list) != 1 || list[0] != "myapp" {
 		t.Errorf("nested list not templated: %v", cfg.Vars["nested"])
 	}
+
 	if cfg.Vars["count"] != 3 {
 		t.Errorf("int var changed: %v", cfg.Vars["count"])
 	}
@@ -92,6 +98,7 @@ func TestRenderVars_SingleQuoteIsParseError(t *testing.T) {
 	if err == nil {
 		t.Fatal("single-quoted template arg should be a parse error")
 	}
+
 	if !strings.Contains(err.Error(), "app_version") {
 		t.Errorf("error should name the var, got: %v", err)
 	}
@@ -125,6 +132,7 @@ func TestRenderAppBranch(t *testing.T) {
 			if err := renderAppBranch(cfg); err != nil {
 				t.Fatalf("renderAppBranch: %v", err)
 			}
+
 			if cfg.App.Branch != tc.want {
 				t.Errorf("branch = %q, want %q", cfg.App.Branch, tc.want)
 			}
@@ -138,6 +146,7 @@ func TestRenderAppBranch_UndefinedVarIsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("undefined var in app.branch should strict-fail")
 	}
+
 	if !strings.Contains(err.Error(), "app.branch") {
 		t.Errorf("error should name app.branch, got: %v", err)
 	}
@@ -169,11 +178,13 @@ func TestRenderPluginParams(t *testing.T) {
 	if cfh == nil || cfh["host"] != "10.4.20.204" || cfh["user"] != "deployer" {
 		t.Errorf("credentials_from_host not templated: %v", p["credentials_from_host"])
 	}
+
 	tags, _ := p["tags"].(map[string]any)
 	app, _ := tags["Application"].([]any)
 	if len(app) != 1 || app[0] != "myapp" {
 		t.Errorf("tag list from {{.app_name}} not templated: %v", p["tags"])
 	}
+
 	if p["use_public_ip"] != false {
 		t.Errorf("bool param changed: %v", p["use_public_ip"])
 	}
@@ -197,6 +208,7 @@ func TestSelectPluginsForStage(t *testing.T) {
 	if len(cfg.Plugins) != 1 || cfg.Plugins[0].Name != "other" {
 		t.Errorf("active plugins = %+v, want [other]", cfg.Plugins)
 	}
+
 	if len(cfg.SkippedPlugins) != 1 || cfg.SkippedPlugins[0] != "aws" {
 		t.Errorf("skipped = %v, want [aws]", cfg.SkippedPlugins)
 	}
@@ -214,6 +226,7 @@ func TestSelectPluginsForStage_Disabled(t *testing.T) {
 	if len(cfg.Plugins) != 1 || cfg.Plugins[0].Name != "aws" {
 		t.Errorf("active plugins = %+v, want [aws]", cfg.Plugins)
 	}
+
 	if len(cfg.SkippedPlugins) != 1 || cfg.SkippedPlugins[0] != "datadog" {
 		t.Errorf("skipped = %v, want [datadog]", cfg.SkippedPlugins)
 	}
@@ -247,6 +260,7 @@ func TestRegisterTaskCmds_HonorsDeployfileFlag(t *testing.T) {
 	if err := os.WriteFile(df, []byte("version: 1\napp:\n  name: myapp\n  deploy_to: /srv/app\ntasks:\n  mytask:\n    cmds: [\"true\"]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	// Run from a directory with no Deployfile.
 	t.Chdir(t.TempDir())
 

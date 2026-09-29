@@ -23,6 +23,7 @@ type Cluster struct {
 	// log, when set, receives each complete output line instead of out getting host-prefixed text - command output is
 	// then emitted as structured log records (see SetLineHandler).
 	log LineHandler
+
 	// color colorizes the host prefix on the raw stream (green for stdout, red for stderr). Off by default.
 	color bool
 
@@ -62,6 +63,7 @@ func (c *Cluster) writer(host string) *LineWriter {
 	if c.log != nil {
 		return NewLogWriter(host, c.log)
 	}
+
 	return newPrefixWriter(c.out, HostLabel(host, c.color)+" ", &c.outMu)
 }
 
@@ -73,6 +75,7 @@ func (c *Cluster) Run(ctx context.Context, targets []Target, cmdFor func(host st
 		if err != nil {
 			return &errors.UnreachableError{Err: err} // dial failed: host unreachable
 		}
+
 		stdout := c.writer(t.Host)
 		stderr := c.writer(t.Host)
 		defer stdout.Flush()
@@ -81,6 +84,7 @@ func (c *Cluster) Run(ctx context.Context, targets []Target, cmdFor func(host st
 		if err == nil {
 			return nil
 		}
+
 		return classify(t, err)
 	})
 }
@@ -94,9 +98,11 @@ func classify(t Target, err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+
 	if !t.Local && !ssh.IsExitError(err) {
 		return &errors.UnreachableError{Err: err}
 	}
+
 	return &errors.CommandError{Host: t.Host, Err: err}
 }
 
@@ -109,12 +115,14 @@ func (c *Cluster) Capture(ctx context.Context, t Target, cmd string) (string, er
 	if err != nil {
 		return "", &errors.UnreachableError{Err: err}
 	}
+
 	var stdout bytes.Buffer
 	stderr := c.writer(t.Host)
 	defer stderr.Flush()
 	if err := conn.Run(ctx, cmd, &stdout, stderr); err != nil {
 		return "", classify(t, err)
 	}
+
 	return strings.TrimSpace(stdout.String()), nil
 }
 
@@ -131,12 +139,14 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 	if t.StrictHostKey != nil {
 		strict = *t.StrictHostKey
 	}
+
 	key := "local\x00" + t.Host
 	if !t.Local {
 		mode := "insecure"
 		if strict {
 			mode = "strict"
 		}
+
 		key = strings.Join([]string{"ssh", t.Host, strconv.Itoa(t.Port), t.User, t.IdentityFile, mode}, "\x00")
 	}
 
@@ -146,13 +156,16 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 		e = &connEntry{}
 		c.conns[key] = e
 	}
+
 	c.connMu.Unlock()
 
 	e.once.Do(func() {
 		if t.Local {
 			e.conn = local.New()
+
 			return
 		}
+
 		opts := c.opts
 		opts.StrictHostKey = strict
 		// Assign through a concrete variable: a failed Dial returns a nil *ssh.Client, and storing that directly in the Conn
@@ -167,8 +180,10 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 		}, opts)
 		if err != nil {
 			e.err = err
+
 			return
 		}
+
 		e.conn = client
 	})
 	if e.err != nil && (errors.Is(e.err, context.Canceled) || errors.Is(e.err, context.DeadlineExceeded)) {
@@ -179,8 +194,10 @@ func (c *Cluster) conn(ctx context.Context, t Target) (Conn, error) {
 		if c.conns[key] == e {
 			delete(c.conns, key)
 		}
+
 		c.connMu.Unlock()
 	}
+
 	return e.conn, e.err
 }
 
@@ -193,6 +210,7 @@ func (c *Cluster) Close() {
 			_ = e.conn.Close()
 		}
 	}
+
 	c.conns = make(map[string]*connEntry)
 	if c.opts.Bastion != nil {
 		_ = c.opts.Bastion.Close()

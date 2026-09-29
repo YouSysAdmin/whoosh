@@ -19,6 +19,7 @@ func githubStub(t *testing.T, status int, body string) (*httptest.Server, *atomi
 		io.WriteString(w, body)
 	}))
 	t.Cleanup(srv.Close)
+
 	return srv, &calls
 }
 
@@ -38,10 +39,12 @@ func TestDisplayDeployer(t *testing.T) {
 		if got := n.displayDeployer(t.Context(), "andriy2152"); got != "Andrii K" {
 			t.Errorf("displayDeployer = %q, want the GitHub name", got)
 		}
+
 		// Cached: a second display does not re-dial.
 		if got := n.displayDeployer(t.Context(), "andriy2152"); got != "Andrii K" {
 			t.Errorf("second displayDeployer = %q", got)
 		}
+
 		if calls.Load() != 1 {
 			t.Errorf("github calls = %d, want 1 (cached)", calls.Load())
 		}
@@ -74,6 +77,7 @@ func TestDisplayDeployer(t *testing.T) {
 		if got := lookupNotifier(gh, false).displayDeployer(t.Context(), "login"); got != "login" {
 			t.Errorf("displayDeployer = %q, want the login untouched", got)
 		}
+
 		if calls.Load() != 0 {
 			t.Errorf("github calls = %d, want 0 when disabled", calls.Load())
 		}
@@ -84,6 +88,7 @@ func TestDisplayDeployer(t *testing.T) {
 		if got := lookupNotifier(gh, true).displayDeployer(t.Context(), "Jane Doe"); got != "Jane Doe" {
 			t.Errorf("displayDeployer = %q, want the name untouched", got)
 		}
+
 		if calls.Load() != 0 {
 			t.Errorf("github calls = %d, want 0 for a value with spaces", calls.Load())
 		}

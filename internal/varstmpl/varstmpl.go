@@ -47,37 +47,48 @@ type Context struct {
 	ReleasePath      string
 	ReleaseTimestamp string
 	CommitHash       string
+
 	// PreviousCommitHash is the SHA the live release was deployed from (read from <current>/REVISION on the primary
 	// host at deploy start), empty on a fresh deploy and outside a deploy.
 	PreviousCommitHash string
+
 	// Changelog lists the commits between PreviousCommitHash and CommitHash, one per line as
 	// <sha>|<author>|<email>|<subject> (newest first, no merges, capped). Captured at deploy:updating - empty before
 	// that, on a fresh deploy, when the revisions match, and outside a deploy.
 	Changelog    string
 	KeepReleases int
+
 	// Deployer is the identity of the person (or CI job) running whoosh, exposed as {{.deployer}} and $DEPLOYER.
 	Deployer string
 	Host     string
+
 	// Roles are the roles of the host the command is running on (the matched server's full role set), exposed as
 	// {{.roles}} and (comma-joined) $ROLES.
 	Roles []string
+
 	// Phase is the deploy phase a hook task is running for (e.g.
 	// "deploy:publishing" or "deploy:failed"), empty for a standalone task run.
 	Phase string
+
 	// DeployError is the failure message exposed to deploy:failed hook tasks, empty otherwise.
 	DeployError string
+
 	// Tasks is run-scoped state captured from tasks declaring `output:`, keyed by task name, exposed as {{ .tasks.<name>
 	// }} (a task's parsed output).
 	Tasks map[string]any
+
 	// Config is the whole resolved Deployfile as a map (YAML field names), exposed under {{.config}} for flexible logic in
 	// scripts.
 	Config map[string]any
+
 	// Imports are values a plugin injected at load (e.g. SSM parameters), keyed namespace -> key -> value.
 	// Each namespace is exposed as {{ .<ns>.<key> }}.
 	Imports map[string]map[string]string
+
 	// EnvFileValues are the Deployfile's env_files (dotenv) values. The env/envSecret template funcs consult them when
 	// the process env var is unset (a set process var wins, even when empty - the dotenv non-override convention).
 	EnvFileValues map[string]string
+
 	// GlobalEnvValues are the resolved global `envs:` values for the current render target, consulted by env/envSecret
 	// between the process environment and EnvFileValues (a set-but-empty entry wins over env_files, matching the dotenv
 	// convention). The executor populates it for task-time renders only - global env values themselves render without
@@ -91,9 +102,11 @@ func (c Context) lookupEnv(name string) string {
 	if v, ok := os.LookupEnv(name); ok {
 		return v
 	}
+
 	if v, ok := c.GlobalEnvValues[name]; ok {
 		return v
 	}
+
 	return c.EnvFileValues[name]
 }
 
@@ -127,6 +140,7 @@ func (c Context) Data() map[string]any {
 	if tasks == nil {
 		tasks = map[string]any{}
 	}
+
 	m["tasks"] = tasks
 	// Plugin-injected namespaces, e.g. {{ .ssm.secret }}.
 	// A namespace never shadows a well-known key above (those are set after the vars spread, imports are added last but
@@ -137,8 +151,10 @@ func (c Context) Data() map[string]any {
 		for k, v := range kv {
 			nm[k] = v
 		}
+
 		m[ns] = nm
 	}
+
 	return m
 }
 
@@ -161,6 +177,7 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 	if !strict {
 		missingkey = "default"
 	}
+
 	t, err := template.New("cmd").
 		Funcs(sprigFuncs).
 		Funcs(helperFuncs).
@@ -171,12 +188,14 @@ func RenderWith(text string, c Context, strict bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse template %q: %w", text, err)
 	}
+
 	var sb strings.Builder
 	if err := t.Execute(&sb, c.Data()); err != nil {
 		// text/template wraps the actual cause (e.g. the error a helper like `required` returned) in location noise
 		// (`executing "cmd" at <...>: error calling required: ...`) that buries the message, keep only the root.
 		return "", fmt.Errorf("render template %q: %w", text, werrors.RootCause(err))
 	}
+
 	return sb.String(), nil
 }
 
@@ -196,6 +215,7 @@ var helperFuncs = template.FuncMap{
 		if err != nil {
 			return "", fmt.Errorf("toYaml: %w", err)
 		}
+
 		return strings.TrimSuffix(string(b), "\n"), nil
 	},
 	"fromYaml": func(s string) (map[string]any, error) {
@@ -203,6 +223,7 @@ var helperFuncs = template.FuncMap{
 		if err := yaml.Unmarshal([]byte(s), &m); err != nil {
 			return nil, fmt.Errorf("fromYaml: %w", err)
 		}
+
 		return m, nil
 	},
 	"fromYamlArray": func(s string) ([]any, error) {
@@ -210,15 +231,18 @@ var helperFuncs = template.FuncMap{
 		if err := yaml.Unmarshal([]byte(s), &a); err != nil {
 			return nil, fmt.Errorf("fromYamlArray: %w", err)
 		}
+
 		return a, nil
 	},
 	"required": func(msg string, v any) (any, error) {
 		if v == nil {
 			return nil, fmt.Errorf("required: %s", msg)
 		}
+
 		if s, ok := v.(string); ok && s == "" {
 			return nil, fmt.Errorf("required: %s", msg)
 		}
+
 		return v, nil
 	},
 }
@@ -234,6 +258,7 @@ var secretFuncs = template.FuncMap{
 	"sensitive": func(v any) string {
 		s := fmt.Sprint(v)
 		masking.AddSecret(s)
+
 		return s
 	},
 }
@@ -252,8 +277,10 @@ func envFuncs(c Context) template.FuncMap {
 	secret := func(name string) string {
 		v := c.lookupEnv(name)
 		masking.AddSecret(v)
+
 		return v
 	}
+
 	return template.FuncMap{
 		"env":          c.lookupEnv,
 		"envSecret":    secret,
@@ -268,14 +295,17 @@ func RenderParams(params map[string]any, c Context, strict bool) (map[string]any
 	if len(params) == 0 {
 		return params, nil
 	}
+
 	out := make(map[string]any, len(params))
 	for k, v := range params {
 		rv, err := renderParamValue(v, c, strict)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", k, err)
 		}
+
 		out[k] = rv
 	}
+
 	return out, nil
 }
 
@@ -292,8 +322,10 @@ func renderParamValue(v any, c Context, strict bool) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			out[i] = rv
 		}
+
 		return out, nil
 	default:
 		return v, nil

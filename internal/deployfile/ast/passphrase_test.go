@@ -12,6 +12,7 @@ func TestMerge_SSHIdentityFilePassphrase(t *testing.T) {
 	if out := Merge(base, &DeployFile{}); out.SSH.IdentityFilePassphrase != "basepw" {
 		t.Errorf("unset override should keep the base passphrase, got %q", out.SSH.IdentityFilePassphrase)
 	}
+
 	ov := &DeployFile{SSH: SSH{IdentityFilePassphrase: "stagepw"}}
 	if out := Merge(base, ov); out.SSH.IdentityFilePassphrase != "stagepw" {
 		t.Errorf("override passphrase should win, got %q", out.SSH.IdentityFilePassphrase)
@@ -33,13 +34,16 @@ func TestApplyDefaults_PassphraseInheritedWithIdentityFile(t *testing.T) {
 	if h := cfg.Hosts[0]; h.IdentityFile != "~/.ssh/global" || h.IdentityFilePassphrase != "globalpw" {
 		t.Errorf("host without identity_file should inherit file and passphrase together, got %+v", h)
 	}
+
 	// The passphrase belongs to its key: a host with its own identity_file must not get the global passphrase.
 	if h := cfg.Hosts[1]; h.IdentityFilePassphrase != "" {
 		t.Errorf("host with its own identity_file inherited the global passphrase: %q", h.IdentityFilePassphrase)
 	}
+
 	if h := cfg.Hosts[2]; h.IdentityFile != "~/.ssh/global" || h.IdentityFilePassphrase != "ownpw" {
 		t.Errorf("host with its own passphrase should keep it while inheriting the file, got %+v", h)
 	}
+
 	if h := cfg.Hosts[3]; h.IdentityFile != "" || h.IdentityFilePassphrase != "" {
 		t.Errorf("local host should not inherit SSH settings, got %+v", h)
 	}
@@ -50,6 +54,7 @@ func TestApplyDefaults_PassphraseInheritedWithIdentityFile(t *testing.T) {
 	if h := cfg.Hosts[1]; h.IdentityFilePassphrase != "" {
 		t.Errorf("second run leaked the global passphrase onto an own-key host: %q", h.IdentityFilePassphrase)
 	}
+
 	if h := cfg.Hosts[4]; h.IdentityFile != "~/.ssh/global" || h.IdentityFilePassphrase != "globalpw" {
 		t.Errorf("host appended before the second run should inherit like the first, got %+v", h)
 	}
@@ -101,12 +106,14 @@ func TestMarshalYAML_RedactsIdentityFilePassphrase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	dump := string(data)
 	for _, secret := range []string{"globalhunter2", "hosthunter2", "idhunter2"} {
 		if strings.Contains(dump, secret) {
 			t.Errorf("config dump leaks %q:\n%s", secret, dump)
 		}
 	}
+
 	// The redaction must not eat the neighbors.
 	for _, want := range []string{"user: deploy", "identity_file: ~/.ssh/global", "address: db1", "db", "[MASKED]", "path: ~/.ssh/id_a"} {
 		if !strings.Contains(dump, want) {

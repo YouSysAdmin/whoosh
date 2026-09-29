@@ -34,6 +34,7 @@ func runLocalShell(ctx context.Context, command string, out io.Writer) error {
 	if err := local.New().Run(ctx, command, out, out); err != nil {
 		return fmt.Errorf("local command failed: %w", err)
 	}
+
 	return nil
 }
 
@@ -63,6 +64,7 @@ func buildScriptCommand(interpreter, content, dir string, env map[string]string)
 	if !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
+
 	return shtmpl.MustRender(shellTmpl, "script.sh.tmpl", struct {
 		Env         map[string]string
 		Dir         string

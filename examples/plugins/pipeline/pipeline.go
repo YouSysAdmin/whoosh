@@ -46,6 +46,7 @@ type pipelinePlugin struct{}
 // This plugins takes no params and registers no actions.
 func (p *pipelinePlugin) Configure(_ whoosh.PluginSpec, reg *whoosh.Registry) error {
 	reg.AddStartup(p.install)
+
 	return nil
 }
 
@@ -69,5 +70,6 @@ func (p *pipelinePlugin) install(_ context.Context, cfg *whoosh.DeployFile) erro
 	// Run it right after the new release becomes live. deploy:published is a built-in marker phase,
 	// AddHookBefore/AddHookAfter accept any phase name (built-in or a custom phase - see the example-phase plugins).
 	cfg.AddHookAfter("deploy:published", taskHealthcheck)
+
 	return nil
 }

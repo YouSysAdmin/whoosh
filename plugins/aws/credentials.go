@@ -73,12 +73,14 @@ func loadAWS(ctx context.Context, c awsConfig) (awssdk.Config, error) {
 	if region != "" {
 		opts = append(opts, config.WithRegion(region))
 	}
+
 	switch {
 	case creds != nil:
 		opts = append(opts, config.WithCredentialsProvider(creds))
 	case c.Profile != "":
 		opts = append(opts, config.WithSharedConfigProfile(c.Profile))
 	}
+
 	return config.LoadDefaultConfig(ctx, opts...)
 }
 
@@ -90,16 +92,19 @@ func (c awsConfig) resolveCredentials(ctx context.Context) (awssdk.CredentialsPr
 		if c.AccessKeyID == "" || c.SecretAccessKey == "" {
 			return nil, "", fmt.Errorf("aws: access_key_id and secret_access_key must both be set")
 		}
+
 		// Register the secret material with masking so a `config` dump or a log record never prints it - the
 		// built-in patterns catch the aws_secret_access_key spelling, not the plugin's param names.
 		whoosh.AddSecret(c.SecretAccessKey)
 		whoosh.AddSecret(c.SessionToken)
+
 		return credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, c.SessionToken), "", nil
 	case c.CredentialsFile != "":
 		cf, err := readCredentialsFile(c.CredentialsFile)
 		if err != nil {
 			return nil, "", err
 		}
+
 		return cf.provider(), cf.region(), nil
 	case c.CredentialsURL != "":
 		whoosh.AddSecret(c.CredentialsToken)
@@ -107,6 +112,7 @@ func (c awsConfig) resolveCredentials(ctx context.Context) (awssdk.CredentialsPr
 		if err != nil {
 			return nil, "", err
 		}
+
 		return cf.provider(), cf.region(), nil
 	case c.CredentialsFromHost != nil:
 		return fetchCredentialsFromHost(ctx, *c.CredentialsFromHost)
@@ -132,6 +138,7 @@ func (f credentialsFile) region() string {
 	if f.DefaultRegion != "" {
 		return f.DefaultRegion
 	}
+
 	return f.Region
 }
 
@@ -141,6 +148,7 @@ func readCredentialsFile(path string) (credentialsFile, error) {
 	if err != nil {
 		return credentialsFile{}, fmt.Errorf("aws: read credentials file %q: %w", path, err)
 	}
+
 	return parseCredentials(data, path)
 }
 
@@ -158,21 +166,26 @@ func fetchCredentialsURL(ctx context.Context, url, token string) (credentialsFil
 	if err != nil {
 		return credentialsFile{}, fmt.Errorf("aws: credentials url: %w", err)
 	}
+
 	if token != "" {
 		req.Header.Set("Authorization", "token "+token)
 	}
+
 	resp, err := credentialsHTTPClient.Do(req)
 	if err != nil {
 		return credentialsFile{}, fmt.Errorf("aws: fetch credentials url: %w", err)
 	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return credentialsFile{}, fmt.Errorf("aws: credentials url returned status %d", resp.StatusCode)
 	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return credentialsFile{}, fmt.Errorf("aws: read credentials url body: %w", err)
 	}
+
 	return parseCredentials(body, "url")
 }
 
@@ -182,12 +195,15 @@ func parseCredentials(data []byte, source string) (credentialsFile, error) {
 	if err := yaml.Unmarshal(data, &f); err != nil {
 		return credentialsFile{}, fmt.Errorf("aws: parse credentials %s: %w", source, err)
 	}
+
 	if f.AccessKeyID == "" || f.SecretAccessKey == "" {
 		return credentialsFile{}, fmt.Errorf("aws: credentials %s missing aws_access_key_id/aws_secret_access_key", source)
 	}
+
 	// Fetched secrets are registered with masking like the static params, so they never surface in output or logs.
 	whoosh.AddSecret(f.SecretAccessKey)
 	whoosh.AddSecret(f.SessionToken)
+
 	return f, nil
 }
 
@@ -205,6 +221,7 @@ func fetchCredentialsFromHost(ctx context.Context, h credentialsHost) (awssdk.Cr
 	if h.Host == "" {
 		return nil, "", fmt.Errorf("aws: credentials_from_host.host is required")
 	}
+
 	conn, err := ssh.Dial(ctx, ssh.Target{
 		Host:         h.Host,
 		Port:         h.Port,
@@ -218,12 +235,14 @@ func fetchCredentialsFromHost(ctx context.Context, h credentialsHost) (awssdk.Cr
 	if err != nil {
 		return nil, "", fmt.Errorf("aws: connect to credentials host %q: %w", h.Host, err)
 	}
+
 	defer conn.Close()
 
 	creds, err := fetchIMDS(ctx, sshRunner(conn))
 	if err != nil {
 		return nil, "", fmt.Errorf("aws: credentials from host %q: %w", h.Host, err)
 	}
+
 	return credentials.NewStaticCredentialsProvider(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken), creds.Region, nil
 }
 
@@ -238,8 +257,10 @@ func sshRunner(conn *ssh.Client) commandRunner {
 			if msg := strings.TrimSpace(errb.String()); msg != "" {
 				return "", fmt.Errorf("%w: %s", err, msg)
 			}
+
 			return "", err
 		}
+
 		return strings.TrimSpace(out.String()), nil
 	}
 }
@@ -256,6 +277,7 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	if err != nil {
 		return imdsCreds{}, err
 	}
+
 	hdr := "-H 'X-aws-ec2-metadata-token: " + token + "'"
 
 	region, err := runNonEmpty(ctx, run, "obtain region from instance metadata",
@@ -263,11 +285,13 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	if err != nil {
 		return imdsCreds{}, err
 	}
+
 	role, err := runNonEmpty(ctx, run, "obtain IAM role name from instance metadata",
 		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/")
 	if err != nil {
 		return imdsCreds{}, err
 	}
+
 	body, err := runNonEmpty(ctx, run, "obtain IAM role credentials from instance metadata",
 		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/"+role)
 	if err != nil {
@@ -282,12 +306,15 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	if err := json.Unmarshal([]byte(body), &c); err != nil {
 		return imdsCreds{}, fmt.Errorf("parse IAM role credentials: %w", err)
 	}
+
 	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
 		return imdsCreds{}, fmt.Errorf("instance metadata returned incomplete credentials")
 	}
+
 	// Fetched secrets are registered with masking like the static params, so they never surface in output or logs.
 	whoosh.AddSecret(c.SecretAccessKey)
 	whoosh.AddSecret(c.Token)
+
 	return imdsCreds{AccessKeyID: c.AccessKeyID, SecretAccessKey: c.SecretAccessKey, SessionToken: c.Token, Region: region}, nil
 }
 
@@ -297,8 +324,10 @@ func runNonEmpty(ctx context.Context, run commandRunner, what, cmd string) (stri
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", what, err)
 	}
+
 	if v == "" {
 		return "", fmt.Errorf("%s: empty response", what)
 	}
+
 	return v, nil
 }

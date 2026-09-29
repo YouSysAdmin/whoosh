@@ -15,6 +15,7 @@ func TestDefaultSpecs(t *testing.T) {
 	if got[0].Name != "declared" {
 		t.Fatalf("declared spec not preserved first: %v", specNames(got))
 	}
+
 	if !containsSpec(got, "test-default-on") {
 		t.Fatalf("default-on plugins not appended: %v", specNames(got))
 	}
@@ -31,6 +32,7 @@ func TestDefaultSpecs(t *testing.T) {
 			}
 		}
 	}
+
 	if n != 1 {
 		t.Errorf("test-default-on appears %d times, want 1", n)
 	}
@@ -58,12 +60,15 @@ func TestRegisteredInfo(t *testing.T) {
 		got[p.Name] = p.Version
 		names = append(names, p.Name)
 	}
+
 	if got["zzz-versioned-test"] != "9.9.9" {
 		t.Errorf("versioned plugin: got %q, want 9.9.9", got["zzz-versioned-test"])
 	}
+
 	if v, ok := got["aaa-plain-test"]; !ok || v != "" {
 		t.Errorf("plain plugin: got %q (present=%v), want an empty version", v, ok)
 	}
+
 	for i := 1; i < len(names); i++ {
 		if names[i-1] > names[i] {
 			t.Fatalf("RegisteredInfo not sorted by name: %v", names)
@@ -75,6 +80,7 @@ type ctxTestRunner struct{ cmds []string }
 
 func (r *ctxTestRunner) RunCommand(_ context.Context, cmd string) error {
 	r.cmds = append(r.cmds, cmd)
+
 	return nil
 }
 
@@ -84,15 +90,18 @@ func TestHostCommandRunnerCtx(t *testing.T) {
 	if got := HostCommandRunnerFrom(t.Context()); got != nil {
 		t.Fatalf("bare ctx: got %v, want nil", got)
 	}
+
 	r := &ctxTestRunner{}
 	ctx := WithHostCommandRunner(t.Context(), r)
 	got := HostCommandRunnerFrom(ctx)
 	if got == nil {
 		t.Fatal("runner not carried by ctx")
 	}
+
 	if err := got.RunCommand(ctx, "systemctl start app"); err != nil {
 		t.Fatalf("RunCommand: %v", err)
 	}
+
 	if len(r.cmds) != 1 || r.cmds[0] != "systemctl start app" {
 		t.Fatalf("carried runner not invoked: %v", r.cmds)
 	}
@@ -104,6 +113,7 @@ func containsSpec(specs []ast.PluginSpec, name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -112,6 +122,7 @@ func specNames(specs []ast.PluginSpec) []string {
 	for i, s := range specs {
 		out[i] = s.Name
 	}
+
 	return out
 }
 
@@ -123,9 +134,11 @@ func TestDecodeParamsStrict(t *testing.T) {
 	if err := DecodeParamsStrict(map[string]any{"name": "x"}, &got); err != nil || got.Name != "x" {
 		t.Fatalf("DecodeParamsStrict = %v (got %+v), want name decoded", err, got)
 	}
+
 	if err := DecodeParamsStrict(map[string]any{"wrongkey": "x"}, &got); err == nil {
 		t.Fatal("expected an unknown-key error for a misspelled param")
 	}
+
 	// Empty params must decode to the zero value, not error on the empty YAML document.
 	if err := DecodeParamsStrict(nil, &got); err != nil {
 		t.Fatalf("DecodeParamsStrict(nil) = %v, want nil", err)

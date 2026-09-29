@@ -37,6 +37,7 @@ func MustRender(t *template.Template, name string, data any) string {
 	if err := t.ExecuteTemplate(&b, name, data); err != nil {
 		panic(fmt.Sprintf("shtmpl: render %q: %v", name, err))
 	}
+
 	// Trailing newlines are not part of it.
 	return strings.TrimRight(b.String(), "\n")
 }

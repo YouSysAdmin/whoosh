@@ -25,6 +25,7 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 	ctx := validateContext(cfg)
 	render := func(text string) error {
 		_, err := varstmpl.RenderWith(text, ctx, false)
+
 		return err
 	}
 
@@ -35,6 +36,7 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 		if taskStateRef.MatchString(text) {
 			return
 		}
+
 		if err := render(text); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %s", what, conciseErr(err)))
 		}
@@ -50,41 +52,51 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 		if t == nil || !t.ActiveForStage(cfg.Stage) {
 			continue
 		}
+
 		for _, k := range sortedKeys(t.Envs) {
 			check(fmt.Sprintf("task %q envs.%s", name, k), t.Envs[k])
 		}
+
 		for i, c := range t.Cmds {
 			check(fmt.Sprintf("task %q cmds[%d]", name, i), c)
 		}
+
 		if t.Dir != "" {
 			check(fmt.Sprintf("task %q dir", name), t.Dir)
 		}
+
 		if len(t.With) > 0 {
 			checkParamValue(fmt.Sprintf("task %q with", name), t.With, check)
 		}
+
 		for _, sc := range t.Scripts {
 			label := scriptRef(sc)
 			if sc.Script != "" { // inline scripts are always templated
 				check(fmt.Sprintf("task %q script %s", name, label), sc.Script)
 				continue
 			}
+
 			if sc.Path == "" {
 				continue
 			}
+
 			full := sc.Path
 			if !filepath.IsAbs(full) {
 				full = filepath.Join(scriptsDir, full)
 			}
+
 			data, err := os.ReadFile(full)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("task %q script %s: %w", name, label, err))
 				continue
 			}
+
 			if sc.Template || strings.HasSuffix(sc.Path, ".tmpl") {
 				check(fmt.Sprintf("task %q script %s", name, label), string(data))
 			}
 		}
 	}
+
 	return errs
 }
 
@@ -95,12 +107,15 @@ func reportTemplateFindings(w io.Writer, findings []error) error {
 	if len(findings) == 0 {
 		return nil
 	}
+
 	out := masking.NewWriter(w)
 	fmt.Fprintln(out, "template check failed:")
 	for _, f := range findings {
 		fmt.Fprintf(out, "  - %v\n", f)
 	}
+
 	out.Flush()
+
 	return fmt.Errorf("template check: %d problem(s)", len(findings))
 }
 
@@ -117,6 +132,7 @@ func conciseErr(err error) string {
 	if rest, ok := strings.CutPrefix(msg, "template: cmd:"); ok {
 		msg = "line " + rest
 	}
+
 	return msg
 }
 
@@ -140,6 +156,7 @@ func validateContext(cfg *ast.DeployFile) varstmpl.Context {
 		ctx.Host = hosts[0].Address
 		ctx.Roles = hosts[0].Roles
 	}
+
 	return ctx
 }
 
@@ -164,9 +181,11 @@ func scriptRef(sc ast.Script) string {
 	if sc.Path != "" {
 		return sc.Path
 	}
+
 	if sc.Name != "" {
 		return sc.Name
 	}
+
 	return "inline"
 }
 

@@ -15,6 +15,7 @@ func TestAWSPlugin_Version(t *testing.T) {
 	if !ok {
 		t.Fatal("awsPlugin does not implement whoosh.Versioner")
 	}
+
 	if v.Version() == "" {
 		t.Fatal("awsPlugin.Version() is empty")
 	}
@@ -25,6 +26,7 @@ func TestAWSPlugin_RegistersActionsAndInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	spec := whoosh.PluginSpec{
 		Name:   "aws",
 		Params: awsStaticParams(),
@@ -37,6 +39,7 @@ func TestAWSPlugin_RegistersActionsAndInventory(t *testing.T) {
 	if err := (&awsPlugin{}).Configure(spec, reg); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
+
 	for _, a := range []string{"aws:ec2:asg:refresh", "aws:ec2:asg:rollback", "aws:ec2:ami:create", "aws:ec2:ami:cleanup", "aws:ssm:to-dotenv"} {
 		if _, ok := reg.Action(a); !ok {
 			t.Errorf("action %q not registered", a)
@@ -50,6 +53,7 @@ func TestAWSPlugin_ActionsAvailableWithoutListing(t *testing.T) {
 	if err := (&awsPlugin{}).Configure(spec, reg); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
+
 	if _, ok := reg.Action("aws:ec2:ami:create"); !ok {
 		t.Error("aws:ec2:ami:create should be available just by adding the plugins (no actions: needed)")
 	}

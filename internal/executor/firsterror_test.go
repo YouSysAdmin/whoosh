@@ -22,6 +22,7 @@ func TestFirstError_PrefersRealFailureOverCancellation(t *testing.T) {
 	if err == nil || !errors.Is(err, real) {
 		t.Fatalf("want the real failure, got %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "10.4.20.66") {
 		t.Errorf("error should name the failing host, got %v", err)
 	}

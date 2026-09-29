@@ -8,10 +8,12 @@ import (
 const (
 	// maxAttachmentsPerMessage is Slack's per-message attachment limit.
 	maxAttachmentsPerMessage = 20
+
 	// defaultMaxCommits bounds the displayed changelog when max_commits is unset; maxCommitsCap is the hard ceiling
 	// (also whoosh core's capture cap).
 	defaultMaxCommits = 20
 	maxCommitsCap     = 100
+
 	// changelogColor is the bar color of each commit attachment.
 	changelogColor = "#36a64f"
 )
@@ -20,12 +22,15 @@ const (
 // new one as attachments on the success notification.
 type changelogParams struct {
 	Enabled bool `yaml:"enabled"`
+
 	// CommitURL builds each commit's link: a template with a "{hash}" token, or a prefix the SHA is appended to.
 	// Empty derives https://<host>/<org>/<repo>/commit/ from the app repo remote. Deliberately not a Go template -
 	// the load-time params render would consume it.
 	CommitURL string `yaml:"commit_url"`
+
 	// Authors maps a commit author email (lowercased) to a Slack member ID (U.../W...), mentioned on the commit.
 	Authors map[string]string `yaml:"authors"`
+
 	// MaxCommits bounds the log (default 20, capped at 100).
 	MaxCommits int `yaml:"max_commits"`
 }
@@ -48,12 +53,15 @@ func parseCommits(out string, max int) []commit {
 		if len(cs) == max {
 			break
 		}
+
 		parts := strings.SplitN(strings.TrimSpace(line), "|", 4)
 		if len(parts) != 4 || !isCommitSHA(parts[0]) {
 			continue
 		}
+
 		cs = append(cs, commit{SHA: parts[0], Author: parts[1], Email: parts[2], Subject: parts[3]})
 	}
+
 	return cs
 }
 
@@ -69,6 +77,7 @@ func deriveCommitURL(repo string) string {
 		if _, after, ok := strings.Cut(hostPath, "@"); ok {
 			hostPath = after
 		}
+
 		// Drop an ssh port (host:22/org/repo).
 		if host, path, ok := strings.Cut(hostPath, "/"); ok && host != "" {
 			if name, _, ok := strings.Cut(host, ":"); ok {
@@ -82,11 +91,13 @@ func deriveCommitURL(repo string) string {
 	} else {
 		return ""
 	}
+
 	hostPath = strings.Trim(hostPath, "/")
 	// Need at least host/org/repo to build a commit link.
 	if strings.Count(hostPath, "/") < 2 {
 		return ""
 	}
+
 	return "https://" + hostPath + "/commit/"
 }
 
@@ -118,8 +129,10 @@ func changelogAttachments(commits []commit, urlBase string, authors map[string]s
 			a.Text = "<@" + id + ">"
 			a.MrkdwnIn = []string{"text"}
 		}
+
 		atts = append(atts, a)
 	}
+
 	return atts
 }
 
@@ -133,6 +146,7 @@ func batchAttachments(head attachment, rest []attachment, size int) [][]attachme
 		batches = append(batches, rest[:n])
 		rest = rest[n:]
 	}
+
 	return batches
 }
 
@@ -142,6 +156,7 @@ func (n *notifier) changelogMax() int {
 	if m <= 0 {
 		return defaultMaxCommits
 	}
+
 	return min(m, maxCommitsCap)
 }
 
@@ -150,5 +165,6 @@ func (n *notifier) commitURLBase(repo string) string {
 	if cu := n.cfg.Changelog.CommitURL; cu != "" {
 		return cu
 	}
+
 	return deriveCommitURL(repo)
 }

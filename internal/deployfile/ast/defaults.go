@@ -43,19 +43,24 @@ func (c *DeployFile) ApplyDefaults() {
 		if c.Hosts[i].Source == "" {
 			c.Hosts[i].Source = HostSourceConfig
 		}
+
 		if c.Hosts[i].Local {
 			// Local targets without SSH settings, just give them a label.
 			if c.Hosts[i].Address == "" {
 				c.Hosts[i].Address = "localhost"
 			}
+
 			continue
 		}
+
 		if c.Hosts[i].Port == 0 {
 			c.Hosts[i].Port = c.SSH.Port
 		}
+
 		if c.Hosts[i].User == "" {
 			c.Hosts[i].User = c.SSH.User
 		}
+
 		if c.Hosts[i].IdentityFile == "" {
 			c.Hosts[i].IdentityFile = c.SSH.IdentityFile
 			// The passphrase belongs to its key, so it is inherited only together with the identity file - a host

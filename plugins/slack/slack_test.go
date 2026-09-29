@@ -33,6 +33,7 @@ func newWebhookServer(t *testing.T) *webhookServer {
 		if err := json.NewDecoder(r.Body).Decode(&pl); err != nil {
 			t.Errorf("decode webhook body: %v", err)
 		}
+
 		ws.mu.Lock()
 		ws.payloads = append(ws.payloads, pl)
 		ws.headers = append(ws.headers, r.Header.Clone())
@@ -41,12 +42,14 @@ func newWebhookServer(t *testing.T) *webhookServer {
 		io.WriteString(w, ws.body)
 	}))
 	t.Cleanup(ws.Close)
+
 	return ws
 }
 
 func (ws *webhookServer) received() []payload {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+
 	return append([]payload(nil), ws.payloads...)
 }
 
@@ -57,10 +60,12 @@ func loadSlack(t *testing.T, params map[string]any) (*whoosh.Registry, whoosh.Ac
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	fn, ok := reg.Action(actionSend)
 	if !ok {
 		t.Fatalf("action %s not registered", actionSend)
 	}
+
 	return reg, fn
 }
 
@@ -68,6 +73,7 @@ func TestRegisteredUnderDocumentedName(t *testing.T) {
 	if pluginName != "slack" {
 		t.Fatalf("pluginName = %q, want %q (the documented name)", pluginName, "slack")
 	}
+
 	if !whoosh.IsRegistered(pluginName) {
 		t.Fatal("plugin not registered")
 	}
@@ -80,6 +86,7 @@ func TestVersion(t *testing.T) {
 	if !ok {
 		t.Fatal("plugin does not implement whoosh.Versioner")
 	}
+
 	if v.Version() != pluginVersion || pluginVersion == "" {
 		t.Fatalf("Version() = %q, want %q", v.Version(), pluginVersion)
 	}
@@ -135,16 +142,20 @@ func TestStartup_WiresTasksAndHooks(t *testing.T) {
 			t.Errorf("task %s not contributed", w.task)
 			continue
 		}
+
 		if !task.Hidden || !task.Silent || task.Action != actionSend {
 			t.Errorf("task %s = %+v, want hidden+silent action %s", w.task, task, actionSend)
 		}
+
 		if task.With["message"] == "" || task.With["event"] == "" {
 			t.Errorf("task %s with = %v, want message and event set", w.task, task.With)
 		}
+
 		if len(w.hooked) != 1 || w.hooked[0] != w.task {
 			t.Errorf("hook wiring for %s = %v", w.task, w.hooked)
 		}
 	}
+
 	if _, ok := cfg.Tasks[taskNotifyRollback]; ok {
 		t.Error("rollback task contributed by default, want opt-in only")
 	}
@@ -161,15 +172,19 @@ func TestStartup_Toggles(t *testing.T) {
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	if _, ok := cfg.Tasks[taskNotifyStart]; ok {
 		t.Error("notify_start: false still contributed the start task")
 	}
+
 	if len(cfg.Hooks.Before[whoosh.PhaseStarting]) != 0 {
 		t.Errorf("notify_start: false still hooked %v before %s", cfg.Hooks.Before[whoosh.PhaseStarting], whoosh.PhaseStarting)
 	}
+
 	if got := cfg.Hooks.After[whoosh.PhaseRollback]; len(got) != 1 || got[0] != taskNotifyRollback {
 		t.Errorf("notify_rollback: true hooks = %v, want [%s]", got, taskNotifyRollback)
 	}
+
 	// The timer func-hook is registered regardless of notify_start (duration for success/fail).
 	if n := len(cfg.HookFuncsBefore[whoosh.PhaseStarting]); n != 1 {
 		t.Errorf("timer func hooks = %d, want 1", n)
@@ -187,9 +202,11 @@ func TestStartup_ColorOverride(t *testing.T) {
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	if got := cfg.Tasks[taskNotifySuccess].With["color"]; got != "#00ff00" {
 		t.Errorf("success color = %v, want the override", got)
 	}
+
 	if got := cfg.Tasks[taskNotifyFail].With["color"]; got != colorFail {
 		t.Errorf("fail color = %v, want the default %q", got, colorFail)
 	}
@@ -206,9 +223,11 @@ func TestStartup_MessageOverride(t *testing.T) {
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	if got := cfg.Tasks[taskNotifyFail].With["message"]; got != "custom fail text" {
 		t.Errorf("fail message = %v, want the override", got)
 	}
+
 	if got := cfg.Tasks[taskNotifySuccess].With["message"]; got != defaultMsgSuccess {
 		t.Errorf("success message = %v, want the default", got)
 	}
@@ -222,17 +241,20 @@ func TestStartup_RichFieldsInjectsContext(t *testing.T) {
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	for _, name := range []string{taskNotifySuccess, taskNotifyFail} {
 		w := cfg.Tasks[name].With
 		if w["rich_fields"] != true {
 			t.Errorf("%s with.rich_fields = %v, want true", name, w["rich_fields"])
 		}
+
 		for _, k := range []string{"stage", "branch", "release_path", "commit_hash", "deployer"} {
 			if s, _ := w[k].(string); s == "" {
 				t.Errorf("%s with.%s not injected", name, k)
 			}
 		}
 	}
+
 	if _, ok := cfg.Tasks[taskNotifyStart].With["rich_fields"]; ok {
 		t.Error("start task got rich_fields, want outcome events only")
 	}
@@ -249,9 +271,11 @@ func TestSend_RichFields(t *testing.T) {
 	if err := n.install(t.Context(), subCfg); err != nil {
 		t.Fatalf("install: %v", err)
 	}
+
 	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](t.Context(), io.Discard); err != nil {
 		t.Fatalf("timer hook: %v", err)
 	}
+
 	clock = base.Add(42 * time.Second)
 
 	with := map[string]any{
@@ -262,10 +286,12 @@ func TestSend_RichFields(t *testing.T) {
 	if err := n.send(t.Context(), with, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
+
 	att := srv.received()[0].Attachments[0]
 	if att.Text != "done" {
 		t.Errorf("text = %q, want no duration suffix in rich mode", att.Text)
 	}
+
 	want := []attachField{
 		{"User", "alice", true},
 		{"Stage", "production", true},
@@ -277,6 +303,7 @@ func TestSend_RichFields(t *testing.T) {
 	if len(att.Fields) != len(want) {
 		t.Fatalf("fields = %+v, want %d entries", att.Fields, len(want))
 	}
+
 	for i, f := range want {
 		if att.Fields[i] != f {
 			t.Errorf("field[%d] = %+v, want %+v", i, att.Fields[i], f)
@@ -292,6 +319,7 @@ func TestSend_RichFields(t *testing.T) {
 	if err := n.send(t.Context(), failWith, io.Discard); err != nil {
 		t.Fatalf("send fail: %v", err)
 	}
+
 	got := srv.received()
 	for _, f := range got[len(got)-1].Attachments[0].Fields {
 		if f.Title == "Revision" {
@@ -318,17 +346,21 @@ func TestSend_PostsPayload(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("posted %d payloads, want 1", len(got))
 	}
+
 	pl := got[0]
 	if pl.Channel != "#deploys" || pl.Username != "whoosh" || pl.IconEmoji != ":package:" {
 		t.Errorf("payload overrides = %+v", pl)
 	}
+
 	if len(pl.Attachments) != 1 {
 		t.Fatalf("attachments = %+v, want 1", pl.Attachments)
 	}
+
 	a := pl.Attachments[0]
 	if a.Text != "hello *world*" || a.Color != "warning" || a.Fallback != a.Text {
 		t.Errorf("attachment = %+v", a)
 	}
+
 	if ct := srv.headers[0].Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type = %q", ct)
 	}
@@ -341,6 +373,7 @@ func TestSend_WithOverridesBeatPluginParams(t *testing.T) {
 	if err := send(t.Context(), map[string]any{"message": "m", "channel": "#ops"}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
+
 	if got := srv.received()[0].Channel; got != "#ops" {
 		t.Errorf("channel = %q, want the with: override", got)
 	}
@@ -353,6 +386,7 @@ func TestSend_MessageRequired(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "'message' is required") {
 		t.Fatalf("send error = %v, want message-required", err)
 	}
+
 	if len(srv.received()) != 0 {
 		t.Error("posted despite missing message")
 	}
@@ -370,9 +404,11 @@ func TestSend_FailurePolicy(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "500") || !strings.Contains(err.Error(), "rollup_error") {
 		t.Fatalf("plain send error = %v, want the 500 + body", err)
 	}
+
 	if err := send(t.Context(), map[string]any{"message": "m", "optional": true}, io.Discard); err != nil {
 		t.Fatalf("optional send error = %v, want nil", err)
 	}
+
 	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("event send error = %v, want nil (best-effort)", err)
 	}
@@ -384,6 +420,7 @@ func TestSend_FailurePolicy(t *testing.T) {
 	if err := sendDead(t.Context(), map[string]any{"message": "m"}, io.Discard); err == nil {
 		t.Fatal("plain send to dead endpoint = nil, want error")
 	}
+
 	if err := sendDead(t.Context(), map[string]any{"message": "m", "event": eventFailed}, io.Discard); err != nil {
 		t.Fatalf("event send to dead endpoint = %v, want nil (best-effort)", err)
 	}
@@ -402,6 +439,7 @@ func TestSend_EventDuration(t *testing.T) {
 	if err := send(t.Context(), map[string]any{"message": "done", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
+
 	if got := srv.received()[0].Attachments[0].Text; got != "done" {
 		t.Errorf("text = %q, want no duration suffix before the timer hook ran", got)
 	}
@@ -417,13 +455,16 @@ func TestSend_EventDuration(t *testing.T) {
 	if err := n.install(t.Context(), subCfg); err != nil {
 		t.Fatalf("install: %v", err)
 	}
+
 	if err := subCfg.HookFuncsBefore[whoosh.PhaseStarting][0](t.Context(), io.Discard); err != nil {
 		t.Fatalf("timer hook: %v", err)
 	}
+
 	clock = base.Add(5 * time.Second)
 	if err := n.send(t.Context(), map[string]any{"message": "done", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
+
 	got := srv.received()
 	if text := got[len(got)-1].Attachments[0].Text; text != "done in 5s" {
 		t.Errorf("text = %q, want %q", text, "done in 5s")
@@ -433,6 +474,7 @@ func TestSend_EventDuration(t *testing.T) {
 	if err := n.send(t.Context(), map[string]any{"message": "go", "event": eventStarted}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
+
 	got = srv.received()
 	if text := got[len(got)-1].Attachments[0].Text; text != "go" {
 		t.Errorf("start text = %q, want no duration", text)
@@ -447,6 +489,7 @@ func TestSend_WebhookOverride(t *testing.T) {
 	if err := send(t.Context(), map[string]any{"message": "m", "webhook_url": other.URL}, io.Discard); err != nil {
 		t.Fatalf("send: %v", err)
 	}
+
 	if len(main.received()) != 0 || len(other.received()) != 1 {
 		t.Errorf("main got %d, override got %d; want 0/1", len(main.received()), len(other.received()))
 	}
@@ -470,15 +513,19 @@ func TestSend_PerEventWebhook(t *testing.T) {
 	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFailed}, io.Discard); err != nil {
 		t.Fatalf("send failed event: %v", err)
 	}
+
 	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFinished}, io.Discard); err != nil {
 		t.Fatalf("send finished event: %v", err)
 	}
+
 	if err := send(t.Context(), map[string]any{"message": "m"}, io.Discard); err != nil {
 		t.Fatalf("send plain: %v", err)
 	}
+
 	if got := len(alerts.received()); got != 1 {
 		t.Errorf("failure webhook got %d payloads, want 1", got)
 	}
+
 	if got := len(main.received()); got != 2 {
 		t.Errorf("global webhook got %d payloads, want 2 (finished + plain)", got)
 	}
@@ -487,6 +534,7 @@ func TestSend_PerEventWebhook(t *testing.T) {
 	if err := send(t.Context(), map[string]any{"message": "m", "event": eventFailed, "webhook_url": other.URL}, io.Discard); err != nil {
 		t.Fatalf("send with override: %v", err)
 	}
+
 	if got := len(other.received()); got != 1 {
 		t.Errorf("with: override webhook got %d payloads, want 1", got)
 	}
@@ -524,11 +572,13 @@ func TestDefaultTemplatesRender(t *testing.T) {
 			t.Errorf("parse %q: %v", tmpl, err)
 			continue
 		}
+
 		var b strings.Builder
 		if err := parsed.Execute(&b, data); err != nil {
 			t.Errorf("render %q: %v", tmpl, err)
 			continue
 		}
+
 		got := b.String()
 		if !strings.Contains(got, sub) || !strings.Contains(got, "myapp") || !strings.Contains(got, "production") {
 			t.Errorf("rendered %q = %q, want it to contain %q + app + stage", tmpl, got, sub)
@@ -550,6 +600,7 @@ func TestStartup_MasksTaskLevelWebhook(t *testing.T) {
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("RunStartup: %v", err)
 	}
+
 	if masked := whoosh.Masking("action slack:send with " + taskHook); strings.Contains(masked, "task-level-secret-token") {
 		t.Errorf("task-level webhook not masked at startup: %q", masked)
 	}
@@ -561,6 +612,7 @@ func TestSecretMasked(t *testing.T) {
 	if _, err := whoosh.Load([]whoosh.PluginSpec{{Name: pluginName, Params: map[string]any{"webhook_url": secret}}}); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if masked := whoosh.Masking("posting to " + secret + " now"); strings.Contains(masked, "verysecrettoken") {
 		t.Errorf("webhook URL not masked: %q", masked)
 	}

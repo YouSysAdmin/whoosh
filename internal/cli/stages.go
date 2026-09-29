@@ -25,22 +25,28 @@ func newStagesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			stages, err := deployfile.ListStages(filepath.Dir(path))
 			if err != nil {
 				return err
 			}
+
 			if len(stages) == 0 {
 				slog.Warn("no stage files found", "deployfile", path, "dirs", deployfile.StageDirs)
+
 				return nil
 			}
+
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, s := range stages {
 				fmt.Fprintf(w, "%s\t%s\n", s.Name, s.Description)
 			}
+
 			return w.Flush()
 		},
 	}
 	cmd.Flags().StringVar(&deployfilePath, "deployfile", "", "path to the Deployfile (default: auto-discover)")
+
 	return cmd
 }
 
@@ -51,24 +57,29 @@ func completeStages(_ *cobra.Command, args []string, toComplete string) ([]strin
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
+
 	path, err := deployfile.Discover(".", "")
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
+
 	stages, err := deployfile.ListStages(filepath.Dir(path))
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
+
 	var out []string
 	for _, s := range stages {
 		if !strings.HasPrefix(s.Name, toComplete) {
 			continue
 		}
+
 		if s.Description != "" {
 			out = append(out, s.Name+"\t"+s.Description)
 		} else {
 			out = append(out, s.Name)
 		}
 	}
+
 	return out, cobra.ShellCompDirectiveNoFileComp
 }

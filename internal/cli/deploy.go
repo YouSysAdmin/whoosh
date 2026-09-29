@@ -19,7 +19,9 @@ func newDeployCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			defer closeFn()
+
 			return d.Deploy(cmd.Context())
 		},
 	}
@@ -35,7 +37,9 @@ func newDeployCheckCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			defer closeFn()
+
 			return d.Check(cmd.Context())
 		},
 	}
@@ -48,6 +52,7 @@ func newExecutor(cmd *cobra.Command, cfg *ast.DeployFile, reg *plugins.Registry,
 	if err != nil {
 		return nil, err
 	}
+
 	return executor.New(cfg, executor.Options{
 		SSH:         sshOpts,
 		Out:         cmd.OutOrStdout(),
@@ -68,14 +73,18 @@ func newDeployer(cmd *cobra.Command, stage string, gf *globalFlags) (*deploy.Dep
 	if err != nil {
 		return nil, nil, err
 	}
+
 	ex, err := newExecutor(cmd, cfg, reg, gf)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	d, err := deploy.New(cfg, ex)
 	if err != nil {
 		ex.Close()
+
 		return nil, nil, err
 	}
+
 	return d, ex.Close, nil
 }

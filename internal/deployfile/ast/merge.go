@@ -12,15 +12,19 @@ func Merge(base, override *DeployFile) *DeployFile {
 	if override.Version != "" {
 		out.Version = override.Version
 	}
+
 	if override.Description != "" {
 		out.Description = override.Description
 	}
+
 	if override.ScriptsDir != "" {
 		out.ScriptsDir = override.ScriptsDir
 	}
+
 	if override.OnUnreachable != "" {
 		out.OnUnreachable = override.OnUnreachable
 	}
+
 	out.Plugins = append(append([]PluginSpec{}, base.Plugins...), override.Plugins...)
 	out.App = mergeApp(base.App, override.App)
 	// linked_files/linked_dirs replace wholesale (a non-empty override wins).
@@ -31,11 +35,13 @@ func Merge(base, override *DeployFile) *DeployFile {
 	} else {
 		out.LinkedFiles = append([]string{}, base.LinkedFiles...)
 	}
+
 	if len(override.LinkedDirs) > 0 {
 		out.LinkedDirs = append([]string{}, override.LinkedDirs...)
 	} else {
 		out.LinkedDirs = append([]string{}, base.LinkedDirs...)
 	}
+
 	out.SSH = mergeSSH(base.SSH, override.SSH)
 	out.Log = mergeLog(base.Log, override.Log)
 	out.Vars = mergeMap(base.Vars, override.Vars)
@@ -51,6 +57,7 @@ func Merge(base, override *DeployFile) *DeployFile {
 
 	out.Tasks = mergeMap(base.Tasks, override.Tasks)
 	out.Hooks = mergeHooks(base.Hooks, override.Hooks)
+
 	return &out
 }
 
@@ -58,24 +65,31 @@ func mergeLog(base, ov Log) Log {
 	if ov.Level != "" {
 		base.Level = ov.Level
 	}
+
 	if ov.Format != "" {
 		base.Format = ov.Format
 	}
+
 	if ov.Output != "" {
 		base.Output = ov.Output
 	}
+
 	if ov.Color != nil {
 		base.Color = ov.Color
 	}
+
 	if ov.File != "" {
 		base.File = ov.File
 	}
+
 	if ov.FileFormat != "" {
 		base.FileFormat = ov.FileFormat
 	}
+
 	if ov.RawRemoteLog != nil {
 		base.RawRemoteLog = ov.RawRemoteLog
 	}
+
 	return base
 }
 
@@ -83,18 +97,23 @@ func mergeApp(base, ov App) App {
 	if ov.Name != "" {
 		base.Name = ov.Name
 	}
+
 	if ov.Repo != "" {
 		base.Repo = ov.Repo
 	}
+
 	if ov.Branch != "" {
 		base.Branch = ov.Branch
 	}
+
 	if ov.DeployTo != "" {
 		base.DeployTo = ov.DeployTo
 	}
+
 	if ov.KeepReleases != 0 {
 		base.KeepReleases = ov.KeepReleases
 	}
+
 	return base
 }
 
@@ -102,35 +121,46 @@ func mergeSSH(base, ov SSH) SSH {
 	if ov.User != "" {
 		base.User = ov.User
 	}
+
 	if ov.Port != 0 {
 		base.Port = ov.Port
 	}
+
 	if ov.IdentityFile != "" {
 		base.IdentityFile = ov.IdentityFile
 	}
+
 	if ov.IdentityFilePassphrase != "" {
 		base.IdentityFilePassphrase = ov.IdentityFilePassphrase
 	}
+
 	if ov.KnownHostsFile != "" {
 		base.KnownHostsFile = ov.KnownHostsFile
 	}
+
 	if ov.StrictHostKey != nil {
 		base.StrictHostKey = ov.StrictHostKey
 	}
+
 	if ov.AcceptNew != nil {
 		base.AcceptNew = ov.AcceptNew
 	}
+
 	if ov.ForwardAgent != nil {
 		base.ForwardAgent = ov.ForwardAgent
 	}
+
 	if ov.ForwardKey != "" {
 		base.ForwardKey = ov.ForwardKey
 	}
+
 	// Pointer-wins: a stage replaces the base bastion wholesale, it cannot unset one.
 	if ov.Bastion != nil {
 		base.Bastion = ov.Bastion
 	}
+
 	base.Identities = mergeMap(base.Identities, ov.Identities)
+
 	return base
 }
 
@@ -141,9 +171,11 @@ func mergeMap[V any](base, ov map[string]V) map[string]V {
 	if base == nil && ov == nil {
 		return nil
 	}
+
 	out := make(map[string]V, len(base)+len(ov))
 	maps.Copy(out, base)
 	maps.Copy(out, ov)
+
 	return out
 }
 

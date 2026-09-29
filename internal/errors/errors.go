@@ -37,9 +37,11 @@ func Code(err error) int {
 	if err == nil {
 		return CodeOK
 	}
+
 	if e, ok := stderrors.AsType[Error](err); ok {
 		return e.Code()
 	}
+
 	return CodeUnknown
 }
 
@@ -51,6 +53,7 @@ func RootCause(err error) error {
 		if inner == nil {
 			return err
 		}
+
 		err = inner
 	}
 }

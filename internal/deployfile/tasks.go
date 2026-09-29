@@ -20,11 +20,13 @@ func TasksForStage(path, stage string) (map[string]*ast.Task, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cfg := base
 	if sp, err := stagePath(filepath.Dir(path), stage); err == nil {
 		if stageCfg, err := resolveIncludes(sp, nil, seen); err == nil && stageCfg != nil {
 			cfg = ast.Merge(base, stageCfg)
 		}
 	}
+
 	return cfg.Tasks, nil
 }

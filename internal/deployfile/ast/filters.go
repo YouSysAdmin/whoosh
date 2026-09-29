@@ -7,12 +7,14 @@ func FilterByRoles(hosts []Host, roles []string) []Host {
 	if len(roles) == 0 {
 		return hosts
 	}
+
 	var out []Host
 	for _, h := range hosts {
 		if slices.ContainsFunc(roles, h.HasRole) {
 			out = append(out, h)
 		}
 	}
+
 	return out
 }
 
@@ -26,6 +28,7 @@ func FilterDeployable(hosts []Host) []Host {
 			out = append(out, h)
 		}
 	}
+
 	return out
 }
 
@@ -40,6 +43,7 @@ func FilterNonDeployable(hosts []Host) []Host {
 			out = append(out, h)
 		}
 	}
+
 	return out
 }
 
@@ -49,11 +53,13 @@ func PickPrimary(hosts []Host) []Host {
 	if len(hosts) == 0 {
 		return nil
 	}
+
 	for _, h := range hosts {
 		if h.Primary {
 			return []Host{h}
 		}
 	}
+
 	return hosts[:1]
 }
 
@@ -62,11 +68,13 @@ func FilterByAddresses(hosts []Host, addrs []string) []Host {
 	if len(addrs) == 0 {
 		return hosts
 	}
+
 	var out []Host
 	for _, h := range hosts {
 		if slices.Contains(addrs, h.Address) {
 			out = append(out, h)
 		}
 	}
+
 	return out
 }

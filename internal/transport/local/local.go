@@ -31,6 +31,7 @@ func (c *Client) Run(ctx context.Context, command string, stdout, stderr io.Writ
 		if err == syscall.ESRCH {
 			return os.ErrProcessDone
 		}
+
 		return err
 	}
 	// A grandchild that left the process group (setsid, a daemonizing tool) survives the group kill and inherits the
@@ -43,6 +44,7 @@ func (c *Client) Run(ctx context.Context, command string, stdout, stderr io.Writ
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+
 	return err
 }
 

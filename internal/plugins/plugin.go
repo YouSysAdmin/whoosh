@@ -51,6 +51,7 @@ func WithHostFileWriter(ctx context.Context, w HostFileWriter) context.Context {
 // executor, as in a unit test).
 func HostFileWriterFrom(ctx context.Context) HostFileWriter {
 	w, _ := ctx.Value(hostWriterKey{}).(HostFileWriter)
+
 	return w
 }
 
@@ -73,6 +74,7 @@ func WithHostCommandRunner(ctx context.Context, r HostCommandRunner) context.Con
 // the executor, as in a unit test).
 func HostCommandRunnerFrom(ctx context.Context) HostCommandRunner {
 	r, _ := ctx.Value(hostRunnerKey{}).(HostCommandRunner)
+
 	return r
 }
 
@@ -96,6 +98,7 @@ func WithHostCommandCapturer(ctx context.Context, c HostCommandCapturer) context
 // outside the executor, as in a unit test).
 func HostCommandCapturerFrom(ctx context.Context) HostCommandCapturer {
 	c, _ := ctx.Value(hostCapturerKey{}).(HostCommandCapturer)
+
 	return c
 }
 
@@ -128,6 +131,7 @@ func Register(name string, f Factory) {
 	if _, dup := factories[name]; dup {
 		panic("plugins already registered: " + name)
 	}
+
 	factories[name] = f
 }
 
@@ -152,12 +156,14 @@ func DefaultSpecs(listed []ast.PluginSpec) []ast.PluginSpec {
 	for _, s := range listed {
 		have[s.Name] = true
 	}
+
 	out := append([]ast.PluginSpec{}, listed...)
 	for _, name := range defaultPlugins {
 		if !have[name] {
 			out = append(out, ast.PluginSpec{Name: name})
 		}
 	}
+
 	return out
 }
 
@@ -165,6 +171,7 @@ func DefaultSpecs(listed []ast.PluginSpec) []ast.PluginSpec {
 // Lets the validate command flag an unknown plugin name without loading (and connecting through) the plugins.
 func IsRegistered(name string) bool {
 	_, ok := factories[name]
+
 	return ok
 }
 
@@ -189,9 +196,12 @@ func RegisteredInfo() []PluginInfo {
 		if v, ok := f().(Versioner); ok {
 			info.Version = v.Version()
 		}
+
 		out = append(out, info)
 	}
+
 	slices.SortFunc(out, func(a, b PluginInfo) int { return cmp.Compare(a.Name, b.Name) })
+
 	return out
 }
 
@@ -208,7 +218,9 @@ func (r *Registry) AddAction(name string, fn ActionFunc) error {
 	if _, dup := r.actions[name]; dup {
 		return fmt.Errorf("action %q already registered", name)
 	}
+
 	r.actions[name] = fn
+
 	return nil
 }
 
@@ -218,6 +230,7 @@ func (r *Registry) AddStartup(fn StartupFunc) { r.startups = append(r.startups, 
 // Action looks up a registered action by name.
 func (r *Registry) Action(name string) (ActionFunc, bool) {
 	fn, ok := r.actions[name]
+
 	return fn, ok
 }
 
@@ -229,9 +242,11 @@ func (r *Registry) RunStartup(ctx context.Context, cfg *ast.DeployFile) error {
 			if _, ok := werrors.AsType[werrors.Error](err); ok {
 				return err
 			}
+
 			return &werrors.PluginError{Msg: "startup hook", Err: err}
 		}
 	}
+
 	return nil
 }
 
@@ -245,10 +260,12 @@ func Load(specs []ast.PluginSpec) (*Registry, error) {
 			// A bad plugin name is a Deployfile problem, so it maps to the config exit code.
 			return nil, werrors.Config("unknown plugin %q (not built into this binary)", spec.Name)
 		}
+
 		if err := f().Configure(spec, reg); err != nil {
 			return nil, &werrors.PluginError{Msg: fmt.Sprintf("plugin %q", spec.Name), Err: err}
 		}
 	}
+
 	return reg, nil
 }
 
@@ -260,6 +277,7 @@ func DecodeParams(params map[string]any, target any) error {
 	if err != nil {
 		return err
 	}
+
 	return yaml.Unmarshal(data, target)
 }
 
@@ -270,10 +288,12 @@ func DecodeParamsStrict(params map[string]any, target any) error {
 	if err != nil {
 		return err
 	}
+
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(target); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
+
 	return nil
 }

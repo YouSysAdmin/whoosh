@@ -51,11 +51,13 @@ func AddSecret(s string) {
 	if len(s) < minSecretLen {
 		return
 	}
+
 	secretsMu.Lock()
 	defer secretsMu.Unlock()
 	if secretSet[s] {
 		return
 	}
+
 	secretSet[s] = true
 	secrets = append(secrets, s)
 	// Longest-first, so a secret that contains a shorter registered one is masked whole rather than leaving a tail behind.
@@ -71,6 +73,7 @@ func replaceSecrets(s string) string {
 			s = strings.ReplaceAll(s, sec, Placeholder)
 		}
 	}
+
 	return s
 }
 
@@ -119,11 +122,13 @@ func String(s string) string {
 	if !enabled.Load() {
 		return s
 	}
+
 	// Exact user-registered secrets first, then the built-in patterns.
 	s = replaceSecrets(s)
 	for _, r := range rules {
 		s = r.re.ReplaceAllString(s, r.repl)
 	}
+
 	return s
 }
 
@@ -144,6 +149,7 @@ func (rw *Writer) Write(p []byte) (int, error) {
 	if !enabled.Load() {
 		return rw.w.Write(p)
 	}
+
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
 	rw.buf = append(rw.buf, p...)
@@ -152,14 +158,18 @@ func (rw *Writer) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
+
 		if _, err := io.WriteString(rw.w, String(string(rw.buf[:i+1]))); err != nil {
 			// p is already consumed into the buffer, so report it written and drop the failed line - keeping it
 			// would re-emit it on the next Write.
 			rw.buf = rw.buf[i+1:]
+
 			return len(p), err
 		}
+
 		rw.buf = rw.buf[i+1:]
 	}
+
 	return len(p), nil
 }
 
@@ -170,7 +180,9 @@ func (rw *Writer) Flush() error {
 	if len(rw.buf) == 0 {
 		return nil
 	}
+
 	_, err := io.WriteString(rw.w, String(string(rw.buf)))
 	rw.buf = nil
+
 	return err
 }

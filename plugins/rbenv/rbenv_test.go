@@ -19,6 +19,7 @@ func load(t *testing.T, cfg *ast.DeployFile, params map[string]any) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
+
 	if err := reg.RunStartup(t.Context(), cfg); err != nil {
 		t.Fatalf("startup: %v", err)
 	}
@@ -32,12 +33,15 @@ func TestStartup_ContributesTaskAndHook(t *testing.T) {
 	if !ok {
 		t.Fatalf("task %q not registered; have %v", defaultTaskName, keys(cfg.Tasks))
 	}
+
 	if len(task.Scripts) != 1 || !strings.Contains(task.Scripts[0].Script, "rbenv") {
 		t.Fatalf("setup task should carry the embedded rbenv script")
 	}
+
 	if task.Dir != "." {
 		t.Errorf("task Dir = %q, want %q (the hook may be anchored to phases where deploy dirs don't exist)", task.Dir, ".")
 	}
+
 	if got := cfg.Hooks.Before[defaultPhase]; len(got) != 1 || got[0] != defaultTaskName {
 		t.Errorf("before[%s] = %v, want [%s]", defaultPhase, got, defaultTaskName)
 	}
@@ -50,10 +54,12 @@ func TestStartup_InjectsPath(t *testing.T) {
 	if cfg.Envs["RBENV_ROOT"] != defaultRoot {
 		t.Errorf("RBENV_ROOT = %q, want %q", cfg.Envs["RBENV_ROOT"], defaultRoot)
 	}
+
 	wantPath := defaultRoot + "/bin:" + defaultRoot + "/shims:$PATH"
 	if cfg.Envs["PATH"] != wantPath {
 		t.Errorf("PATH = %q, want %q", cfg.Envs["PATH"], wantPath)
 	}
+
 	if cfg.Imports["rbenv"]["root"] != defaultRoot {
 		t.Errorf("import rbenv.root = %q, want %q", cfg.Imports["rbenv"]["root"], defaultRoot)
 	}
@@ -76,6 +82,7 @@ func TestStartup_InjectPathDisabled(t *testing.T) {
 	if _, ok := cfg.Envs["PATH"]; ok {
 		t.Errorf("PATH should not be injected when inject_path: false, got %q", cfg.Envs["PATH"])
 	}
+
 	// The task still needs RBENV_ROOT itself.
 	if cfg.Tasks[defaultTaskName].Envs["RBENV_ROOT"] != defaultRoot {
 		t.Errorf("task RBENV_ROOT = %q, want %q", cfg.Tasks[defaultTaskName].Envs["RBENV_ROOT"], defaultRoot)
@@ -88,6 +95,7 @@ func TestStartup_VersionsUnionAndFlags(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, ".ruby-version"), []byte("ruby-3.2.2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	cfg := &ast.DeployFile{Dir: dir}
 	load(t, cfg, map[string]any{
 		"versions": []string{"3.3.0", "3.2.2"}, // 3.2.2 also comes from the file → deduped
@@ -103,6 +111,7 @@ func TestStartup_VersionsUnionAndFlags(t *testing.T) {
 	if !equalSet(got, []string{"3.3.0", "3.2.2"}) {
 		t.Errorf("RBENV_VERSIONS = %q, want the set {3.3.0, 3.2.2}", env["RBENV_VERSIONS"])
 	}
+
 	assertEnv(t, env, "RBENV_PRUNE", "1")
 	assertEnv(t, env, "RBENV_UPDATE", "1")
 	assertEnv(t, env, "RBENV_GLOBAL", "3.3.0")
@@ -196,6 +205,7 @@ func TestStartup_ExtraPluginsValidation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
+
 			if err := reg.RunStartup(t.Context(), &ast.DeployFile{}); err == nil {
 				t.Fatalf("expected an error for %s", tc.name)
 			}
@@ -208,6 +218,7 @@ func TestStartup_ReadRubyVersionDisabled(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, ".ruby-version"), []byte("3.2.2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	cfg := &ast.DeployFile{Dir: dir}
 	load(t, cfg, map[string]any{"read_ruby_version": false, "versions": []string{"3.3.0"}})
 
@@ -215,6 +226,7 @@ func TestStartup_ReadRubyVersionDisabled(t *testing.T) {
 	if env["RBENV_VERSIONS"] != "3.3.0" {
 		t.Errorf("RBENV_VERSIONS = %q, want %q (file must be ignored)", env["RBENV_VERSIONS"], "3.3.0")
 	}
+
 	assertEnv(t, env, "RBENV_READ_RUBY_VERSION", "0")
 }
 
@@ -238,9 +250,11 @@ func TestStartup_AfterHookAndCustomPhase(t *testing.T) {
 	if _, ok := cfg.Tasks["ruby:prepare"]; !ok {
 		t.Fatalf("custom task name not registered")
 	}
+
 	if got := cfg.Hooks.After["deploy:updated"]; len(got) != 1 || got[0] != "ruby:prepare" {
 		t.Errorf("after[deploy:updated] = %v, want [ruby:prepare]", got)
 	}
+
 	if len(cfg.Hooks.Before) != 0 {
 		t.Errorf("no before hook expected, got %v", cfg.Hooks.Before)
 	}
@@ -267,9 +281,11 @@ func TestReadLocalRubyVersion(t *testing.T) {
 	if got := readLocalRubyVersion(dir, ".ruby-version"); got != "" {
 		t.Errorf("missing file should yield %q, got %q", "", got)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, ".ruby-version"), []byte("ruby-3.3.0 # jruby\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := readLocalRubyVersion(dir, ".ruby-version"); got != "3.3.0" {
 		t.Errorf("readLocalRubyVersion = %q, want %q", got, "3.3.0")
 	}
@@ -290,15 +306,18 @@ func equalSet(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	seen := map[string]bool{}
 	for _, s := range a {
 		seen[s] = true
 	}
+
 	for _, s := range b {
 		if !seen[s] {
 			return false
 		}
 	}
+
 	return true
 }
 

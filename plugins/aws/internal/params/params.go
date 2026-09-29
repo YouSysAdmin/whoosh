@@ -20,6 +20,7 @@ func OrPtr[T any](p *T, def T) *T {
 	if p != nil {
 		return p
 	}
+
 	return &def
 }
 

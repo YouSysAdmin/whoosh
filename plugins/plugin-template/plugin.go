@@ -82,12 +82,15 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := whoosh.DecodeParams(spec.Params, &p.global); err != nil {
 		return fmt.Errorf("%s params: %w", pluginName, err)
 	}
+
 	if err := p.global.validate(); err != nil {
 		return err
 	}
+
 	if p.global.Token != "" {
 		whoosh.AddSecret(p.global.Token)
 	}
+
 	var err error
 	if p.client, err = newClient(p.global); err != nil {
 		return err
@@ -111,6 +114,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	if err := reg.AddAction(ActionRender, p.render); err != nil {
 		return err
 	}
+
 	if err := reg.AddAction(ActionExec, p.exec); err != nil {
 		return err
 	}
@@ -122,21 +126,27 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 		if err != nil {
 			return err
 		}
+
 		reg.AddStartup(p.inventoryStartup(fp))
 	}
+
 	if raw, ok := p.features[FeatureContext]; ok {
 		fp, err := decodeContextParams(raw)
 		if err != nil {
 			return err
 		}
+
 		reg.AddStartup(p.contextStartup(fp))
 	}
+
 	if raw, ok := p.features[FeatureSetup]; ok {
 		fp, err := decodeSetupParams(raw)
 		if err != nil {
 			return err
 		}
+
 		reg.AddStartup(p.setupStartup(fp))
 	}
+
 	return nil
 }

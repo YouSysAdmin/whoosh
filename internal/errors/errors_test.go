@@ -38,12 +38,15 @@ func TestIsUnreachable(t *testing.T) {
 	if !errors.IsUnreachable(u) {
 		t.Error("direct UnreachableError not detected")
 	}
+
 	if !errors.IsUnreachable(fmt.Errorf("ctx: %w", u)) {
 		t.Error("wrapped UnreachableError not detected")
 	}
+
 	if errors.IsUnreachable(&errors.CommandError{Host: "h", Err: errors.New("x")}) {
 		t.Error("CommandError wrongly classified unreachable")
 	}
+
 	if errors.IsUnreachable(nil) {
 		t.Error("nil wrongly classified unreachable")
 	}
@@ -60,6 +63,7 @@ func TestPassThroughMessage(t *testing.T) {
 		if e.Error() != cause.Error() {
 			t.Errorf("%T.Error() = %q, want %q", e, e.Error(), cause.Error())
 		}
+
 		if !errors.Is(e, cause) {
 			t.Errorf("%T does not unwrap to its cause", e)
 		}

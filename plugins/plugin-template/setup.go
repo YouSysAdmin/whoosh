@@ -46,13 +46,16 @@ var setupScript string
 type setupParams struct {
 	// Roles restricts the task to hosts filling these roles (empty = all deployable hosts).
 	Roles []string `yaml:"roles"`
+
 	// Phase / When anchor the task as a hook: When is "before" (default) or "after", Phase defaults to
 	// deploy:updated (release built and linked, not yet live).
 	Phase string `yaml:"phase"`
 	When  string `yaml:"when"`
+
 	// CustomPhase, when set, wires the task as a NEW named phase spliced after deploy:published instead of a hook -
 	// other tasks can then hook onto that name. Mutually exclusive with phase/when.
 	CustomPhase string `yaml:"custom_phase"`
+
 	// Envs is extra environment for the script (merged under the plugin's own control vars).
 	Envs map[string]string `yaml:"envs"`
 }
@@ -63,18 +66,23 @@ func decodeSetupParams(raw map[string]any) (setupParams, error) {
 	if err := whoosh.DecodeParams(raw, &fp); err != nil {
 		return fp, fmt.Errorf("%s params: %w", FeatureSetup, err)
 	}
+
 	if fp.When != "" && !strings.EqualFold(fp.When, "before") && !strings.EqualFold(fp.When, "after") {
 		return fp, fmt.Errorf("%s: when must be \"before\" or \"after\", got %q", FeatureSetup, fp.When)
 	}
+
 	if fp.CustomPhase != "" && (fp.Phase != "" || fp.When != "") {
 		return fp, fmt.Errorf("%s: custom_phase and phase/when are mutually exclusive", FeatureSetup)
 	}
+
 	if fp.Phase == "" {
 		fp.Phase = whoosh.PhaseUpdated
 	}
+
 	if fp.When == "" {
 		fp.When = "before"
 	}
+
 	return fp, nil
 }
 
@@ -106,6 +114,7 @@ func (p *plugin) setupStartup(fp setupParams) whoosh.StartupFunc {
 				After: whoosh.PhasePublished,
 				Task:  taskSetup,
 			})
+
 			return nil
 		}
 
@@ -121,12 +130,15 @@ func (p *plugin) setupStartup(fp setupParams) whoosh.StartupFunc {
 		// at lifecycle points.
 		cfg.AddHookFuncBefore(whoosh.PhaseStarting, func(_ context.Context, out io.Writer) error {
 			fmt.Fprintf(out, "%s: setup will run %s %s\n", pluginName, fp.When, fp.Phase)
+
 			return nil
 		})
 		cfg.AddHookFuncAfter(whoosh.PhaseFinished, func(_ context.Context, out io.Writer) error {
 			fmt.Fprintf(out, "%s: deploy finished\n", pluginName)
+
 			return nil
 		})
+
 		return nil
 	}
 }

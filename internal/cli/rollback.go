@@ -13,11 +13,14 @@ func newRollbackCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			defer closeFn()
+
 			return d.Rollback(cmd.Context(), cleanup)
 		},
 	}
 	cmd.Flags().BoolVar(&cleanup, "cleanup", false, "remove the rolled-back release after switching")
+
 	return cmd
 }
 
@@ -31,7 +34,9 @@ func newReleasesCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			defer closeFn()
+
 			return d.Releases(cmd.Context())
 		},
 	}
@@ -47,7 +52,9 @@ func newUnlockCmd(stage string, gf *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			defer closeFn()
+
 			return d.Unlock(cmd.Context())
 		},
 	}

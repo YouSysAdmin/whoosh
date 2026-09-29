@@ -31,11 +31,13 @@ ssh:
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
+
 	for _, secret := range []string{"FAKEKEYBODY443322", passphrase} {
 		if strings.Contains(out, secret) {
 			t.Errorf("config dump leaks %q:\n%s", secret, out)
 		}
 	}
+
 	for _, want := range []string{"app_hosts", "worker_hosts", "id_worker", "[MASKED]"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("config dump should contain %q:\n%s", want, out)
@@ -97,11 +99,13 @@ hosts:
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
+
 	for _, secret := range []string{passphrase, "hostsecret_882233"} {
 		if strings.Contains(out, secret) {
 			t.Errorf("config dump leaks %q:\n%s", secret, out)
 		}
 	}
+
 	for _, want := range []string{"identity_file_passphrase: '[MASKED]'", "db1.example.com"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("config dump should contain %q:\n%s", want, out)

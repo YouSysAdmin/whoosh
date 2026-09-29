@@ -21,10 +21,12 @@ func TestMerge_SSHIdentitiesPerKeyReplace(t *testing.T) {
 	if len(ids) != 3 {
 		t.Fatalf("merged identities = %v, want 3 entries", ids)
 	}
+
 	// An override key replaces the base's whole value, not a field-level merge.
 	if got := ids["shared"]; got.Content != "PEM" || got.Path != "" {
 		t.Errorf("shared = %+v, want the override value verbatim", got)
 	}
+
 	if ids["kept"].Path != "~/.ssh/kept_key" || ids["extra"].Path != "~/.ssh/extra_key" {
 		t.Errorf("kept/extra entries wrong: %v", ids)
 	}
@@ -60,11 +62,14 @@ func TestValidate_SSHIdentities(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: unexpected error: %v", c.name, err)
 			}
+
 			continue
 		}
+
 		if err == nil || !strings.Contains(err.Error(), c.wantErr) {
 			t.Errorf("%s: error = %v, want it to mention %q", c.name, err, c.wantErr)
 		}
+
 		if err != nil && !strings.Contains(err.Error(), "ssh.identities.x") {
 			t.Errorf("%s: error %v should name the identity", c.name, err)
 		}
@@ -80,12 +85,14 @@ func TestSSHIdentity_MarshalYAMLRedactsSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	dump := string(data)
 	for _, secret := range []string{"secretbody", "hunter2"} {
 		if strings.Contains(dump, secret) {
 			t.Errorf("config dump leaks %q:\n%s", secret, dump)
 		}
 	}
+
 	for _, want := range []string{"app", "dir", "[MASKED]", "recursive: true", "path: ~/.ssh"} {
 		if !strings.Contains(dump, want) {
 			t.Errorf("config dump missing %q:\n%s", want, dump)

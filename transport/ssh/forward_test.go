@@ -21,15 +21,18 @@ func writeKey(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
+
 	der, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		t.Fatalf("marshal key: %v", err)
 	}
+
 	path := filepath.Join(t.TempDir(), "id_ed25519")
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	if err := os.WriteFile(path, pemBytes, 0o600); err != nil {
 		t.Fatalf("write key: %v", err)
 	}
+
 	return path
 }
 
@@ -42,6 +45,7 @@ func TestForwarding_CommandRunsWhenHostIgnoresRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}
+
 	defer srv.Close()
 
 	conn, err := ssh.Dial(t.Context(), ssh.Target{
@@ -50,12 +54,14 @@ func TestForwarding_CommandRunsWhenHostIgnoresRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
+
 	defer conn.Close()
 
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run with forwarding enabled should succeed even if host ignores it: %v", err)
 	}
+
 	if !strings.Contains(stdout.String(), "hi") {
 		t.Errorf("stdout = %q, want it to contain %q", stdout.String(), "hi")
 	}

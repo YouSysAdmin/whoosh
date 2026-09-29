@@ -56,19 +56,24 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 			required[h.Address] = true
 		}
 	}
+
 	replace := map[string]string{}
 	for name, t := range cfg.Tasks {
 		if t == nil || t.Replace == "" {
 			continue
 		}
+
 		if !replaceablePhases[t.Replace] {
 			return nil, fmt.Errorf("task %q: replace %q is not supported (only %q can be replaced)", name, t.Replace, ast.PhaseRollback)
 		}
+
 		if other, dup := replace[t.Replace]; dup {
 			return nil, fmt.Errorf("tasks %q and %q both replace %q", other, name, t.Replace)
 		}
+
 		replace[t.Replace] = name
 	}
+
 	// Validate custom phases: a unique, non-built-in name, anchored (exactly one of before/after) on a built-in phase,
 	// naming an existing task if it runs one.
 	seenPhase := map[string]bool{}
@@ -83,17 +88,20 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 		case (p.Before == "") == (p.After == ""):
 			return nil, fmt.Errorf("custom phase %q: set exactly one of before/after", p.Name)
 		}
+
 		seenPhase[p.Name] = true
 		anchor := cmp.Or(p.Before, p.After)
 		if !ast.IsBuiltinPhase(anchor) {
 			return nil, fmt.Errorf("custom phase %q: anchor %q is not a built-in phase", p.Name, anchor)
 		}
+
 		if p.Task != "" {
 			if t, ok := cfg.Tasks[p.Task]; !ok || t == nil {
 				return nil, fmt.Errorf("custom phase %q: task %q not found", p.Name, p.Task)
 			}
 		}
 	}
+
 	return &Deployer{
 		cfg:      cfg,
 		ex:       ex,
@@ -111,10 +119,12 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	if d.cfg.App.Repo == "" {
 		return fmt.Errorf("app.repo is required to deploy")
 	}
+
 	hosts := d.ex.Hosts()
 	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 	}
+
 	// The lock holder is the primary host (the first one marked primary, else the first host). It is implicitly
 	// required: losing it would strand the lock, so it must never be dropped by `skip`.
 	primary := ast.PickPrimary(hosts)
@@ -125,6 +135,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	for h := range d.required {
 		required[h] = true
 	}
+
 	d.ex.SetUnreachablePolicy(d.policy, required)
 
 	now := time.Now().UTC()
@@ -169,7 +180,9 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 			if err := d.ex.RunOn(ctx, primary, lockCmd(d.layout, operator.Name()+" @ "+ts)); err != nil {
 				return fmt.Errorf("%w (clear a stale lock with: whoosh %s deploy:unlock)", err, d.cfg.Stage)
 			}
+
 			locked = true
+
 			return nil
 		}},
 		{ast.PhaseCheck, func() error {
@@ -183,6 +196,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 			if err := d.runStep(ctx, d.git.EnsureMirror(d.layout.RepoPath)); err != nil {
 				return err
 			}
+
 			// With the mirror updated, read the deployed commit SHA off a live host and publish it to the context, so
 			// hooks/tasks from here on can use {{.commit_hash}} / $COMMIT_HASH. Skipped in dry-run (nothing is run).
 			if !d.ex.DryRun() {
@@ -190,6 +204,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 				if err != nil {
 					return fmt.Errorf("resolve commit hash: %w", err)
 				}
+
 				d.ex.SetCommitHash(sha)
 				// With both revisions known and the mirror fresh, capture what changed and publish it as
 				// {{.changelog}} / $DEPLOY_CHANGELOG. Best-effort: e.g. a force-push can drop the previous SHA from
@@ -205,9 +220,11 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 					}
 				}
 			}
+
 			if err := d.runStep(ctx, d.git.CreateRelease(d.layout.RepoPath, release)); err != nil {
 				return err
 			}
+
 			return d.runStep(ctx, writeRevisionCmd(d.layout.RepoPath, release, d.git.Branch, revTime))
 		}},
 		{ast.PhaseSymlink, func() error {
@@ -222,6 +239,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 			if err := d.runStep(ctx, logRevisionCmd(d.layout, release, d.git.Branch, ts, operator.Name())); err != nil {
 				return err
 			}
+
 			return d.runStep(ctx, cleanupCmd(d.layout.ReleasesPath, d.cfg.App.KeepReleases))
 		}},
 		{ast.PhaseFinished, noopStep},
@@ -235,17 +253,21 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 			runErr = err
 			break
 		}
+
 		if err := s.fn(); err != nil {
 			runErr = fmt.Errorf("%s: %w", s.phase, err)
 			break
 		}
+
 		if err := d.hooks.After(ctx, s.phase); err != nil {
 			runErr = err
 			break
 		}
 	}
+
 	if runErr != nil {
 		d.onFailure(runErr)
+
 		return runErr
 	}
 
@@ -253,10 +275,12 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 		// Deployed on the reachable hosts, but some were skipped (by a built-in step or a hook task).
 		// Not a failure (so no deploy:failed hook), but surfaced as a non-zero exit for CI.
 		slog.Warn("deployed with unreachable hosts skipped", "app", d.cfg.App.Name, "stage", d.cfg.Stage, "skipped", skipped)
+
 		return &errors.SkippedHostsError{Stage: d.cfg.Stage, Hosts: skipped}
 	}
 
 	slog.Info("deployed", "app", d.cfg.App.Name, "stage", d.cfg.Stage)
+
 	return nil
 }
 
@@ -268,6 +292,7 @@ func (d *Deployer) insertCustomPhases(ctx context.Context, base []step) []step {
 	if len(d.cfg.CustomPhases) == 0 {
 		return base
 	}
+
 	before := map[string][]ast.CustomPhase{}
 	after := map[string][]ast.CustomPhase{}
 	for _, p := range d.cfg.CustomPhases {
@@ -277,12 +302,14 @@ func (d *Deployer) insertCustomPhases(ctx context.Context, base []step) []step {
 			after[p.After] = append(after[p.After], p)
 		}
 	}
+
 	mk := func(p ast.CustomPhase) step {
 		fn := noopStep
 		if p.Task != "" {
 			task, name := p.Task, p.Name
 			fn = func() error { return d.ex.RunTaskInPhase(ctx, task, name) }
 		}
+
 		return step{phase: p.Name, fn: fn}
 	}
 	out := make([]step, 0, len(base)+len(d.cfg.CustomPhases))
@@ -290,11 +317,13 @@ func (d *Deployer) insertCustomPhases(ctx context.Context, base []step) []step {
 		for _, p := range before[s.phase] {
 			out = append(out, mk(p))
 		}
+
 		out = append(out, s)
 		for _, p := range after[s.phase] {
 			out = append(out, mk(p))
 		}
 	}
+
 	return out
 }
 
@@ -307,6 +336,7 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("no reachable hosts remain")
 	}
+
 	if d.policy != ast.OnUnreachableSkip {
 		return d.ex.RunOn(ctx, hosts, command)
 	}
@@ -318,9 +348,11 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 	}); err != nil {
 		return err
 	}
+
 	if len(d.ex.Hosts()) == 0 {
 		return fmt.Errorf("all hosts became unreachable")
 	}
+
 	return nil
 }
 
@@ -338,15 +370,18 @@ func (d *Deployer) captureLive(ctx context.Context, cmd string) (string, error) 
 		if len(hosts) == 0 {
 			return "", fmt.Errorf("no reachable hosts remain")
 		}
+
 		out, err := d.ex.Capture(ctx, hosts[0], cmd)
 		if err == nil {
 			return out, nil
 		}
+
 		host := hosts[0].Address
 		if d.policy != ast.OnUnreachableSkip || !errors.IsUnreachable(err) ||
 			errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || d.isRequired(host) {
 			return "", err
 		}
+
 		slog.Warn("host unreachable, skipping", "host", host, "error", err)
 		d.ex.MarkUnreachable(host)
 	}
@@ -363,13 +398,16 @@ func (d *Deployer) Check(ctx context.Context) error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 	}
+
 	d.phase(ast.PhaseCheck)
 	if err := d.ex.RunOn(ctx, hosts, ensureStructureCmd(d.layout, d.cfg.LinkedFiles, d.cfg.LinkedDirs)); err != nil {
 		return err
 	}
+
 	if !d.ex.DryRun() {
 		slog.Info("structure ok", "stage", d.cfg.Stage, "linked_dirs", len(d.cfg.LinkedDirs), "linked_files", len(d.cfg.LinkedFiles), "hosts", len(hosts))
 	}
+
 	return nil
 }
 
@@ -383,6 +421,7 @@ func (d *Deployer) Rollback(ctx context.Context, cleanup bool) error {
 	if err := d.hooks.Before(ctx, ast.PhaseRollback); err != nil {
 		return err
 	}
+
 	if task, ok := d.replace[ast.PhaseRollback]; ok {
 		if err := d.ex.RunTaskInPhase(ctx, task, ast.PhaseRollback); err != nil {
 			return err
@@ -392,10 +431,12 @@ func (d *Deployer) Rollback(ctx context.Context, cleanup bool) error {
 		if len(hosts) == 0 {
 			return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 		}
+
 		if err := d.ex.RunOn(ctx, hosts, rollbackScript(d.layout, cleanup)); err != nil {
 			return err
 		}
 	}
+
 	return d.hooks.After(ctx, ast.PhaseRollback)
 }
 
@@ -405,6 +446,7 @@ func (d *Deployer) Releases(ctx context.Context) error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 	}
+
 	return d.ex.RunOn(ctx, hosts, releasesScript(d.layout))
 }
 
@@ -414,12 +456,15 @@ func (d *Deployer) Unlock(ctx context.Context) error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts match for stage %q", d.cfg.Stage)
 	}
+
 	if err := d.ex.RunOn(ctx, ast.PickPrimary(hosts), unlockCmd(d.layout)); err != nil {
 		return err
 	}
+
 	if !d.ex.DryRun() {
 		slog.Info("lock cleared", "stage", d.cfg.Stage)
 	}
+
 	return nil
 }
 

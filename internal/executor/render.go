@@ -25,6 +25,7 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 	if err != nil {
 		return nil, err
 	}
+
 	env := make(map[string]string, len(e.cfg.EnvFileValues)+len(e.env)+len(task.Envs)+15)
 	// env_files values are a base layer that the global/task `envs` override.
 	maps.Copy(env, e.cfg.EnvFileValues)
@@ -56,11 +57,14 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 			env[EnvName(ns+"_"+k)] = v
 		}
 	}
+
 	taskEnv, err := e.renderEnvMap(task.Envs, host)
 	if err != nil {
 		return nil, err
 	}
+
 	maps.Copy(env, taskEnv)
+
 	return env, nil
 }
 
@@ -79,6 +83,7 @@ func EnvName(s string) string {
 			underscore = true
 		}
 	}
+
 	return strings.Trim(b.String(), "_")
 }
 
@@ -89,14 +94,17 @@ func (e *Executor) renderEnvMap(m map[string]string, host string) (map[string]st
 	if len(m) == 0 {
 		return m, nil
 	}
+
 	out := make(map[string]string, len(m))
 	for k, v := range m {
 		rv, err := e.render(v, host)
 		if err != nil {
 			return nil, fmt.Errorf("env %q: %w", k, err)
 		}
+
 		out[k] = rv
 	}
+
 	return out, nil
 }
 
@@ -106,10 +114,12 @@ func (e *Executor) readScriptFile(p string) ([]byte, error) {
 	if !filepath.IsAbs(p) {
 		full = filepath.Join(e.scriptsDir, p)
 	}
+
 	data, err := os.ReadFile(full)
 	if err != nil {
 		return nil, fmt.Errorf("read script %q: %w", p, err)
 	}
+
 	return data, nil
 }
 
@@ -133,6 +143,7 @@ func (e *Executor) rolesFor(host string) []string {
 		if h.Address != host {
 			continue
 		}
+
 		for _, r := range h.Roles {
 			if !seen[r] {
 				seen[r] = true
@@ -140,6 +151,7 @@ func (e *Executor) rolesFor(host string) []string {
 			}
 		}
 	}
+
 	return roles
 }
 
@@ -149,6 +161,7 @@ func (e *Executor) baseContext(host string) varstmpl.Context {
 	c := e.base
 	c.Host = host
 	c.Roles = e.rolesFor(host)
+
 	return c
 }
 
@@ -159,6 +172,7 @@ func (e *Executor) globalEnv(host string) (map[string]string, error) {
 	if len(e.env) == 0 {
 		return nil, nil
 	}
+
 	c := e.baseContext(host)
 	out := make(map[string]string, len(e.env))
 	for k, v := range e.env {
@@ -166,8 +180,10 @@ func (e *Executor) globalEnv(host string) (map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("env %q: %w", k, err)
 		}
+
 		out[k] = rv
 	}
+
 	return out, nil
 }
 
@@ -181,8 +197,10 @@ func (e *Executor) renderContext(host string) (varstmpl.Context, error) {
 	e.ctxMu.Lock()
 	if c, ok := e.ctxCache[host]; ok {
 		e.ctxMu.Unlock()
+
 		return c, nil
 	}
+
 	e.ctxMu.Unlock()
 
 	c := e.baseContext(host)
@@ -194,9 +212,11 @@ func (e *Executor) renderContext(host string) (varstmpl.Context, error) {
 	} else {
 		c.GlobalEnvValues = ge
 	}
+
 	e.ctxMu.Lock()
 	e.ctxCache[host] = c
 	e.ctxMu.Unlock()
+
 	return c, nil
 }
 
@@ -206,6 +226,7 @@ func (e *Executor) render(raw, host string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	// Dry-run renders leniently: captured task state ({{.tasks.*}}) and other run-time-only values aren't known when
 	// previewing, so a missing key yields "<no value>" instead of failing the preview. Real runs stay strict.
 	return varstmpl.RenderWith(raw, c, !e.dryRun)
@@ -220,8 +241,10 @@ func (e *Executor) taskDir(task *ast.Task, host string) (string, error) {
 	if task.Dir != "" {
 		return e.render(task.Dir, host)
 	}
+
 	if task.Local {
 		return "", nil
 	}
+
 	return e.base.ReleasePath, nil
 }

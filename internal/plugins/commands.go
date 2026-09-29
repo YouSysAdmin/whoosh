@@ -39,9 +39,11 @@ func Commands(specs []ast.PluginSpec) []Command {
 		if !ok {
 			continue
 		}
+
 		if c, ok := f().(Commander); ok {
 			out = append(out, c.Commands()...)
 		}
 	}
+
 	return out
 }
