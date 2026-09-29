@@ -98,7 +98,7 @@ func TestKeepalive_DropsVanishedHost(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	runErr := make(chan error, 1)
 	go func() {
@@ -140,7 +140,7 @@ func TestKeepalive_HealthyConnectionSurvives(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// A drop from a false-positive keepalive would surface as a Run error.
 	if err := conn.Run(t.Context(), "sleep 1", io.Discard, io.Discard); err != nil {

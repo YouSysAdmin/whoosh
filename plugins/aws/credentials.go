@@ -176,7 +176,7 @@ func fetchCredentialsURL(ctx context.Context, url, token string) (credentialsFil
 		return credentialsFile{}, fmt.Errorf("aws: fetch credentials url: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return credentialsFile{}, fmt.Errorf("aws: credentials url returned status %d", resp.StatusCode)
 	}
@@ -236,7 +236,7 @@ func fetchCredentialsFromHost(ctx context.Context, h credentialsHost) (awssdk.Cr
 		return nil, "", fmt.Errorf("aws: connect to credentials host %q: %w", h.Host, err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	creds, err := fetchIMDS(ctx, sshRunner(conn))
 	if err != nil {

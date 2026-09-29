@@ -51,7 +51,7 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 		if e.dryRun {
 			line := e.stepLine(st, b)
 			if !e.logDryRun(target.Host, "capture: "+line) {
-				fmt.Fprintf(e.out, "[dry-run] capture %s: %s\n", target.Host, line)
+				_, _ = fmt.Fprintf(e.out, "[dry-run] capture %s: %s\n", target.Host, line)
 			}
 
 			continue

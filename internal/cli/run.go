@@ -41,7 +41,7 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 
 			command := executor.WrapCommand(args[0], releaseDir, envs)
 			out := masking.NewWriter(cmd.OutOrStdout())
-			defer out.Flush()
+			defer func() { _ = out.Flush() }()
 
 			if gf.dryRun {
 				// Show the operator's command as typed, the full wrapped form (cd + env exports) only under --verbose,
@@ -51,9 +51,9 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 					shown = command
 				}
 
-				fmt.Fprintf(out, "[dry-run] would run on %d host(s):\n", len(hosts))
+				_, _ = fmt.Fprintf(out, "[dry-run] would run on %d host(s):\n", len(hosts))
 				for _, h := range hosts {
-					fmt.Fprintf(out, "  %s: %s\n", h.Address, shown)
+					_, _ = fmt.Fprintf(out, "  %s: %s\n", h.Address, shown)
 				}
 
 				return nil

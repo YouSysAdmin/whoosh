@@ -393,7 +393,7 @@ func (c *Client) Run(ctx context.Context, cmd string, stdout, stderr io.Writer) 
 		return fmt.Errorf("new session: %w", err)
 	}
 
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	sess.Stdout = stdout
 	sess.Stderr = stderr

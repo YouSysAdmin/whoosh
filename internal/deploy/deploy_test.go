@@ -892,7 +892,7 @@ func TestDeploy_LockContention(t *testing.T) {
 func TestDeploy_PhaseFuncHookRuns(t *testing.T) {
 	f := newFixture(t, 1)
 	f.cfg.AddHookFuncAfter(ast.PhaseStarting, func(_ context.Context, out io.Writer) error {
-		fmt.Fprintln(out, "FUNC-HOOK-RAN")
+		_, _ = fmt.Fprintln(out, "FUNC-HOOK-RAN")
 
 		return nil
 	})

@@ -129,12 +129,12 @@ func (p *plugin) setupStartup(fp setupParams) whoosh.StartupFunc {
 		// only during the deploy lifecycle (not for `config`/`run`). Delete if you don't need operator-side code
 		// at lifecycle points.
 		cfg.AddHookFuncBefore(whoosh.PhaseStarting, func(_ context.Context, out io.Writer) error {
-			fmt.Fprintf(out, "%s: setup will run %s %s\n", pluginName, fp.When, fp.Phase)
+			_, _ = fmt.Fprintf(out, "%s: setup will run %s %s\n", pluginName, fp.When, fp.Phase)
 
 			return nil
 		})
 		cfg.AddHookFuncAfter(whoosh.PhaseFinished, func(_ context.Context, out io.Writer) error {
-			fmt.Fprintf(out, "%s: deploy finished\n", pluginName)
+			_, _ = fmt.Fprintf(out, "%s: deploy finished\n", pluginName)
 
 			return nil
 		})

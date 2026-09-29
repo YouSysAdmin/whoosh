@@ -45,7 +45,7 @@ func (n *notifier) githubUserName(ctx context.Context, login string) string {
 		return ""
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		slog.Debug("slack: github deployer lookup failed", "status", resp.StatusCode)
 

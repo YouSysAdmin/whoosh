@@ -202,14 +202,14 @@ func TestAuthMethods_BuiltinAgentSuppressesSystemAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer os.RemoveAll(sockDir)
+	defer func() { _ = os.RemoveAll(sockDir) }()
 	sock := filepath.Join(sockDir, "s")
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	t.Setenv("SSH_AUTH_SOCK", sock)
 
 	ag, err := NewAgent([]Identity{{Name: "a", Content: string(genKeyPEM(t, ""))}})

@@ -45,7 +45,7 @@ func TestDialThroughBastion(t *testing.T) {
 	bastionSrv, targetSrv := startPair(t)
 
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	c, err := Dial(t.Context(),
 		Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile},
@@ -54,7 +54,7 @@ func TestDialThroughBastion(t *testing.T) {
 		t.Fatalf("dial through bastion: %v", err)
 	}
 
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	var out, errOut bytes.Buffer
 	if err := c.Run(t.Context(), "echo tunneled", &out, &errOut); err != nil {
@@ -83,7 +83,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 	}
 
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	var wg sync.WaitGroup
 	errs := make([]error, len(targets))
@@ -98,7 +98,7 @@ func TestDialThroughBastion_Concurrent(t *testing.T) {
 				return
 			}
 
-			defer c.Close()
+			defer func() { _ = c.Close() }()
 			var out, errOut bytes.Buffer
 			if err := c.Run(t.Context(), fmt.Sprintf("echo host-%d", i), &out, &errOut); err != nil {
 				errs[i] = err
@@ -133,7 +133,7 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 	_ = ln.Close()
 
 	b := NewBastion(Target{Host: "127.0.0.1", Port: port, IdentityFile: writeTestKey(t)})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	_, err = Dial(t.Context(), Target{Host: "192.0.2.1", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
 	if err == nil {
@@ -179,7 +179,7 @@ func TestDialThroughBastion_AuthRejected(t *testing.T) {
 	t.Cleanup(bastionSrv.Close)
 
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: writeTestKey(t)})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	_, err = Dial(t.Context(), Target{Host: "192.0.2.1", IdentityFile: writeTestKey(t)}, Options{Bastion: b})
 	if err == nil {
@@ -212,7 +212,7 @@ func TestBastionClose(t *testing.T) {
 		t.Fatalf("dial through bastion: %v", err)
 	}
 
-	c.Close()
+	_ = c.Close()
 	if err := b.Close(); err != nil {
 		t.Errorf("first Close: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestDialThroughBastion_HostKeys(t *testing.T) {
 	khFile := filepath.Join(t.TempDir(), "known_hosts")
 
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	c, err := Dial(t.Context(),
 		Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile},
@@ -238,7 +238,7 @@ func TestDialThroughBastion_HostKeys(t *testing.T) {
 		t.Fatalf("strict accept_new dial through bastion: %v", err)
 	}
 
-	c.Close()
+	_ = c.Close()
 
 	data, err := os.ReadFile(khFile)
 	if err != nil {
@@ -259,7 +259,7 @@ func TestBastionCancelledDialRetries(t *testing.T) {
 	bastionSrv, targetSrv := startPair(t)
 
 	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	target := Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -273,5 +273,5 @@ func TestBastionCancelledDialRetries(t *testing.T) {
 		t.Fatalf("re-dial with a live context should succeed, got: %v", err)
 	}
 
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 }

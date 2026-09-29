@@ -64,12 +64,12 @@ func (e *Executor) echoExec(host, command string) {
 	}
 
 	if host == "" {
-		fmt.Fprintf(e.out, "$ %s\n", command)
+		_, _ = fmt.Fprintf(e.out, "$ %s\n", command)
 
 		return
 	}
 
-	fmt.Fprintf(e.out, "%s $ %s\n", runner.HostLabel(host, e.color), command)
+	_, _ = fmt.Fprintf(e.out, "%s $ %s\n", runner.HostLabel(host, e.color), command)
 }
 
 // echoDryRun shows one dry-run plan line for host on whichever sink is active: a "dry-run" record in log mode, else a
@@ -80,12 +80,12 @@ func (e *Executor) echoDryRun(host, line string) {
 	}
 
 	if host == "" {
-		fmt.Fprintf(e.out, "[dry-run] %s\n", line)
+		_, _ = fmt.Fprintf(e.out, "[dry-run] %s\n", line)
 
 		return
 	}
 
-	fmt.Fprintf(e.out, "[dry-run] %s: %s\n", host, line)
+	_, _ = fmt.Fprintf(e.out, "[dry-run] %s: %s\n", host, line)
 }
 
 // echoDryRunLocal shows one dry-run plan line for a local (operator machine) task: the same "dry-run" record with
@@ -98,7 +98,7 @@ func (e *Executor) echoDryRunLocal(line string) {
 		return
 	}
 
-	fmt.Fprintf(e.out, "[dry-run][local] %s\n", line)
+	_, _ = fmt.Fprintf(e.out, "[dry-run][local] %s\n", line)
 }
 
 // outputArgs builds the slog attributes shared by command-output and exec records: the running task (when known), the

@@ -44,7 +44,7 @@ func newPluginCmd(stage string, c plugins.Command, gf *globalFlags) *cobra.Comma
 
 			// Redact secrets like every other output path (config, run, the executor).
 			out := masking.NewWriter(cmd.OutOrStdout())
-			defer out.Flush()
+			defer func() { _ = out.Flush() }()
 
 			return c.Run(cmd.Context(), cfg, reg, out, args)
 		},

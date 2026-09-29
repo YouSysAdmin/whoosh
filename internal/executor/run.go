@@ -210,7 +210,7 @@ func (e *Executor) runLocal(ctx context.Context, task *ast.Task) error {
 		}
 
 		err = runLocalShell(ctx, b.cmd, lw)
-		lw.Close()
+		_ = lw.Close()
 		if err != nil {
 			if task.ContinueOnError {
 				slog.Warn("continuing past error", "error", err)

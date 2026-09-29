@@ -68,7 +68,7 @@ func (p *plugin) render(ctx context.Context, with map[string]any, out io.Writer)
 		return fmt.Errorf("%s: no host file writer in context (the action must run as a whoosh task)", ActionRender)
 	}
 
-	fmt.Fprintf(out, "%s: rendering %s\n", ActionRender, a.Path)
+	_, _ = fmt.Fprintf(out, "%s: rendering %s\n", ActionRender, a.Path)
 
 	return w.WriteFile(ctx, a.Path, []byte(value+"\n"))
 }

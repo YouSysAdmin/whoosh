@@ -39,7 +39,7 @@ func newStagesCmd() *cobra.Command {
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, s := range stages {
-				fmt.Fprintf(w, "%s\t%s\n", s.Name, s.Description)
+				_, _ = fmt.Fprintf(w, "%s\t%s\n", s.Name, s.Description)
 			}
 
 			return w.Flush()

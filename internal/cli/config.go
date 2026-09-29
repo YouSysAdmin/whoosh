@@ -27,10 +27,11 @@ func newConfigCmd(stage string, gf *globalFlags) *cobra.Command {
 
 			// The resolved vars/params may carry envSecret values - redact the dump like every other output path.
 			out := masking.NewWriter(cmd.OutOrStdout())
-			defer out.Flush()
-			fmt.Fprintf(out, "# resolved config for stage %q\n%s", stage, b)
+			if _, err := fmt.Fprintf(out, "# resolved config for stage %q\n%s", stage, b); err != nil {
+				return err
+			}
 
-			return nil
+			return out.Flush()
 		},
 	}
 }

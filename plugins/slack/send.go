@@ -258,7 +258,7 @@ func (n *notifier) post(ctx context.Context, webhook string, pl payload) error {
 		return fmt.Errorf("post to webhook: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		// Slack replies with short plain-text reasons ("invalid_payload", "no_service", ...).
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))

@@ -29,10 +29,10 @@ func (p *plugin) Commands() []whoosh.Command {
 				}
 			}
 
-			fmt.Fprintf(out, "%s %s - stage %s: %d host(s) total, %d discovered by %s\n",
+			_, _ = fmt.Fprintf(out, "%s %s - stage %s: %d host(s) total, %d discovered by %s\n",
 				pluginName, pluginVersion, cfg.Stage, len(cfg.Hosts), ours, FeatureInventory)
 			if _, ok := cfg.Tasks[taskSetup]; ok {
-				fmt.Fprintf(out, "setup task %q is contributed\n", taskSetup)
+				_, _ = fmt.Fprintf(out, "setup task %q is contributed\n", taskSetup)
 			}
 
 			return nil

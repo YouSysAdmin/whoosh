@@ -122,7 +122,7 @@ func TestIsTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if IsTerminal(f) {
 		t.Error("a regular file must not be reported as a terminal")
 	}

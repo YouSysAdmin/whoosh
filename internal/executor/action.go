@@ -133,7 +133,7 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 		if w.e.logMode {
 			w.e.logLine(h.Address, msg)
 		} else {
-			fmt.Fprintf(w.e.out, "%s %s\n", runner.HostLabel(h.Address, w.e.color), msg)
+			_, _ = fmt.Fprintf(w.e.out, "%s %s\n", runner.HostLabel(h.Address, w.e.color), msg)
 		}
 	}
 

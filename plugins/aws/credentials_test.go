@@ -211,7 +211,7 @@ func TestSSHRunner_CapturesStdout(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	got, err := sshRunner(conn)(t.Context(), "echo hello")
 	if err != nil {

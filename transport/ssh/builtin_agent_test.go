@@ -60,7 +60,7 @@ func TestDialBuiltinAgent(t *testing.T) {
 		t.Fatalf("dial with builtin agent: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
@@ -94,7 +94,7 @@ func TestDialBuiltinAgent_WrongKeyRejected(t *testing.T) {
 		Host: srv.Host, Port: srv.Port, User: "deploy",
 	}, ssh.Options{StrictHostKey: false, Agent: ag})
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("dial with an unauthorized key should fail the handshake")
 	}
 }
@@ -123,7 +123,7 @@ func TestForwarding_BuiltinAgentWithoutSystemSocket(t *testing.T) {
 		t.Fatalf("dial with forward_agent and builtin agent should not need SSH_AUTH_SOCK: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
@@ -169,7 +169,7 @@ func TestDialEncryptedIdentityFile(t *testing.T) {
 		t.Fatalf("dial with encrypted identity file and passphrase: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -229,7 +229,7 @@ func TestForwarding_ForwardKeyBeatsBuiltinAgent(t *testing.T) {
 		Host: srv.Host, Port: srv.Port, User: "deploy",
 	}, ssh.Options{StrictHostKey: false, Agent: ag, ForwardKey: "/nonexistent/forward_key"})
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		t.Fatal("a broken forward_key should fail the dial, not fall back to the builtin agent")
 	}
 

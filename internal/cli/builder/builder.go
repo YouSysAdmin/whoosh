@@ -128,7 +128,7 @@ func runBuild(opts buildOptions) error {
 	if opts.keep {
 		slog.Info("keeping build dir", "dir", dir)
 	} else {
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(generateMain(plugins)), 0o644); err != nil {

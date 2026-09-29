@@ -17,7 +17,7 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print the whoosh version",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", resolveVersion())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", resolveVersion())
 			if infos := plugins.RegisteredInfo(); len(infos) > 0 {
 				parts := make([]string, len(infos))
 				for i, p := range infos {
@@ -28,7 +28,7 @@ func newVersionCmd() *cobra.Command {
 					}
 				}
 
-				fmt.Fprintf(cmd.OutOrStdout(), "plugins: %s\n", strings.Join(parts, ", "))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "plugins: %s\n", strings.Join(parts, ", "))
 			}
 		},
 	}

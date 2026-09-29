@@ -39,7 +39,7 @@ func newWebhookServer(t *testing.T) *webhookServer {
 		ws.headers = append(ws.headers, r.Header.Clone())
 		ws.mu.Unlock()
 		w.WriteHeader(ws.status)
-		io.WriteString(w, ws.body)
+		_, _ = io.WriteString(w, ws.body)
 	}))
 	t.Cleanup(ws.Close)
 

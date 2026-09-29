@@ -34,7 +34,7 @@ func TestDialAcceptNew(t *testing.T) {
 		t.Fatalf("first dial with accept_new: %v", err)
 	}
 
-	c.Close()
+	_ = c.Close()
 
 	data, err := os.ReadFile(khFile)
 	if err != nil {
@@ -52,7 +52,7 @@ func TestDialAcceptNew(t *testing.T) {
 		t.Fatalf("strict re-dial against recorded key: %v", err)
 	}
 
-	c2.Close()
+	_ = c2.Close()
 }
 
 // TestDialAcceptNew_ChangedKeyFails pins the security guarantee: accept_new only trusts unknown hosts - a key that

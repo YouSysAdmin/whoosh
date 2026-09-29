@@ -167,7 +167,7 @@ func stalledListener(t *testing.T) net.Listener {
 				return
 			}
 
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 		}
 	}()
 

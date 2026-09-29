@@ -109,12 +109,12 @@ func reportTemplateFindings(w io.Writer, findings []error) error {
 	}
 
 	out := masking.NewWriter(w)
-	fmt.Fprintln(out, "template check failed:")
+	_, _ = fmt.Fprintln(out, "template check failed:")
 	for _, f := range findings {
-		fmt.Fprintf(out, "  - %v\n", f)
+		_, _ = fmt.Fprintf(out, "  - %v\n", f)
 	}
 
-	out.Flush()
+	_ = out.Flush()
 
 	return fmt.Errorf("template check: %d problem(s)", len(findings))
 }

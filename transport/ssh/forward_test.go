@@ -55,7 +55,7 @@ func TestForwarding_CommandRunsWhenHostIgnoresRequest(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var stdout, stderr bytes.Buffer
 	if err := conn.Run(t.Context(), "echo hi", &stdout, &stderr); err != nil {

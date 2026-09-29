@@ -19,16 +19,16 @@ func newPluginsCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			infos := plugins.RegisteredInfo()
 			if len(infos) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "(no plugins compiled in)")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "(no plugins compiled in)")
 
 				return
 			}
 
 			for _, p := range infos {
 				if p.Version == "" {
-					fmt.Fprintln(cmd.OutOrStdout(), p.Name)
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), p.Name)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s  %s\n", p.Name, p.Version)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s  %s\n", p.Name, p.Version)
 				}
 			}
 		},
