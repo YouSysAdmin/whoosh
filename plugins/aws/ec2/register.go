@@ -1,3 +1,5 @@
+// Package ec2 provides the AWS EC2 features: Auto Scaling refresh and rollback, AMI baking and cleanup, and the EC2
+// inventory startup hook.
 package ec2
 
 import (

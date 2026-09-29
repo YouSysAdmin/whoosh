@@ -1,4 +1,4 @@
-package print_hosts_table
+package printhoststable
 
 import (
 	"bytes"

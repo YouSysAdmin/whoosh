@@ -1,3 +1,4 @@
+// Package version holds the build version of whoosh.
 package version
 
 // Version is overridable at build time with

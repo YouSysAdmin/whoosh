@@ -1,3 +1,4 @@
+// Package sshtest runs an in-process SSH server for tests.
 package sshtest
 
 import (
@@ -129,7 +130,7 @@ func handleSession(s gssh.Session) {
 	cmd.Stderr = s.Stderr()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(s.Stderr(), "start: %v\n", err)
+		_, _ = fmt.Fprintf(s.Stderr(), "start: %v\n", err)
 		_ = s.Exit(127)
 
 		return

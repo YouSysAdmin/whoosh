@@ -227,7 +227,7 @@ func (n *actions) run(action string) whoosh.ActionFunc {
 	return func(ctx context.Context, with map[string]any, _ io.Writer) error {
 		for _, k := range []string{"roles", "phase", "when"} {
 			if _, ok := with[k]; ok {
-				return fmt.Errorf("systemd: %s: %q is a plugin-level param, not valid in a task's with:", action, k)
+				return fmt.Errorf("systemd: %s: %q is a plugin-level param, not valid in a task's with block", action, k)
 			}
 		}
 

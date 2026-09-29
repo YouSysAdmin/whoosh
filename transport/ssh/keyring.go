@@ -197,7 +197,7 @@ func parsePrivateKey(raw []byte, passphrase string) (any, error) {
 
 	key, err = ssh.ParseRawPrivateKeyWithPassphrase(raw, []byte(passphrase))
 	if err != nil {
-		return nil, fmt.Errorf("%w, decrypt failed: %v", errEncryptedKey, err)
+		return nil, fmt.Errorf("%w, decrypt failed: %w", errEncryptedKey, err)
 	}
 
 	return key, nil

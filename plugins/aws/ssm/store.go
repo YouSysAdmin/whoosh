@@ -1,3 +1,4 @@
+// Package ssm provides the AWS SSM Parameter Store actions and imports.
 package ssm
 
 import (

@@ -1,3 +1,4 @@
+// Package secretstore provides the AWS Secrets Manager actions and imports.
 package secretstore
 
 import (

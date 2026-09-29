@@ -1,6 +1,6 @@
-// Package print_hosts_table is a zero-config standard plugins that prints the resolved inventory (the hosts table) at
+// Package printhoststable is a zero-config standard plugin that prints the resolved inventory (the hosts table) at
 // the start of every deploy.
-// It is registered as a default-on plugins (whoosh.RegisterDefault), so it is active without being listed under
+// It is registered as a default-on plugin (whoosh.RegisterDefault), so it is active without being listed under
 // plugins:, disable it per stage with:
 //
 //	plugins:
@@ -13,7 +13,7 @@
 //     hooks run only during the deploy lifecycle (on `deploy`, not config/run).
 //   - the `whoosh <stage> deploy:hosts` CLI command (via whoosh.Commander), the
 //     on-demand replacement for the former built-in `hosts` command.
-package print_hosts_table
+package printhoststable
 
 import (
 	"cmp"
@@ -128,7 +128,7 @@ func hostsTable(hosts []whoosh.Host) (string, error) {
 	// see https://github.com/olekukonko/tablewriter for more info
 	var b strings.Builder
 	table := tablewriter.NewWriter(&b)
-	defer table.Close()
+	defer func() { _ = table.Close() }()
 	table.Header([]string{"HOST", "ROLES", "DEPLOY", "PRIMARY", "TRANSPORT", "SOURCE"})
 	if err := table.Bulk(rows); err != nil {
 		return "", fmt.Errorf("generate hosts table: %w", err)
