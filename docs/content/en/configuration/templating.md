@@ -72,6 +72,7 @@ Whoosh adds the gaps sprig doesn't cover:
 | `{{ fromYaml .s }}`          | Parse a YAML mapping - `{{ (fromYaml .tasks.info).version }}`.                         |
 | `{{ fromYamlArray .s }}`     | Parse a YAML sequence - `{{ range fromYamlArray .s }}...{{ end }}`.                    |
 | `{{ required "msg" .v }}`    | Fail the render with `msg` when the value is nil or empty (undefined keys already error). |
+| `{{ shquote .v }}`           | Quote a value as one literal shell word - `echo {{ shquote .changelog }}`.             |
 
 Plus the secret-marking helpers `envSecret` (alias: `sensitiveEnv`) and `sensitive` - see
 [Vars & envs -> Secrets in templates](/configuration/vars-and-envs/#secrets-in-templates).

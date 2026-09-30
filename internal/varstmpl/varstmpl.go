@@ -11,7 +11,7 @@
 // Referencing an undefined key is an error, so typos surface immediately.
 //
 // Sprig supplies the general-purpose helpers (toJson/fromJson, join/splitList, default/ternary, ...); whoosh
-// adds toYaml/fromYaml/fromYamlArray/required (helperFuncs), the secret-marking sensitive (secretFuncs), and
+// adds toYaml/fromYaml/fromYamlArray/required/shquote (helperFuncs), the secret-marking sensitive (secretFuncs), and
 // env/envSecret (envFuncs) - which read the process environment, falling back to the resolved global `envs:` values
 // (task-time renders only) and then the Deployfile's env_files values.
 package varstmpl
@@ -28,6 +28,7 @@ import (
 
 	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/masking"
+	"github.com/yousysadmin/whoosh/internal/shtmpl"
 )
 
 // Context carries the values available to a command template.
@@ -244,6 +245,10 @@ var helperFuncs = template.FuncMap{
 		}
 
 		return v, nil
+	},
+	// shquote makes any value one literal shell word, for data like {{.changelog}} placed in a command.
+	"shquote": func(v any) string {
+		return shtmpl.Quote(fmt.Sprint(v))
 	},
 }
 

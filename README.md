@@ -528,7 +528,8 @@ Plus:
   `{{ env "CI_COMMIT_SHA" }}` reads whoosh's own environment falling back to the resolved global `envs:` (in
   task-time templates) and then `env_files` values,
   `{{ now | date "2006-01-02" }}`, ...) plus whoosh's
-  own `toYaml`/`fromYaml`/`fromYamlArray` and `required "msg" .val` (fail the render when a value is nil/empty) -
+  own `toYaml`/`fromYaml`/`fromYamlArray`, `required "msg" .val` (fail the render when a value is nil/empty) and
+  `shquote .val` (one literal shell word, for data like `{{ shquote .changelog }}` in a command) -
   see [Templating & variables](https://whoosh.yousysadmin.com/configuration/templating/#helper-functions).
 
 Notes: template keys are lowercase, env names are UPPERCASE.

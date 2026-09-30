@@ -391,3 +391,15 @@ func TestSensitive_RegistersForRedaction(t *testing.T) {
 		t.Errorf("sensitive value not redacted: %q", red)
 	}
 }
+
+func TestRender_ShQuote(t *testing.T) {
+	c := varstmpl.Context{Changelog: "fix $(id) it's"}
+	got, err := varstmpl.Render(`echo {{ shquote .changelog }}`, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := `echo 'fix $(id) it'\''s'`; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
