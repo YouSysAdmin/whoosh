@@ -1,3 +1,3 @@
-{{range $k, $v := .Env}}export {{$k}}={{dq $v}}
+{{range $k, $v := .Env}}export {{$k}}={{if $v.Expand}}{{dq $v.Value}}{{else}}{{sh $v.Value}}{{end}}
 {{end}}{{if .Dir}}cd {{sh .Dir}} && {{end}}{{.Interpreter}} <<'__WHOOSH_SCRIPT_EOF__'
 {{.Content}}__WHOOSH_SCRIPT_EOF__

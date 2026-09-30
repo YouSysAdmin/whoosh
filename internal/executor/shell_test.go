@@ -3,10 +3,11 @@ package executor
 import "testing"
 
 func TestWrapRemote(t *testing.T) {
-	// Env exports are emitted in sorted key order, double-quoted so values can reference other shell vars, the dir stays
-	// single-quoted (literal).
-	if got, want := wrapRemote("echo hi", "/tmp", map[string]string{"B": "2", "A": "1"}),
-		`export A="1"; export B="2"; cd '/tmp' && echo hi`; got != want {
+	// Env exports are emitted in sorted key order. Expandable values are double quoted so they can reference other shell
+	// vars, literal values and the dir are single quoted.
+	env := Env{"B": {Value: "$HOME/2", Expand: true}, "A": {Value: "$(id) `id` $X"}}
+	if got, want := wrapRemote("echo hi", "/tmp", env),
+		`export A='$(id) `+"`id`"+` $X'; export B="$HOME/2"; cd '/tmp' && echo hi`; got != want {
 		t.Errorf("wrapRemote:\n got: %q\nwant: %q", got, want)
 	}
 
@@ -16,8 +17,8 @@ func TestWrapRemote(t *testing.T) {
 }
 
 func TestBuildScriptCommand(t *testing.T) {
-	got := buildScriptCommand("/bin/bash", "ls", "", map[string]string{"X": "y"})
-	want := "export X=\"y\"\n/bin/bash <<'__WHOOSH_SCRIPT_EOF__'\nls\n__WHOOSH_SCRIPT_EOF__"
+	got := buildScriptCommand("/bin/bash", "ls", "", Env{"X": {Value: "y", Expand: true}, "Y": {Value: "it's"}})
+	want := "export X=\"y\"\nexport Y='it'\\''s'\n/bin/bash <<'__WHOOSH_SCRIPT_EOF__'\nls\n__WHOOSH_SCRIPT_EOF__"
 	if got != want {
 		t.Errorf("buildScriptCommand:\n got: %q\nwant: %q", got, want)
 	}

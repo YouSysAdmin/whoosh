@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"log/slog"
-	"maps"
 
 	"github.com/spf13/cobra"
 
@@ -75,27 +74,24 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 // env_files as the base, the Go-templated global `envs:` (so e.g. `TOK: '{{ env "TOK" }}'` exports the resolved
 // value), then plugin imports as $<NS>_<KEY>. One command goes to all hosts, so the context is host-less
 // (release_path falls back to the live `current`). Dry-run renders leniently.
-func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (map[string]string, error) {
+// Only the global envs expand $VAR, env_files and imports are exported literally.
+func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (executor.Env, error) {
 	ctx := loadTimeContext(cfg)
 	ctx.Config, _ = cfg.AsMap()
 	ctx.Imports = cfg.Imports
 	ctx.ReleasePath = releaseDir
-	out := make(map[string]string, len(cfg.EnvFileValues)+len(cfg.Envs))
-	maps.Copy(out, cfg.EnvFileValues)
+	out := make(executor.Env, len(cfg.EnvFileValues)+len(cfg.Envs))
+	out.SetLiteral(cfg.EnvFileValues)
 	for k, v := range cfg.Envs {
 		rv, err := varstmpl.RenderWith(v, ctx, !dryRun)
 		if err != nil {
 			return nil, fmt.Errorf("env %q: %w", k, err)
 		}
 
-		out[k] = rv
+		out[k] = executor.EnvValue{Value: rv, Expand: true}
 	}
 
-	for ns, kv := range cfg.Imports {
-		for k, v := range kv {
-			out[executor.EnvName(ns+"_"+k)] = v
-		}
-	}
+	out.SetLiteral(executor.ImportEnv(cfg.Imports))
 
 	return out, nil
 }

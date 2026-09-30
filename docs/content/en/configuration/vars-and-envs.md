@@ -16,6 +16,8 @@ Both inject values into your commands, but they are different mechanisms:
 - **`envs`** - the shell environment for commands.
   Values are **shell-expanded** (so they can reference `$HOME`/`$PATH`) *and* **Go-templated** (so they can pull from
   vars with `{{ .var }}` or from whoosh's own environment with `env`).
+  Only `envs` expand. `env_files` values, plugin imports and the deploy context (`$DEPLOY_CHANGELOG`, `$DEPLOY_ERROR`,
+  ...) are exported single quoted, so their content is never run by the shell.
 
 ```yaml
 vars:

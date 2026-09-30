@@ -2,7 +2,6 @@ package executor
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,7 +17,9 @@ import (
 // Config vars are template-only ({{ .var }}), surface one to the shell explicitly with `envs: { NAME: "{{ .var }}" }`.
 // The user-supplied env values (global and task) are Go-templated, so they can pull from whoosh's own environment with
 // {{ env "VAR" }} (e.g. a registry credential).
-func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, error) {
+// Only the user-written global and task envs expand $VAR at run time. env_files, the deploy context and plugin imports
+// carry data whoosh does not control (commit subjects, error output, secrets), so they are exported literally.
+func (e *Executor) execEnv(host string, task *ast.Task) (Env, error) {
 	// The cached render context already carries the resolved global envs and the host's roles (dry-run previews
 	// leniently: a global env that needs run-time state must not break the plan - renderContext swallows that there).
 	c, err := e.renderContext(host)
@@ -26,46 +27,56 @@ func (e *Executor) execEnv(host string, task *ast.Task) (map[string]string, erro
 		return nil, err
 	}
 
-	env := make(map[string]string, len(e.cfg.EnvFileValues)+len(e.env)+len(task.Envs)+15)
+	env := make(Env, len(e.cfg.EnvFileValues)+len(e.env)+len(task.Envs)+20)
 	// env_files values are a base layer that the global/task `envs` override.
-	maps.Copy(env, e.cfg.EnvFileValues)
-	maps.Copy(env, c.GlobalEnvValues)
-	env["DEPLOY_TO"] = e.base.DeployTo
-	env["RELEASES_PATH"] = e.base.ReleasesPath
-	env["SHARED_PATH"] = e.base.SharedPath
-	env["REPO_PATH"] = e.base.RepoPath
-	env["CURRENT_PATH"] = e.base.CurrentPath
-	env["RELEASE_PATH"] = e.base.ReleasePath
-	env["RELEASE_TIMESTAMP"] = e.base.ReleaseTimestamp
-	env["COMMIT_HASH"] = e.base.CommitHash
-	env["PREVIOUS_COMMIT_HASH"] = e.base.PreviousCommitHash
-	env["APP_NAME"] = e.base.AppName
-	env["BRANCH"] = e.base.Branch
-	env["REPO"] = e.base.Repo
-	env["STAGE"] = e.base.Stage
-	env["DEPLOYER"] = e.base.Deployer
-	env["HOST"] = host
-	env["ROLES"] = strings.Join(c.Roles, ",")
-	env["DEPLOY_PHASE"] = e.base.Phase
-	env["DEPLOY_ERROR"] = e.base.DeployError
-	env["DEPLOY_CHANGELOG"] = e.base.Changelog
-	env["KEEP_RELEASES"] = strconv.Itoa(e.base.KeepReleases)
+	env.SetLiteral(e.cfg.EnvFileValues)
+	env.SetExpand(c.GlobalEnvValues)
+	env.SetLiteral(map[string]string{
+		"DEPLOY_TO":            e.base.DeployTo,
+		"RELEASES_PATH":        e.base.ReleasesPath,
+		"SHARED_PATH":          e.base.SharedPath,
+		"REPO_PATH":            e.base.RepoPath,
+		"CURRENT_PATH":         e.base.CurrentPath,
+		"RELEASE_PATH":         e.base.ReleasePath,
+		"RELEASE_TIMESTAMP":    e.base.ReleaseTimestamp,
+		"COMMIT_HASH":          e.base.CommitHash,
+		"PREVIOUS_COMMIT_HASH": e.base.PreviousCommitHash,
+		"APP_NAME":             e.base.AppName,
+		"BRANCH":               e.base.Branch,
+		"REPO":                 e.base.Repo,
+		"STAGE":                e.base.Stage,
+		"DEPLOYER":             e.base.Deployer,
+		"HOST":                 host,
+		"ROLES":                strings.Join(c.Roles, ","),
+		"DEPLOY_PHASE":         e.base.Phase,
+		"DEPLOY_ERROR":         e.base.DeployError,
+		"DEPLOY_CHANGELOG":     e.base.Changelog,
+		"KEEP_RELEASES":        strconv.Itoa(e.base.KeepReleases),
+	})
 	// Plugin-injected values (e.g. SSM params) as $<NS>_<KEY>, e.g. ssm/secret -> $SSM_SECRET.
 	// These mirror the {{ .<ns>.<key> }} template values.
-	for ns, kv := range e.cfg.Imports {
-		for k, v := range kv {
-			env[EnvName(ns+"_"+k)] = v
-		}
-	}
+	env.SetLiteral(ImportEnv(e.cfg.Imports))
 
 	taskEnv, err := e.renderEnvMap(task.Envs, host)
 	if err != nil {
 		return nil, err
 	}
 
-	maps.Copy(env, taskEnv)
+	env.SetExpand(taskEnv)
 
 	return env, nil
+}
+
+// ImportEnv flattens plugin imports into env names: namespace ns and key k become $<NS>_<K>.
+func ImportEnv(imports map[string]map[string]string) map[string]string {
+	out := make(map[string]string)
+	for ns, kv := range imports {
+		for k, v := range kv {
+			out[EnvName(ns+"_"+k)] = v
+		}
+	}
+
+	return out
 }
 
 // EnvName renders a string as a shell env var name: uppercased, with each run of non-alphanumeric characters collapsed

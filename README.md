@@ -358,6 +358,8 @@ tasks:
   your `vars`.
   So a `cmd` can use either `{{.release_path}}`/`{{.host}}` (Go template, expanded by whoosh) or
   `$RELEASE_PATH`/`$HOST` (shell env, expanded on the host). Both work in `cmds` and `scripts` alike.
+  These values, `env_files` values and plugin imports are exported single quoted, so a commit subject or a secret
+  holding `$` or `$(...)` reaches the command verbatim.
 - **Environment**: a top-level `envs:` map is exported for every task command, script, and ad-hoc `run`, and a task's
   own `envs:` overrides it per key.
   Values are **shell-expanded**, so they can reference existing vars - this is how you put language-version-manager

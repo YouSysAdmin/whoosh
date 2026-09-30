@@ -453,6 +453,40 @@ func TestRunTask_ExposesKeepReleases(t *testing.T) {
 	}
 }
 
+// Context values carry data whoosh does not control (commit subjects, error output, plugin imports), so they are
+// exported single quoted and never run a command substitution on the host.
+func TestExecEnv_ContextValuesAreLiteral(t *testing.T) {
+	cfg := &ast.DeployFile{
+		App:     ast.App{Name: "app", DeployTo: "/srv/app"},
+		Stage:   "test",
+		Hosts:   []ast.Host{{Address: "h1", Roles: []string{"app"}}},
+		Imports: map[string]map[string]string{"ssm": {"pass": "pa$word"}},
+		Tasks: map[string]*ast.Task{
+			"note": {Roles: []string{"app"}, Cmds: []string{"true"}, Envs: map[string]string{"P": "$HOME/bin"}},
+		},
+	}
+	var buf bytes.Buffer
+	ex := executor.New(cfg, executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf, DryRun: true, Verbose: true})
+	defer ex.Close()
+	ex.SetChangelog("abc|me|me@x|fix $(touch /tmp/pwned) `id`")
+	ex.SetError("it's $(broken)")
+	if err := ex.RunTask(t.Context(), "note"); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+
+	out := buf.String()
+	for _, want := range []string{
+		"export DEPLOY_CHANGELOG='abc|me|me@x|fix $(touch /tmp/pwned) `id`'",
+		`export DEPLOY_ERROR='it'\''s $(broken)'`,
+		`export SSM_PASS='pa$word'`,
+		`export P="$HOME/bin"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s in:\n%s", want, out)
+		}
+	}
+}
+
 func TestRunTaskInPhase_ExposesPhase(t *testing.T) {
 	cfg := &ast.DeployFile{
 		App:   ast.App{Name: "app", DeployTo: "/srv/app"},
@@ -475,7 +509,7 @@ func TestRunTaskInPhase_ExposesPhase(t *testing.T) {
 		t.Errorf("template {{.phase}} not set:\n%s", out)
 	}
 
-	if !strings.Contains(out, `export DEPLOY_PHASE="deploy:publishing"`) {
+	if !strings.Contains(out, `export DEPLOY_PHASE='deploy:publishing'`) {
 		t.Errorf("$DEPLOY_PHASE not exported:\n%s", out)
 	}
 

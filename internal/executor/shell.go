@@ -38,19 +38,43 @@ func runLocalShell(ctx context.Context, command string, out io.Writer) error {
 	return nil
 }
 
-// WrapCommand prepares a literal command for remote execution the way task cmds are: it exports env (expandable,
-// sorted) and runs the command inside dir.
+// EnvValue is one exported shell variable. A value is single quoted (literal) unless Expand is set, then it is double
+// quoted so $VAR references in it expand at run time.
+type EnvValue struct {
+	Value  string
+	Expand bool
+}
+
+// Env maps variable names to the values a command exports.
+type Env map[string]EnvValue
+
+// SetLiteral stores each value of m as a literal.
+func (e Env) SetLiteral(m map[string]string) {
+	for k, v := range m {
+		e[k] = EnvValue{Value: v}
+	}
+}
+
+// SetExpand stores each value of m as an expandable value.
+func (e Env) SetExpand(m map[string]string) {
+	for k, v := range m {
+		e[k] = EnvValue{Value: v, Expand: true}
+	}
+}
+
+// WrapCommand prepares a literal command for remote execution the way task cmds are: it exports env (sorted) and runs
+// the command inside dir.
 // It is exposed so the ad-hoc `run` command behaves like a task - same env and release directory.
 // An empty dir or nil env omits that part.
-func WrapCommand(command, dir string, env map[string]string) string {
+func WrapCommand(command, dir string, env Env) string {
 	return wrapRemote(command, dir, env)
 }
 
 // wrapRemote prefixes a command with environment exports and a directory change, producing a single shell command
 // suitable for one SSH session. Env keys are emitted in sorted order (text/template ranges maps by key).
-func wrapRemote(command, dir string, env map[string]string) string {
+func wrapRemote(command, dir string, env Env) string {
 	return shtmpl.MustRender(shellTmpl, "wrap_remote.sh.tmpl", struct {
-		Env     map[string]string
+		Env     Env
 		Dir     string
 		Command string
 	}{Env: env, Dir: dir, Command: command})
@@ -59,14 +83,14 @@ func wrapRemote(command, dir string, env map[string]string) string {
 // buildScriptCommand produces a single shell command that exports env, optionally changes directory, and feeds the
 // script content to the interpreter via a quoted heredoc (content passed verbatim, env inherited at run time).
 // This works identically over SSH and locally, for file and inline scripts.
-func buildScriptCommand(interpreter, content, dir string, env map[string]string) string {
+func buildScriptCommand(interpreter, content, dir string, env Env) string {
 	interpreter = cmp.Or(interpreter, DefaultInterpreter)
 	if !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
 
 	return shtmpl.MustRender(shellTmpl, "script.sh.tmpl", struct {
-		Env         map[string]string
+		Env         Env
 		Dir         string
 		Interpreter string
 		Content     string
