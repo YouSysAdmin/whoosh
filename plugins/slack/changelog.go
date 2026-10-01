@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -70,20 +71,20 @@ func parseCommits(out string, max int) []commit {
 func deriveCommitURL(repo string) string {
 	repo = strings.TrimSuffix(strings.TrimSpace(repo), ".git")
 	var hostPath string
-	if strings.HasPrefix(repo, "https://") || strings.HasPrefix(repo, "http://") {
-		_, hostPath, _ = strings.Cut(repo, "://")
-	} else if rest, ok := strings.CutPrefix(repo, "ssh://"); ok {
-		hostPath = rest
-		if _, after, ok := strings.Cut(hostPath, "@"); ok {
-			hostPath = after
+	if strings.HasPrefix(repo, "https://") || strings.HasPrefix(repo, "http://") || strings.HasPrefix(repo, "ssh://") {
+		// url.Parse drops the userinfo, so a token embedded in a CI remote never reaches the link.
+		u, err := url.Parse(repo)
+		if err != nil {
+			return ""
 		}
 
-		// Drop an ssh port (host:22/org/repo).
-		if host, path, ok := strings.Cut(hostPath, "/"); ok && host != "" {
-			if name, _, ok := strings.Cut(host, ":"); ok {
-				hostPath = name + "/" + path
-			}
+		host := u.Host
+		if u.Scheme == "ssh" {
+			// An ssh port (host:22/org/repo) means nothing to the web UI.
+			host = u.Hostname()
 		}
+
+		hostPath = host + u.Path
 	} else if strings.Contains(repo, "@") && strings.Contains(repo, ":") && !strings.Contains(repo, "://") {
 		// scp-like: git@host:org/repo
 		_, rest, _ := strings.Cut(repo, "@")

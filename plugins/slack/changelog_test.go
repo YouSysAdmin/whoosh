@@ -11,15 +11,17 @@ import (
 
 func TestDeriveCommitURL(t *testing.T) {
 	cases := map[string]string{
-		"git@github.com:eduvo/mb_rails4.git":        "https://github.com/eduvo/mb_rails4/commit/",
-		"git@github.com:eduvo/mb_rails4":            "https://github.com/eduvo/mb_rails4/commit/",
-		"ssh://git@github.com/eduvo/mb_rails4.git":  "https://github.com/eduvo/mb_rails4/commit/",
-		"ssh://git@gitlab.example.com:2222/org/app": "https://gitlab.example.com/org/app/commit/",
-		"https://github.com/eduvo/mb_rails4.git":    "https://github.com/eduvo/mb_rails4/commit/",
-		"https://gitlab.example.com/grp/sub/app":    "https://gitlab.example.com/grp/sub/app/commit/",
-		"/srv/git/mirror.git":                       "",
-		"":                                          "",
-		"github.com/eduvo/mb_rails4":                "",
+		"git@github.com:eduvo/mb_rails4.git":                   "https://github.com/eduvo/mb_rails4/commit/",
+		"git@github.com:eduvo/mb_rails4":                       "https://github.com/eduvo/mb_rails4/commit/",
+		"ssh://git@github.com/eduvo/mb_rails4.git":             "https://github.com/eduvo/mb_rails4/commit/",
+		"ssh://git@gitlab.example.com:2222/org/app":            "https://gitlab.example.com/org/app/commit/",
+		"https://github.com/eduvo/mb_rails4.git":               "https://github.com/eduvo/mb_rails4/commit/",
+		"https://gitlab.example.com/grp/sub/app":               "https://gitlab.example.com/grp/sub/app/commit/",
+		"https://x-access-token:s3cr3t@github.com/org/app.git": "https://github.com/org/app/commit/",
+		"https://gitlab.example.com:8443/org/app":              "https://gitlab.example.com:8443/org/app/commit/",
+		"/srv/git/mirror.git":                                  "",
+		"":                                                     "",
+		"github.com/eduvo/mb_rails4":                           "",
 	}
 	for repo, want := range cases {
 		if got := deriveCommitURL(repo); got != want {
