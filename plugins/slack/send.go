@@ -86,6 +86,31 @@ type attachment struct {
 	MrkdwnIn   []string      `json:"mrkdwn_in,omitempty"`
 }
 
+// masked returns a copy of the payload with every registered secret masked in the attachment text, as the message
+// leaves the masked output paths of whoosh.
+func (p payload) masked() payload {
+	atts := make([]attachment, len(p.Attachments))
+	for i, a := range p.Attachments {
+		a.Text = whoosh.Masking(a.Text)
+		a.Fallback = whoosh.Masking(a.Fallback)
+		a.Title = whoosh.Masking(a.Title)
+		a.TitleLink = whoosh.Masking(a.TitleLink)
+		a.AuthorName = whoosh.Masking(a.AuthorName)
+		fields := make([]attachField, len(a.Fields))
+		for j, f := range a.Fields {
+			f.Value = whoosh.Masking(f.Value)
+			fields[j] = f
+		}
+
+		a.Fields = fields
+		atts[i] = a
+	}
+
+	p.Attachments = atts
+
+	return p
+}
+
 // attachField is one entry of an attachment's fields table. Short fields render two per row.
 type attachField struct {
 	Title string `json:"title"`
@@ -237,7 +262,7 @@ func (n *notifier) webhookFor(event string) string {
 // post POSTs the payload to the webhook. The client's Timeout bounds the call even when ctx has no deadline (the
 // deploy:failed hook runs on context.Background()). Errors never embed the URL - it may be a secret.
 func (n *notifier) post(ctx context.Context, webhook string, pl payload) error {
-	body, err := json.Marshal(pl)
+	body, err := json.Marshal(pl.masked())
 	if err != nil {
 		return fmt.Errorf("encode payload: %w", err)
 	}

@@ -366,6 +366,26 @@ func TestSend_PostsPayload(t *testing.T) {
 	}
 }
 
+// The message leaves whoosh, so registered secrets (e.g. inside a failure's {{.error}}) are masked in it.
+func TestSend_MasksSecrets(t *testing.T) {
+	const secret = "slack-test-secret-4711"
+	whoosh.AddSecret(secret)
+	srv := newWebhookServer(t)
+	_, send := loadSlack(t, map[string]any{"webhook_url": srv.URL})
+	if err := send(t.Context(), map[string]any{"message": "failed: token=" + secret}, io.Discard); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	got := srv.received()
+	if len(got) != 1 || len(got[0].Attachments) != 1 {
+		t.Fatalf("payloads = %+v", got)
+	}
+
+	if a := got[0].Attachments[0]; strings.Contains(a.Text, secret) || strings.Contains(a.Fallback, secret) {
+		t.Errorf("secret leaked to Slack: %+v", a)
+	}
+}
+
 func TestSend_WithOverridesBeatPluginParams(t *testing.T) {
 	srv := newWebhookServer(t)
 	_, send := loadSlack(t, map[string]any{"webhook_url": srv.URL, "channel": "#deploys"})
