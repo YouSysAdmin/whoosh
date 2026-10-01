@@ -121,8 +121,8 @@ func imageTags(spec []ec2types.TagSpecification) map[string]string {
 func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 	src := instance("10.0.0.5", map[string]string{
 		"Name":                      "web-1",
-		"Application":               "managebac",
-		"aws:autoscaling:groupName": "managebac-asg", // aws: tag must be dropped
+		"Application":               "myapp",
+		"aws:autoscaling:groupName": "myapp-asg", // aws: tag must be dropped
 	})
 	src.InstanceId = awssdk.String("i-source")
 
@@ -134,9 +134,9 @@ func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := p.runCreate(t.Context(), map[string]any{
-		"name_prefix":     "managebac",
+		"name_prefix":     "myapp",
 		"source_tags":     map[string]any{"Role": "web"},
-		"launch_template": map[string]any{"asg": "managebac-asg"},
+		"launch_template": map[string]any{"asg": "myapp-asg"},
 	}, &buf)
 	if err != nil {
 		t.Fatalf("runCreate: %v\n%s", err, buf.String())
@@ -152,14 +152,14 @@ func TestAMICreate_FromTagsAndPatchesLaunchTemplate(t *testing.T) {
 	}
 
 	name := awssdk.ToString(fe.createImage.Name)
-	if !strings.HasPrefix(name, "managebac-") {
-		t.Errorf("AMI name = %q, want managebac-<timestamp>", name)
+	if !strings.HasPrefix(name, "myapp-") {
+		t.Errorf("AMI name = %q, want myapp-<timestamp>", name)
 	}
 
 	// Tags: copy app tags, drop Name + aws:*, set Name to the AMI name.
 	tags := imageTags(fe.createImage.TagSpecifications)
-	if tags["Application"] != "managebac" {
-		t.Errorf("Application tag = %q, want managebac", tags["Application"])
+	if tags["Application"] != "myapp" {
+		t.Errorf("Application tag = %q, want myapp", tags["Application"])
 	}
 
 	if tags["Name"] != name {

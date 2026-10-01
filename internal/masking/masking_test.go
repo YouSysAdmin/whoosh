@@ -15,9 +15,9 @@ func TestString_Redacts(t *testing.T) {
 	}{
 		{
 			name: "gem source url with github token",
-			in:   "gem source: https://eduvo:ghp_5zsMYNabcdefghijklmnopqrstuvwxyz0123@rubygems.pkg.github.com/eduvo/ already present in the cache",
+			in:   "gem source: https://acme:ghp_5zsMYNabcdefghijklmnopqrstuvwxyz0123@rubygems.pkg.github.com/acme/ already present in the cache",
 			gone: "ghp_5zsMYN",
-			keep: "https://eduvo:" + Placeholder + "@rubygems.pkg.github.com",
+			keep: "https://acme:" + Placeholder + "@rubygems.pkg.github.com",
 		},
 		{
 			name: "bare github token",
@@ -89,7 +89,7 @@ func TestWriter_RedactsAcrossWrites(t *testing.T) {
 	var buf bytes.Buffer
 	w := NewWriter(&buf)
 
-	_, _ = w.Write([]byte("[10.4.20.66] gem source: https://eduvo:ghp_5zsMYN"))
+	_, _ = w.Write([]byte("[10.4.20.66] gem source: https://acme:ghp_5zsMYN"))
 	_, _ = w.Write([]byte("abcdefghijklmnopqrstuvwxyz0123@rubygems.pkg.github.com/\n"))
 	// A trailing partial line is only emitted on Flush.
 	_, _ = w.Write([]byte("password=hunter2trailing"))
@@ -98,7 +98,7 @@ func TestWriter_RedactsAcrossWrites(t *testing.T) {
 		t.Errorf("token leaked before flush: %q", buf.String())
 	}
 
-	if !strings.Contains(buf.String(), "[10.4.20.66] gem source: https://eduvo:"+Placeholder+"@") {
+	if !strings.Contains(buf.String(), "[10.4.20.66] gem source: https://acme:"+Placeholder+"@") {
 		t.Errorf("line not redacted/prefixed as expected: %q", buf.String())
 	}
 

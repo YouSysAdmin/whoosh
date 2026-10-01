@@ -11,17 +11,17 @@ import (
 
 func TestDeriveCommitURL(t *testing.T) {
 	cases := map[string]string{
-		"git@github.com:eduvo/mb_rails4.git":                   "https://github.com/eduvo/mb_rails4/commit/",
-		"git@github.com:eduvo/mb_rails4":                       "https://github.com/eduvo/mb_rails4/commit/",
-		"ssh://git@github.com/eduvo/mb_rails4.git":             "https://github.com/eduvo/mb_rails4/commit/",
+		"git@github.com:acme/app.git":                          "https://github.com/acme/app/commit/",
+		"git@github.com:acme/app":                              "https://github.com/acme/app/commit/",
+		"ssh://git@github.com/acme/app.git":                    "https://github.com/acme/app/commit/",
 		"ssh://git@gitlab.example.com:2222/org/app":            "https://gitlab.example.com/org/app/commit/",
-		"https://github.com/eduvo/mb_rails4.git":               "https://github.com/eduvo/mb_rails4/commit/",
+		"https://github.com/acme/app.git":                      "https://github.com/acme/app/commit/",
 		"https://gitlab.example.com/grp/sub/app":               "https://gitlab.example.com/grp/sub/app/commit/",
 		"https://x-access-token:s3cr3t@github.com/org/app.git": "https://github.com/org/app/commit/",
 		"https://gitlab.example.com:8443/org/app":              "https://gitlab.example.com:8443/org/app/commit/",
 		"/srv/git/mirror.git":                                  "",
 		"":                                                     "",
-		"github.com/eduvo/mb_rails4":                           "",
+		"github.com/acme/app":                                  "",
 	}
 	for repo, want := range cases {
 		if got := deriveCommitURL(repo); got != want {
@@ -111,7 +111,7 @@ func changelogSendWith(changelog string) map[string]any {
 		"message":              "done",
 		"event":                eventFinished,
 		"changelog":            changelog,
-		"repo":                 "git@github.com:eduvo/mb_rails4.git",
+		"repo":                 "git@github.com:acme/app.git",
 		"commit_hash":          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"previous_commit_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
@@ -153,7 +153,7 @@ func TestSend_Changelog(t *testing.T) {
 		t.Errorf("commit attachment = %+v", c0)
 	}
 
-	if c0.TitleLink != "https://github.com/eduvo/mb_rails4/commit/"+fmt.Sprintf("%040x", 1) {
+	if c0.TitleLink != "https://github.com/acme/app/commit/"+fmt.Sprintf("%040x", 1) {
 		t.Errorf("commit link = %q", c0.TitleLink)
 	}
 

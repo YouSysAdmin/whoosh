@@ -33,7 +33,7 @@ func TestDecodeFeatureParams_DefaultsThenWith(t *testing.T) {
 	// name_prefix, adds a source tag, and the default launch_template is preserved.
 	defaults := map[string]any{
 		"name_prefix":     "default-prefix",
-		"source_tags":     map[string]any{"Application": "managebac"},
+		"source_tags":     map[string]any{"Application": "myapp"},
 		"launch_template": map[string]any{"asg": "my-asg"},
 	}
 	with := map[string]any{
@@ -50,8 +50,8 @@ func TestDecodeFeatureParams_DefaultsThenWith(t *testing.T) {
 		t.Errorf("NamePrefix = %q, want task-prefix (task wins)", ap.NamePrefix)
 	}
 
-	if ap.SourceTags["Application"] != "managebac" || ap.SourceTags["Role"] != "AMICreator" {
-		t.Errorf("SourceTags = %v, want {Application:managebac, Role:AMICreator}", ap.SourceTags)
+	if ap.SourceTags["Application"] != "myapp" || ap.SourceTags["Role"] != "AMICreator" {
+		t.Errorf("SourceTags = %v, want {Application:myapp, Role:AMICreator}", ap.SourceTags)
 	}
 
 	if ap.LaunchTemplate == nil || ap.LaunchTemplate.ASG != "my-asg" {
@@ -64,7 +64,7 @@ func TestDecodeFeatureParams_DefaultsThenWith(t *testing.T) {
 		t.Fatalf("DecodeFeature(defaults, nil): %v", err)
 	}
 
-	if only.NamePrefix != "default-prefix" || only.SourceTags["Application"] != "managebac" {
+	if only.NamePrefix != "default-prefix" || only.SourceTags["Application"] != "myapp" {
 		t.Errorf("defaults-only = %+v", only)
 	}
 }
