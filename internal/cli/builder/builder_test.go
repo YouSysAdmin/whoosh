@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,8 @@ func TestReplaceHelpers(t *testing.T) {
 		{spec: "github.com/x=./local", oldPth: "github.com/x", isFS: true},
 		{spec: "github.com/x=../local", oldPth: "github.com/x", isFS: true},
 		{spec: "github.com/x@v1=/abs/path", oldPth: "github.com/x", isFS: true},
+		{spec: "github.com/x=.", oldPth: "github.com/x", isFS: true},
+		{spec: "github.com/x=..", oldPth: "github.com/x", isFS: true},
 		{spec: "github.com/x=github.com/y@v1.2.0", oldPth: "github.com/x", isFS: false},
 		{spec: "github.com/x", oldPth: "github.com/x", isFS: false},
 	}
@@ -82,6 +85,26 @@ func TestGenerateMain(t *testing.T) {
 // TestBuild_IncludesPlugin is the end-to-end check: build a custom binary that adds two --with modules from the local
 // checkout (so no network) - the aws plugin module and the example out-of-tree plugin - then confirms the binary
 // reports both. Shells out to `go build`, so it's skipped under -short.
+func TestAbsReplace(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]string{
+		"github.com/x=.":                   "github.com/x=" + wd,
+		"github.com/x=../y":                "github.com/x=" + filepath.Join(filepath.Dir(wd), "y"),
+		"github.com/x@v1=/abs":             "github.com/x@v1=/abs",
+		"github.com/x=github.com/y@v1.2.0": "github.com/x=github.com/y@v1.2.0",
+	}
+	for in, want := range cases {
+		got, err := absReplace(in)
+		if err != nil || got != want {
+			t.Errorf("absReplace(%q) = %q, %v, want %q", in, got, err, want)
+		}
+	}
+}
+
 func TestBuild_IncludesPlugin(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping: shells out to `go build`")
@@ -97,7 +120,7 @@ func TestBuild_IncludesPlugin(t *testing.T) {
 	awsDir := filepath.Join(repoRoot, "plugins", "aws")
 	out := filepath.Join(t.TempDir(), "whoosh-custom")
 
-	err = runBuild(buildOptions{
+	err = runBuild(t.Context(), buildOptions{
 		withs: []string{
 			"github.com/yousysadmin/whoosh/plugins/aws",
 			"github.com/yousysadmin/whoosh-example-hello",

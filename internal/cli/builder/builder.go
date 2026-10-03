@@ -13,6 +13,8 @@ package builder
 
 import (
 	"cmp"
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -47,7 +49,7 @@ type modVer struct {
 func parseModVer(s string) (modVer, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return modVer{}, fmt.Errorf("empty module")
+		return modVer{}, errors.New("empty module")
 	}
 
 	if path, ver, ok := strings.Cut(s, "@"); ok {
@@ -74,8 +76,8 @@ func replaceOldPath(spec string) string {
 	return left
 }
 
-// replaceIsFilesystem reports whether a replacement points at a local directory (Go's rule: the target begins with ./
-// or ../ or is absolute).
+// replaceIsFilesystem reports whether a replacement points at a local directory (Go's rule: the target is . or .., or
+// begins with ./ or ../, or is absolute).
 // Those modules are resolved by the replacement + `go mod tidy`, so skip `go get` for them (a local/unpublished module
 // has no version to fetch).
 func replaceIsFilesystem(spec string) bool {
@@ -84,16 +86,35 @@ func replaceIsFilesystem(spec string) bool {
 		return false
 	}
 
-	rhs := strings.TrimSpace(after)
+	return isLocalPath(strings.TrimSpace(after))
+}
 
-	return strings.HasPrefix(rhs, "./") || strings.HasPrefix(rhs, "../") ||
-		strings.HasPrefix(rhs, ".\\") || strings.HasPrefix(rhs, "..\\") ||
-		filepath.IsAbs(rhs)
+func isLocalPath(p string) bool {
+	return p == "." || p == ".." ||
+		strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../") ||
+		strings.HasPrefix(p, ".\\") || strings.HasPrefix(p, "..\\") ||
+		filepath.IsAbs(p)
+}
+
+// absReplace rewrites a local replacement target to an absolute path. The build runs in a temp dir, where a relative
+// target would resolve against the throwaway module instead of the caller's cwd.
+func absReplace(spec string) (string, error) {
+	left, right, ok := strings.Cut(spec, "=")
+	if !ok || !isLocalPath(strings.TrimSpace(right)) {
+		return spec, nil
+	}
+
+	abs, err := filepath.Abs(strings.TrimSpace(right))
+	if err != nil {
+		return "", fmt.Errorf("resolve replace target: %w", err)
+	}
+
+	return left + "=" + abs, nil
 }
 
 // runBuild composes a throwaway module in a temp dir that imports whoosh plus the requested plugins, then `go build's
 // it.
-func runBuild(opts buildOptions) error {
+func runBuild(ctx context.Context, opts buildOptions) error {
 	output := cmp.Or(opts.output, "whoosh")
 	// Resolve the output path now (relative to the caller cwd): the build runs from a temp dir, where a relative -o would
 	// land in the wrong place.
@@ -136,7 +157,7 @@ func runBuild(opts buildOptions) error {
 	}
 
 	goBin := cmp.Or(opts.goBin, "go")
-	run := func(args ...string) error { return runGo(goBin, dir, opts.verbose, args...) }
+	run := func(args ...string) error { return runGo(ctx, goBin, dir, opts.verbose, args...) }
 
 	if err := run("mod", "init", "whoosh.custom"); err != nil {
 		return err
@@ -144,6 +165,11 @@ func runBuild(opts buildOptions) error {
 
 	// Replaces first, so version resolution below honors local/forked modules.
 	for _, r := range opts.replaces {
+		r, err := absReplace(r)
+		if err != nil {
+			return err
+		}
+
 		if err := run("mod", "edit", "-replace="+r); err != nil {
 			return err
 		}
@@ -207,12 +233,12 @@ func ldflags(opts buildOptions) string {
 	return flags
 }
 
-func runGo(goBin, dir string, verbose bool, args ...string) error {
+func runGo(ctx context.Context, goBin, dir string, verbose bool, args ...string) error {
 	if verbose {
 		slog.Info("exec", "cmd", goBin+" "+strings.Join(args, " "))
 	}
 
-	cmd := exec.Command(goBin, args...)
+	cmd := exec.CommandContext(ctx, goBin, args...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ() // GOOS/GOARCH/GOPRIVATE/netrc/etc.
 	cmd.Stdout = os.Stdout

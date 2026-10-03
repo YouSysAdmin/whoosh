@@ -2,6 +2,7 @@ package builder
 
 import "github.com/spf13/cobra"
 
+// NewCommand returns the `whoosh build` command.
 func NewCommand() *cobra.Command {
 	var opts buildOptions
 	cmd := &cobra.Command{
@@ -10,9 +11,9 @@ func NewCommand() *cobra.Command {
 		Long: `Compile a whoosh binary that bundles plugins each --with module.
 
   whoosh build --whoosh-version v1.4.0 --with github.com/acme/whoosh-datadog
-  whoosh build --replace github.com/yousysadmin/whoosh=. --with github.com/acme/x=../x`,
+  whoosh build --replace github.com/yousysadmin/whoosh=. --with github.com/acme/x --replace github.com/acme/x=../x`,
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error { return runBuild(opts) },
+		RunE: func(cmd *cobra.Command, _ []string) error { return runBuild(cmd.Context(), opts) },
 	}
 	f := cmd.Flags()
 	f.StringArrayVar(&opts.withs, "with", nil, "plugin module to include: module[@version] (repeatable)")
