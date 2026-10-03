@@ -30,7 +30,7 @@ func TestNotifyTaskFailure(t *testing.T) {
 		defer ex.Close()
 		err := ex.RunTask(t.Context(), "boom")
 		if err != nil {
-			notifyTaskFailure(cfg, ex, "boom", err)
+			notifyTaskFailure(t.Context(), cfg, ex, "boom", err)
 		}
 
 		return buf.String(), err

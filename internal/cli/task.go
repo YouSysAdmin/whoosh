@@ -2,6 +2,7 @@ package cli
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,7 +36,7 @@ func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.C
 			defer ex.Close()
 			err = ex.RunTask(cmd.Context(), name)
 			if err != nil && !gf.dryRun {
-				notifyTaskFailure(cfg, ex, name, err)
+				notifyTaskFailure(cmd.Context(), cfg, ex, name, err)
 			}
 
 			return err
@@ -45,13 +46,13 @@ func newTaskCmd(stage, name, desc string, hidden bool, gf *globalFlags) *cobra.C
 
 // notifyTaskFailure fires the after deploy:failed hooks when a top-level task command fails, mirroring the deploy
 // lifecycle's onFailure, so a pipeline run outside a deploy (e.g. an ASG refresh) still notifies. Best-effort: hook
-// errors are only logged, the command still returns the task's own error. A fresh context is used because the
-// command's may be cancelled. A task opts out with notify_failure: false.
-func notifyTaskFailure(cfg *ast.DeployFile, ex *executor.Executor, name string, err error) {
+// errors are only logged, the command still returns the task's own error. The hooks run even when ctx is cancelled.
+// A task opts out with notify_failure: false.
+func notifyTaskFailure(ctx context.Context, cfg *ast.DeployFile, ex *executor.Executor, name string, err error) {
 	if t := cfg.Tasks[name]; t != nil && t.NotifyFailure != nil && !*t.NotifyFailure {
 		return
 	}
 
 	r := hooks.New(cfg.Hooks, cfg.HookFuncsBefore, cfg.HookFuncsAfter, ex.RunTaskInPhase, ex.Out())
-	r.NotifyFailed(ex.SetError, err)
+	r.NotifyFailed(ctx, ex.SetError, err)
 }

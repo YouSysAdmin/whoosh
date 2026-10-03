@@ -52,15 +52,15 @@ func (r *Runner) After(ctx context.Context, phase string) error {
 
 // NotifyFailed fires the after deploy:failed hooks best-effort - the shared failure tail of the deploy lifecycle and
 // a standalone task command: nothing runs when no failed hooks are registered, setError exposes the failure to the
-// hook tasks as {{.error}} / $DEPLOY_ERROR, a fresh background context is used because the caller's may be cancelled,
-// and a hook error is only logged - the caller still returns the original failure.
-func (r *Runner) NotifyFailed(setError func(string), err error) {
+// hook tasks as {{.error}} / $DEPLOY_ERROR, the hooks run on a context detached from ctx's cancellation because the
+// caller's may be cancelled, and a hook error is only logged - the caller still returns the original failure.
+func (r *Runner) NotifyFailed(ctx context.Context, setError func(string), err error) {
 	if len(r.hooks.After[ast.PhaseFailed]) == 0 && len(r.afterF[ast.PhaseFailed]) == 0 {
 		return
 	}
 
 	setError(err.Error())
-	if hookErr := r.After(context.Background(), ast.PhaseFailed); hookErr != nil {
+	if hookErr := r.After(context.WithoutCancel(ctx), ast.PhaseFailed); hookErr != nil {
 		slog.Warn("deploy:failed hook error", "error", hookErr)
 	}
 }

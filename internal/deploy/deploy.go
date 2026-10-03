@@ -18,6 +18,9 @@ import (
 	"github.com/yousysadmin/whoosh/internal/paths"
 )
 
+// unlockTimeout bounds the lock release that runs after a failed or cancelled deploy.
+const unlockTimeout = 30 * time.Second
+
 // replaceablePhases are the phases whose built-in command a task may take over via `replace:`.
 // Only rollback is app-specific enough to override safely - the release-management phases (lock, release creation,
 // symlink swap, cleanup) stay whoosh's.
@@ -169,7 +172,10 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	var locked bool
 	defer func() {
 		if locked {
-			if err := d.ex.RunOn(context.Background(), primary, unlockCmd(d.layout)); err != nil {
+			// Release the lock even after a cancel, bounded so a hung host cannot stall the exit.
+			uctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), unlockTimeout)
+			defer cancel()
+			if err := d.ex.RunOn(uctx, primary, unlockCmd(d.layout)); err != nil {
 				slog.Warn("failed to release the deploy lock, clear it with deploy:unlock", "stage", d.cfg.Stage, "error", err)
 			}
 		}
@@ -266,7 +272,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	}
 
 	if runErr != nil {
-		d.onFailure(runErr)
+		d.onFailure(ctx, runErr)
 
 		return runErr
 	}
@@ -388,8 +394,8 @@ func (d *Deployer) captureLive(ctx context.Context, cmd string) (string, error) 
 }
 
 // onFailure runs the deploy:failed hook tasks (best-effort) so a failed deploy can notify.
-func (d *Deployer) onFailure(err error) {
-	d.hooks.NotifyFailed(d.ex.SetError, err)
+func (d *Deployer) onFailure(ctx context.Context, err error) {
+	d.hooks.NotifyFailed(ctx, d.ex.SetError, err)
 }
 
 // Check validates connectivity and ensures the directory tree exists.

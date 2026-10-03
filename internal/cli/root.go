@@ -42,9 +42,10 @@ type globalFlags struct {
 // The error is logged through slog (like the rest of whoosh's narrative) rather than printed by cobra.
 // A SIGINT/SIGTERM cancels the command's context, so in-flight SSH sessions are killed and deferred cleanup (e.g.
 // releasing the deploy lock) still runs - rather than the OS abruptly terminating the process.
+// The first signal restores the default handlers, so a second one ends a cleanup that hangs.
 func Execute() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	context.AfterFunc(ctx, stop)
 	if err := newRootCmd(os.Args[1:]).ExecuteContext(ctx); err != nil {
 		// An operator interrupt (Ctrl-C / SIGTERM) cancels the root context and the work unwinds with a context.
 		// Canceled - that is intentional, not a failure, so report it calmly and exit 130.
