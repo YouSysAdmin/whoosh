@@ -2,6 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -165,5 +169,39 @@ func TestLogBool_Priority(t *testing.T) { // Config set (false), flag unchanged 
 	sub = rootWithLogFlags(t)
 	if got := logBool(sub, "log-color", nil); got != true {
 		t.Errorf("no config: got %v, want flag default true", got)
+	}
+}
+
+// A failed reconfigure keeps the previous logger and its file open, so later records still land there.
+func TestSetupLogging_FailureKeepsPreviousLogger(t *testing.T) {
+	prev := slog.Default()
+	t.Cleanup(func() {
+		slog.SetDefault(prev)
+		if logState.file != nil {
+			_ = logState.file.Close()
+		}
+
+		logState.file, logState.output, logState.base = nil, nil, nil
+	})
+
+	sub := rootWithAllLogFlags(t)
+	good := filepath.Join(t.TempDir(), "whoosh.log")
+	if err := setupLogging(sub, "info", "text", "stderr", false, good, "text"); err != nil {
+		t.Fatalf("first setup: %v", err)
+	}
+
+	bad := filepath.Join(t.TempDir(), "missing", "dir", "x.log")
+	if err := setupLogging(sub, "info", "text", "stderr", false, bad, "text"); err == nil {
+		t.Fatal("setup with an unwritable log file succeeded")
+	}
+
+	slog.Info("still logged")
+	data, err := os.ReadFile(good)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(string(data), "still logged") {
+		t.Errorf("record lost after a failed reconfigure, log file:\n%s", data)
 	}
 }

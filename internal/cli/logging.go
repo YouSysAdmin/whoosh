@@ -37,25 +37,25 @@ var logState struct {
 // The file additionally receives whoosh's slog narrative, and for a *text* file it also gets the raw host command
 // output - which streams on stdout, NOT through slog - tee'd in, so the file is a complete deploy transcript.
 // A JSON file stays narrative-only: interleaving raw command bytes would break its JSON lines.
-// It is safe to call again (after loading the Deployfile's log config): the previously opened file is closed and the
-// tee is reset to the captured base first, so re-applying never double-tees.
+// It is safe to call again (after loading the Deployfile's log config): the previously opened files are closed once the
+// new logger is installed and the tee is rebuilt from the captured base, so re-applying never double-tees.
 func setupLogging(cmd *cobra.Command, level, format, output string, color bool, file, fileFormat string) error {
 	root := cmd.Root()
 	if logState.base == nil {
 		logState.base = root.OutOrStdout()
 	}
 
-	if logState.file != nil {
-		_ = logState.file.Close()
-		logState.file = nil
-	}
+	// The new handles are opened and the logger built first, so a failure keeps the previous logger working.
+	var newOutput, newFile *os.File
+	fail := func(err error) error {
+		for _, f := range []*os.File{newOutput, newFile} {
+			if f != nil {
+				_ = f.Close()
+			}
+		}
 
-	if logState.output != nil {
-		_ = logState.output.Close()
-		logState.output = nil
+		return err
 	}
-
-	root.SetOut(logState.base)
 
 	primary := logger.Sink{Level: level, Output: output, Format: format, Color: color}
 	if output != "" && !strings.EqualFold(output, "stdout") && !strings.EqualFold(output, "stderr") {
@@ -63,37 +63,46 @@ func setupLogging(cmd *cobra.Command, level, format, output string, color bool, 
 		// the Deployfile's log: config loads - closes the previous handle instead of leaking one per setup.
 		f, err := logger.OpenAppend(output)
 		if err != nil {
-			return err
+			return fail(err)
 		}
 
-		logState.output = f
+		newOutput = f
 		primary.Writer = f
 		primary.Output = ""
 	}
 
 	sinks := []logger.Sink{primary}
+	out := logState.base
 	if file != "" {
 		f, err := logger.OpenAppend(file)
 		if err != nil {
-			return err
+			return fail(err)
 		}
 
-		logState.file = f
+		newFile = f
 		// Fan the narrative into the same open file (never colorized).
 		sinks = append(sinks, logger.Sink{Level: level, Writer: f, Format: fileFormat})
 		if !strings.EqualFold(fileFormat, "json") {
 			// Tee command output (stdout) into the file: every command writer derives from the root command's OutOrStdout, so
 			// all hosts' output (and dry-run plans, config dumps, ...) lands in the transcript too.
-			root.SetOut(io.MultiWriter(logState.base, f))
+			out = io.MultiWriter(logState.base, f)
 		}
 	}
 
 	l, err := logger.New(sinks...)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 
 	slog.SetDefault(l)
+	root.SetOut(out)
+	for _, f := range []*os.File{logState.output, logState.file} {
+		if f != nil {
+			_ = f.Close()
+		}
+	}
+
+	logState.output, logState.file = newOutput, newFile
 
 	return nil
 }
