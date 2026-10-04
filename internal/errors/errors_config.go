@@ -10,6 +10,10 @@ type ConfigError struct {
 }
 
 func (e *ConfigError) Error() string {
+	if e.Msg == "" && e.Err != nil {
+		return e.Err.Error()
+	}
+
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Msg, e.Err)
 	}
@@ -18,6 +22,15 @@ func (e *ConfigError) Error() string {
 }
 func (e *ConfigError) Unwrap() error { return e.Err }
 func (e *ConfigError) Code() int     { return CodeConfig }
+
+// AsConfig marks err as a config failure unless it already carries an exit code, the message is kept as is.
+func AsConfig(err error) error {
+	if err == nil || Code(err) != CodeUnknown {
+		return err
+	}
+
+	return &ConfigError{Err: err}
+}
 
 // Config builds a ConfigError from a printf-style message.
 func Config(format string, a ...any) *ConfigError {

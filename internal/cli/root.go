@@ -496,8 +496,15 @@ func selectPluginsForStage(cfg *ast.DeployFile) {
 // loadOffline is the offline part of config loading, shared by loadConfig and the validate command: discover + parse +
 // merge + schema-validate the Deployfile, then select the stage's active plugins and render their param templates.
 // It makes no network/SSH calls and does not load plugins or run startup hooks.
-// It returns the resolved config and the Deployfile path.
+// It returns the resolved config and the Deployfile path, a failure exits with the config code.
 func loadOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.DeployFile, string, error) {
+	cfg, path, err := resolveOffline(cmd, gf, stage)
+
+	return cfg, path, errors.AsConfig(err)
+}
+
+// resolveOffline runs the offline load steps of loadOffline.
+func resolveOffline(cmd *cobra.Command, gf *globalFlags, stage string) (*ast.DeployFile, string, error) {
 	path, err := deployfile.Discover(".", gf.deployfile)
 	if err != nil {
 		return nil, "", err
