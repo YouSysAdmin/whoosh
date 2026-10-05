@@ -19,6 +19,7 @@ func newStagesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "stages",
 		Short:        "List the available stages",
+		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := deployfile.Discover(".", deployfilePath)
