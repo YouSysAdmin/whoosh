@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile"
+	"github.com/yousysadmin/whoosh/internal/errors"
 )
 
 func newInitCmd() *cobra.Command {
@@ -61,13 +63,23 @@ func runInit(stages []string) error {
 
 // writeIfAbsent writes data to path unless the file already exists.
 func writeIfAbsent(path string, data []byte) error {
-	if _, err := os.Stat(path); err == nil {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, fs.ErrExist) {
 		slog.Info("skipped, already exists", "path", path)
 
 		return nil
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+
+	if err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
