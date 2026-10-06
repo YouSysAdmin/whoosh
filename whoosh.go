@@ -23,6 +23,7 @@
 package whoosh
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
@@ -222,13 +223,10 @@ func Or[T any](p *T, fallback T) T {
 
 // OrZero returns v when non-zero, else fallback - the default for an optional scalar param where the zero value
 // ("" or 0) means unset.
+//
+// Deprecated: use cmp.Or.
 func OrZero[T comparable](v, fallback T) T {
-	var zero T
-	if v != zero {
-		return v
-	}
-
-	return fallback
+	return cmp.Or(v, fallback)
 }
 
 // WithHostFileWriter returns ctx carrying w (the executor sets this before an action runs).

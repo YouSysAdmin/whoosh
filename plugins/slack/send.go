@@ -2,6 +2,7 @@ package slack
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -185,9 +186,9 @@ func (n *notifier) send(ctx context.Context, raw map[string]any, _ io.Writer) er
 	}
 
 	pl := payload{
-		Channel:     whoosh.OrZero(sp.Channel, n.cfg.Channel),
-		Username:    whoosh.OrZero(sp.Username, n.cfg.Username),
-		IconEmoji:   whoosh.OrZero(sp.IconEmoji, n.cfg.IconEmoji),
+		Channel:     cmp.Or(sp.Channel, n.cfg.Channel),
+		Username:    cmp.Or(sp.Username, n.cfg.Username),
+		IconEmoji:   cmp.Or(sp.IconEmoji, n.cfg.IconEmoji),
 		Attachments: batches[0],
 	}
 
@@ -256,7 +257,7 @@ func (n *notifier) webhookFor(event string) string {
 		eventRollback: n.cfg.WebhookRollback,
 	}
 
-	return whoosh.OrZero(byEvent[event], n.cfg.WebhookURL)
+	return cmp.Or(byEvent[event], n.cfg.WebhookURL)
 }
 
 // post POSTs the payload to the webhook. The client's Timeout bounds the call even when ctx has no deadline (the

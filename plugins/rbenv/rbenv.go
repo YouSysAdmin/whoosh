@@ -202,7 +202,7 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	// the global version. The host script adds the previous release's .ruby-version on top.
 	versions := append([]string(nil), p.Versions...)
 	if whoosh.Or(p.ReadRubyVersion, true) {
-		if v := readLocalRubyVersion(cfg.Dir, whoosh.OrZero(p.RubyVersionFile, defaultRubyVersion)); v != "" {
+		if v := readLocalRubyVersion(cfg.Dir, cmp.Or(p.RubyVersionFile, defaultRubyVersion)); v != "" {
 			versions = append(versions, v)
 		}
 	}
@@ -228,9 +228,9 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	env := map[string]string{}
 	maps.Copy(env, p.BuildEnv)
 	env["RBENV_ROOT"] = root
-	env["RBENV_REPO"] = whoosh.OrZero(p.RbenvRepo, defaultRbenvRepo)
-	env["RUBY_BUILD_REPO"] = whoosh.OrZero(p.RubyBuildRepo, defaultRubyBuildRepo)
-	env["RBENV_DEFAULT_GEMS_REPO"] = whoosh.OrZero(p.DefaultGemsRepo, defaultDefaultGemsRepo)
+	env["RBENV_REPO"] = cmp.Or(p.RbenvRepo, defaultRbenvRepo)
+	env["RUBY_BUILD_REPO"] = cmp.Or(p.RubyBuildRepo, defaultRubyBuildRepo)
+	env["RBENV_DEFAULT_GEMS_REPO"] = cmp.Or(p.DefaultGemsRepo, defaultDefaultGemsRepo)
 	// One gem per line - entries may contain spaces ("bcat ~>0.6", "rails --pre"), so newlines separate them and the
 	// script writes the value verbatim to $RBENV_ROOT/default-gems. Empty when no gems are configured (script skips it).
 	env["RBENV_DEFAULT_GEMS_LIST"] = strings.Join(p.DefaultGems, "\n")
@@ -254,10 +254,10 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 			Script: setupScript,
 		}},
 	}
-	name := whoosh.OrZero(p.TaskName, defaultTaskName)
+	name := cmp.Or(p.TaskName, defaultTaskName)
 	cfg.AddTask(name, task)
 
-	phase := whoosh.OrZero(p.Phase, defaultPhase)
+	phase := cmp.Or(p.Phase, defaultPhase)
 	if strings.EqualFold(p.When, "after") {
 		cfg.AddHookAfter(phase, name)
 	} else {

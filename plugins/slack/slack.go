@@ -36,6 +36,7 @@
 package slack
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -296,22 +297,22 @@ func (n *notifier) install(_ context.Context, cfg *whoosh.DeployFile) error {
 
 	if whoosh.Or(n.cfg.NotifyStart, true) {
 		add(taskNotifyStart, "Notify Slack: deploy started",
-			eventStarted, whoosh.OrZero(n.cfg.MessageStart, defaultMsgStart), whoosh.OrZero(n.cfg.ColorStart, colorStart), whoosh.PhaseStarting, true)
+			eventStarted, cmp.Or(n.cfg.MessageStart, defaultMsgStart), cmp.Or(n.cfg.ColorStart, colorStart), whoosh.PhaseStarting, true)
 	}
 
 	if whoosh.Or(n.cfg.NotifySuccess, true) {
 		add(taskNotifySuccess, "Notify Slack: deploy succeeded",
-			eventFinished, whoosh.OrZero(n.cfg.MessageSuccess, defaultMsgSuccess), whoosh.OrZero(n.cfg.ColorSuccess, colorSuccess), whoosh.PhaseFinished, false)
+			eventFinished, cmp.Or(n.cfg.MessageSuccess, defaultMsgSuccess), cmp.Or(n.cfg.ColorSuccess, colorSuccess), whoosh.PhaseFinished, false)
 	}
 
 	if whoosh.Or(n.cfg.NotifyFail, true) {
 		add(taskNotifyFail, "Notify Slack: deploy failed",
-			eventFailed, whoosh.OrZero(n.cfg.MessageFail, defaultMsgFail), whoosh.OrZero(n.cfg.ColorFail, colorFail), whoosh.PhaseFailed, false)
+			eventFailed, cmp.Or(n.cfg.MessageFail, defaultMsgFail), cmp.Or(n.cfg.ColorFail, colorFail), whoosh.PhaseFailed, false)
 	}
 
 	if n.cfg.NotifyRollback {
 		add(taskNotifyRollback, "Notify Slack: rollback",
-			eventRollback, whoosh.OrZero(n.cfg.MessageRollback, defaultMsgRollback), whoosh.OrZero(n.cfg.ColorRollback, colorRollback), whoosh.PhaseRollback, false)
+			eventRollback, cmp.Or(n.cfg.MessageRollback, defaultMsgRollback), cmp.Or(n.cfg.ColorRollback, colorRollback), whoosh.PhaseRollback, false)
 	}
 
 	// The action only sees its with: map, so the rich fields pull their deploy-context values through runtime
