@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/spf13/cobra"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
+	"github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/executor"
 	"github.com/yousysadmin/whoosh/internal/masking"
 	"github.com/yousysadmin/whoosh/internal/paths"
@@ -65,7 +67,7 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 
 			results := runner.RunCommand(cmd.Context(), executor.Targets(hosts), sshOpts, command, out, colorOutput(cmd, cfg.Log), gf.conc, false)
 
-			return reportResults(results)
+			return reportResults(cmd.Context(), results)
 		},
 	}
 }
@@ -96,8 +98,9 @@ func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (executo
 	return out, nil
 }
 
-// reportResults logs each per-host failure and returns an error if any host failed.
-func reportResults(results []runner.Result) error {
+// reportResults logs each per-host failure and returns an error if any host failed. After an operator interrupt the
+// cancelled hosts are not logged one by one, Execute reports the interrupt once.
+func reportResults(ctx context.Context, results []runner.Result) error {
 	var first error
 	failed := 0
 	for _, r := range results {
@@ -107,7 +110,9 @@ func reportResults(results []runner.Result) error {
 				first = r.Err
 			}
 
-			slog.Error("host failed", "host", r.Host, "error", r.Err)
+			if ctx.Err() == nil || !errors.Is(r.Err, context.Canceled) {
+				slog.Error("host failed", "host", r.Host, "error", r.Err)
+			}
 		}
 	}
 
