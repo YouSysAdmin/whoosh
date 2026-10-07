@@ -73,7 +73,7 @@ func (c *Cluster) Run(ctx context.Context, targets []Target, cmdFor func(host st
 	return Fanout(ctx, targets, concurrency, failFast, func(ctx context.Context, t Target) error {
 		conn, err := c.conn(ctx, t)
 		if err != nil {
-			return &errors.UnreachableError{Err: err} // dial failed: host unreachable
+			return dialError(ctx, err)
 		}
 
 		stdout := c.writer(t.Host)
@@ -106,6 +106,16 @@ func classify(t Target, err error) error {
 	return &errors.CommandError{Host: t.Host, Err: err}
 }
 
+// dialError marks a failed dial as an unreachable host. A dial aborted because ctx is done stays that context error, a
+// connect timeout of its own is still an unreachable host.
+func dialError(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	return &errors.UnreachableError{Err: err}
+}
+
 // Capture runs cmd on a single target and returns its trimmed stdout, reusing the cached connection.
 // Unlike Run it buffers stdout instead of streaming, for commands whose output the caller needs as a value (e.g. a git
 // SHA). stderr is still streamed to the cluster writer so a failure stays visible.
@@ -113,7 +123,7 @@ func classify(t Target, err error) error {
 func (c *Cluster) Capture(ctx context.Context, t Target, cmd string) (string, error) {
 	conn, err := c.conn(ctx, t)
 	if err != nil {
-		return "", &errors.UnreachableError{Err: err}
+		return "", dialError(ctx, err)
 	}
 
 	var stdout bytes.Buffer

@@ -2,12 +2,14 @@ package runner_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 
+	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/runner"
 	"github.com/yousysadmin/whoosh/transport/sshtest"
 )
@@ -139,8 +141,9 @@ func TestCluster_CancelledDialIsNotCached(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := c.Capture(ctx, target, "echo hi"); err == nil {
-		t.Fatal("dial with a cancelled context should fail")
+	_, err = c.Capture(ctx, target, "echo hi")
+	if !errors.Is(err, context.Canceled) || werrors.IsUnreachable(err) {
+		t.Fatalf("dial with a cancelled context = %v, want a plain cancellation", err)
 	}
 
 	got, err := c.Capture(t.Context(), target, "echo hi")
