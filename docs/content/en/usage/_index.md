@@ -167,7 +167,7 @@ host list.)
 
 | Phase               | What it does                                                                                                                                                       |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `deploy:starting`   | Acquire the deploy lock on the primary host.                                                                                                                       |
+| `deploy:starting`   | Acquire the deploy lock on the primary host. `before deploy:starting` hooks run before the lock is held, so keep them free of shared state.                        |
 | `deploy:check`      | Ensure the `<deploy_to>` directory tree exists (creating `linked_dirs`), and verify every `linked_files` entry exists in `shared/` - fail early if one is missing. |
 | `deploy:init`       | *(marker - provision the host: install software / deps. Hook tasks need an explicit `dir:`, e.g. `"{{.deploy_to}}"`.)*                                             |
 | `deploy:started`    | *(marker - hook anchor, no built-in step)*                                                                                                                         |
