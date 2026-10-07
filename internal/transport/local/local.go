@@ -4,6 +4,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -28,7 +29,7 @@ func (c *Client) Run(ctx context.Context, command string, stdout, stderr io.Writ
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		if err == syscall.ESRCH {
+		if errors.Is(err, syscall.ESRCH) {
 			return os.ErrProcessDone
 		}
 
@@ -41,8 +42,13 @@ func (c *Client) Run(ctx context.Context, command string, stdout, stderr io.Writ
 	// On cancellation/timeout CommandContext kills the process, surfacing as "signal: killed".
 	// Report the context error instead, so an operator Ctrl-C reads as a cancellation - matching the SSH transport (which
 	// returns ctx.Err() too), so the CLI can recognize it as an interrupt rather than a failure.
-	if ctx.Err() != nil {
+	if err != nil && ctx.Err() != nil {
 		return ctx.Err()
+	}
+
+	// The shell exited 0 but a background child (nohup srv &) still holds the output pipes, the command succeeded.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		return nil
 	}
 
 	return err

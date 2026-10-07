@@ -1,9 +1,11 @@
 package local_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,5 +38,17 @@ func TestRun_CancelReturnsContextError(t *testing.T) {
 func TestRun_Success(t *testing.T) {
 	if err := local.New().Run(t.Context(), "true", io.Discard, io.Discard); err != nil {
 		t.Fatalf("true should succeed, got %v", err)
+	}
+}
+
+// A background child that keeps the output pipe open does not fail a command that exited 0.
+func TestRun_BackgroundChildHoldsPipe(t *testing.T) {
+	var out bytes.Buffer
+	if err := local.New().Run(t.Context(), "echo started; sleep 5 &", &out, &out); err != nil {
+		t.Fatalf("Run = %v, want nil", err)
+	}
+
+	if !strings.Contains(out.String(), "started") {
+		t.Errorf("output = %q, want it to contain started", out.String())
 	}
 }
