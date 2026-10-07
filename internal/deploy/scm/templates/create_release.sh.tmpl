@@ -1,1 +1,1 @@
-mkdir -p {{sh .Release}} && git -C {{sh .Repo}} archive {{sh .Branch}} | tar -x -f - -C {{sh .Release}}
+{ [ ! -e {{sh .Release}} ] || { echo release already exists: {{sh .Release}} >&2; false; }; } && mkdir -p {{sh .Release}} && git -C {{sh .Repo}} archive {{sh .Branch}} | tar -x -f - -C {{sh .Release}}

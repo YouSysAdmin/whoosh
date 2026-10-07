@@ -27,7 +27,8 @@ func TestGitCommands(t *testing.T) {
 	}
 
 	if got, want := g.CreateRelease("/srv/app/repo", "/srv/app/releases/123"),
-		`mkdir -p '/srv/app/releases/123' && git -C '/srv/app/repo' archive 'main' | tar -x -f - -C '/srv/app/releases/123'`; got != want {
+		`{ [ ! -e '/srv/app/releases/123' ] || { echo release already exists: '/srv/app/releases/123' >&2; false; }; } && `+
+			`mkdir -p '/srv/app/releases/123' && git -C '/srv/app/repo' archive 'main' | tar -x -f - -C '/srv/app/releases/123'`; got != want {
 		t.Errorf("CreateRelease:\n got: %q\nwant: %q", got, want)
 	}
 
