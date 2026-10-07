@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -96,9 +97,13 @@ func New(cfg *ast.DeployFile, opts Options) *Executor {
 	rout := masking.NewWriter(opts.Out)
 	layout := paths.For(cfg.App.DeployTo)
 	// Expose the whole resolved config to templates as {{.config}}.
-	// Marshaling a valid config can't fail, on the off chance it does, templates simply see a nil config rather than the
-	// executor failing to build.
-	cfgMap, _ := cfg.AsMap()
+	// Marshaling a valid config can't fail, on the off chance it does, templates see a nil config and a warning is
+	// logged rather than the executor failing to build.
+	cfgMap, err := cfg.AsMap()
+	if err != nil {
+		slog.Warn("config unavailable to templates", "error", err)
+	}
+
 	base := varstmpl.Context{
 		Vars:         cfg.Vars,
 		AppName:      cfg.App.Name,

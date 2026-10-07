@@ -79,7 +79,7 @@ func newRunCmd(stage string, gf *globalFlags) *cobra.Command {
 // Only the global envs expand $VAR, env_files and imports are exported literally.
 func renderRunEnvs(cfg *ast.DeployFile, releaseDir string, dryRun bool) (executor.Env, error) {
 	ctx := loadTimeContext(cfg)
-	ctx.Config, _ = cfg.AsMap()
+	ctx.Config = configMap(cfg)
 	ctx.Imports = cfg.Imports
 	ctx.ReleasePath = releaseDir
 	out := make(executor.Env, len(cfg.EnvFileValues)+len(cfg.Envs))

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -145,7 +146,7 @@ func validateContext(cfg *ast.DeployFile) varstmpl.Context {
 	// verified offline and would fail here, guard imports at run time instead (e.g. in the script). Task output
 	// ({{ .tasks.* }}) is likewise run-time-only; checkTemplates skips templates that reference it.
 	ctx := loadTimeContext(cfg)
-	ctx.Config, _ = cfg.AsMap()
+	ctx.Config = configMap(cfg)
 	ctx.ReleasePath = ctx.CurrentPath
 	ctx.ReleaseTimestamp = "19700101000000"
 	ctx.CommitHash = "0000000000000000000000000000000000000000"
@@ -191,4 +192,15 @@ func scriptRef(sc ast.Script) string {
 
 func sortedKeys[M ~map[string]V, V any](m M) []string {
 	return slices.Sorted(maps.Keys(m))
+}
+
+// configMap is the {{.config}} template value. A marshal failure is logged and leaves it nil, a later render of
+// {{.config}} then reports the missing key.
+func configMap(cfg *ast.DeployFile) map[string]any {
+	m, err := cfg.AsMap()
+	if err != nil {
+		slog.Warn("config unavailable to templates", "error", err)
+	}
+
+	return m
 }
