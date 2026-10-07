@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	pathpkg "path"
@@ -77,7 +78,7 @@ func (r *hostCommandRunner) RunCommand(ctx context.Context, cmd string) error {
 		r.e.echoExec(h.Address, cmd)
 	}
 
-	return r.e.runOnTargets(ctx, r.e.taskTargets(r.task, r.hosts), func(string) string { return cmd })
+	return r.e.runOnTargets(ctx, r.task, r.hosts, func(string) string { return cmd })
 }
 
 // hostCommandCapturer captures command output from the first host an action task targets (plugins.HostCommandCapturer).
@@ -88,15 +89,17 @@ type hostCommandCapturer struct {
 }
 
 // CaptureCommand runs cmd on the first target host and returns its trimmed stdout, echoing the command like a task cmd.
+// Under on_unreachable: skip an unreachable host is dropped and the next one is tried.
 func (c *hostCommandCapturer) CaptureCommand(ctx context.Context, cmd string) (string, error) {
-	if len(c.hosts) == 0 {
-		return "", fmt.Errorf("no hosts match the action task; nothing to capture")
+	for _, h := range c.e.filterExcluded(c.hosts) {
+		c.e.echoExec(h.Address, cmd)
+		out, err := c.e.cluster.Capture(ctx, c.e.taskTargets(c.task, []ast.Host{h})[0], cmd)
+		if err == nil || !c.e.dropUnreachable(ctx, c.task.Action, h.Address, err) {
+			return out, err
+		}
 	}
 
-	target := c.e.taskTargets(c.task, c.hosts[:1])[0]
-	c.e.echoExec(c.hosts[0].Address, cmd)
-
-	return c.e.cluster.Capture(ctx, target, cmd)
+	return "", errors.New("no hosts match the action task, nothing to capture")
 }
 
 // hostFileWriter renders a file onto an action task's hosts (plugins.HostFileWriter).
@@ -137,18 +140,18 @@ func (w *hostFileWriter) WriteFile(ctx context.Context, path string, content []b
 		}
 	}
 
-	return w.e.runOnTargets(ctx, w.e.taskTargets(w.task, w.hosts), func(h string) string { return cmds[h] })
+	return w.e.runOnTargets(ctx, w.task, w.hosts, func(h string) string { return cmds[h] })
 }
 
-// runOnTargets runs a per-host command on the given targets in parallel and fail-fast, returning the first failure
-// with firstError's real-failure-over-cancellation preference.
-func (e *Executor) runOnTargets(ctx context.Context, targets []runner.Target, cmdFor func(host string) string) error {
-	results := e.cluster.Run(ctx, targets, cmdFor, e.concurrency, true)
-	if runner.Failed(results) {
-		return firstError(results)
-	}
+// runOnTargets runs a per-host command on the task's hosts in parallel and applies on_unreachable like a task step:
+// under skip an unreachable host that is not required is dropped, any other failure is returned (a real failure is
+// preferred over a cancelled bystander).
+func (e *Executor) runOnTargets(ctx context.Context, task *ast.Task, hosts []ast.Host, cmdFor func(host string) string) error {
+	hosts = e.filterExcluded(hosts)
+	results := e.cluster.Run(ctx, e.taskTargets(task, hosts), cmdFor, e.concurrency, !e.skipUnreachable())
+	_, err := e.applyUnreachablePolicy(task.Action, hosts, results)
 
-	return nil
+	return err
 }
 
 // renderParams deep-renders the string values in an action task's `with:` map as Go templates (so e.g. name: "{{

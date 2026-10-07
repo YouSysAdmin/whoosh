@@ -15,7 +15,7 @@ import (
 // and stores it in run-scoped state under the task's name (readable by later tasks as {{ .tasks.<name> }}).
 // Output tasks run on one target - local, or the first matching host - since a multi-host value would be ambiguous.
 func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) error {
-	target := runner.Target{Host: "local", Local: true}
+	targets := []runner.Target{{Host: "local", Local: true}}
 	if !task.Local {
 		servers := e.targetsForTask(task)
 		if len(servers) == 0 {
@@ -32,7 +32,7 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 			return nil
 		}
 
-		target = e.taskTargets(task, servers[:1])[0]
+		targets = e.taskTargets(task, servers)
 	}
 
 	steps, err := e.taskSteps(task)
@@ -40,11 +40,36 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 		return err
 	}
 
+	// Under on_unreachable: skip an unreachable host is dropped and the capture moves on to the next one.
+	var raw string
+	for _, target := range targets {
+		raw, err = e.captureOn(ctx, name, task, target, steps)
+		if err == nil || target.Local || !e.dropUnreachable(ctx, name, target.Host, err) {
+			break
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	val, err := parseOutput(task.Output, raw)
+	if err != nil {
+		return fmt.Errorf("task %q: %w", name, err)
+	}
+
+	e.setTaskState(name, val)
+
+	return nil
+}
+
+// captureOn runs an output task's steps on one target and returns the collected, trimmed stdout.
+func (e *Executor) captureOn(ctx context.Context, name string, task *ast.Task, target runner.Target, steps []step) (string, error) {
 	var out strings.Builder
 	for _, st := range steps {
 		b, err := st.build(target.Host)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		e.announceStep(st)
@@ -64,21 +89,14 @@ func (e *Executor) runCapture(ctx context.Context, name string, task *ast.Task) 
 				continue
 			}
 
-			return fmt.Errorf("%s: %w", target.Host, err)
+			return "", fmt.Errorf("%s: %w", target.Host, err)
 		}
 
 		out.WriteString(s)
 		out.WriteByte('\n')
 	}
 
-	val, err := parseOutput(task.Output, strings.TrimSpace(out.String()))
-	if err != nil {
-		return fmt.Errorf("task %q: %w", name, err)
-	}
-
-	e.setTaskState(name, val)
-
-	return nil
+	return strings.TrimSpace(out.String()), nil
 }
 
 // parseOutput converts a task's captured stdout to its declared form: json into a map/list/scalar, lines into a
@@ -108,12 +126,10 @@ func parseOutput(format, raw string) (any, error) {
 	}
 }
 
-// setTaskState records a task's parsed output in the shared state map.
-// Task execution is sequential, but the lock keeps the map safe regardless.
+// setTaskState records a task's parsed output in the shared state map. Like every base mutation it runs on the
+// task goroutine between fanouts, never while host goroutines render.
 func (e *Executor) setTaskState(name string, v any) {
-	e.stateMu.Lock()
 	e.base.Tasks[name] = v
-	e.stateMu.Unlock()
 	// Rendered global env values may bake in {{.tasks.*}} state, so cached contexts are stale now.
 	e.invalidateRenderCache()
 }

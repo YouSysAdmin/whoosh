@@ -54,6 +54,19 @@ func (e *Executor) applyUnreachablePolicy(task string, hosts []ast.Host, results
 	})
 }
 
+// dropUnreachable applies on_unreachable: skip to a single-host failure: an unreachable host that is not required is
+// warned about, marked and reported as dropped so the caller can move on to the next host.
+func (e *Executor) dropUnreachable(ctx context.Context, task, host string, err error) bool {
+	if !e.skipUnreachable() || ctx.Err() != nil || !werrors.IsUnreachable(err) || e.requiredHosts[host] {
+		return false
+	}
+
+	slog.Warn("host unreachable, skipping", "task", task, "host", host, "error", err)
+	e.MarkUnreachable(host)
+
+	return true
+}
+
 // SkipUnreachable is the on_unreachable: skip verdict for one step's per-host results, shared by task execution and
 // the deploy lifecycle so the policy cannot drift between them. An unreachable, non-required host is handed to drop
 // (the caller warns and marks it) and removed from hosts. Everything else is fatal: a command that ran and failed, a

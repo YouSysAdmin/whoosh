@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2027,5 +2028,61 @@ func TestRunTask_CaptureNoHostsStoresZeroState(t *testing.T) {
 
 	if out := buf.String(); !strings.Contains(out, "n=0") {
 		t.Fatalf("zero state not stored/rendered:\n%s", out)
+	}
+}
+
+// An output task under on_unreachable: skip drops an unreachable first host and captures from the next one, the
+// default policy still fails.
+func TestRunTask_CaptureSkipsUnreachableHost(t *testing.T) {
+	srv, err := sshtest.Start()
+	if err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+
+	defer srv.Close()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	deadPort := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+
+	newCfg := func() *ast.DeployFile {
+		return &ast.DeployFile{
+			App:   ast.App{Name: "app", DeployTo: "/srv/app"},
+			Stage: "test",
+			Hosts: []ast.Host{
+				{Address: "localhost", Port: deadPort, User: "deploy", IdentityFile: srv.IdentityFile, Roles: []string{"app"}},
+				{Address: srv.Host, Port: srv.Port, User: "deploy", IdentityFile: srv.IdentityFile, Roles: []string{"app"}},
+			},
+			Tasks: map[string]*ast.Task{
+				"ver": {Roles: []string{"app"}, Dir: "/", Output: "text", Cmds: []string{"echo from-{{.host}}"}},
+				"use": {Local: true, Deps: []string{"ver"}, Cmds: []string{`echo "got={{ .tasks.ver }}"`}},
+			},
+		}
+	}
+
+	var buf bytes.Buffer
+	ex := executor.New(newCfg(), executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: &buf})
+	ex.SetUnreachablePolicy(ast.OnUnreachableSkip, nil)
+	if err := ex.RunTask(t.Context(), "use"); err != nil {
+		t.Fatalf("RunTask under skip: %v\n%s", err, buf.String())
+	}
+
+	ex.Close()
+	if !strings.Contains(buf.String(), "got=from-"+srv.Host) {
+		t.Errorf("capture did not fail over to the live host:\n%s", buf.String())
+	}
+
+	if got := ex.UnreachableHosts(); len(got) != 1 || got[0] != "localhost" {
+		t.Errorf("unreachable hosts = %v, want [localhost]", got)
+	}
+
+	ex = executor.New(newCfg(), executor.Options{SSH: ssh.Options{StrictHostKey: false}, Out: io.Discard})
+	defer ex.Close()
+	if err := ex.RunTask(t.Context(), "use"); err == nil {
+		t.Error("default policy must fail on an unreachable host")
 	}
 }
