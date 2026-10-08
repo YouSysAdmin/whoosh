@@ -149,11 +149,11 @@ func TestDialThroughBastion_Unreachable(t *testing.T) {
 		t.Fatal("second dial through a dead bastion succeeded")
 	}
 
-	if !b.dialed {
+	if !b.loose.dialed {
 		t.Error("bastion not marked dialed after failure")
 	}
 
-	if b.err == nil {
+	if b.loose.err == nil {
 		t.Error("bastion failure not cached")
 	}
 }
@@ -274,4 +274,30 @@ func TestBastionCancelledDialRetries(t *testing.T) {
 	}
 
 	defer func() { _ = c.Close() }()
+}
+
+// A strict dial must not reuse a bastion connection an insecure dial opened: the bastion key is still verified.
+func TestDialThroughBastion_StrictDoesNotReuseInsecure(t *testing.T) {
+	bastionSrv, targetSrv := startPair(t)
+
+	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
+	defer func() { _ = b.Close() }()
+
+	target := Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile}
+	c, err := Dial(t.Context(), target, Options{Bastion: b})
+	if err != nil {
+		t.Fatalf("insecure dial: %v", err)
+	}
+
+	_ = c.Close()
+
+	knownHosts := filepath.Join(t.TempDir(), "known_hosts")
+	if err := os.WriteFile(knownHosts, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Dial(t.Context(), target, Options{Bastion: b, StrictHostKey: true, KnownHostsFile: knownHosts})
+	if err == nil || !strings.Contains(err.Error(), "bastion") {
+		t.Fatalf("strict dial through a bastion with an unknown key = %v, want a bastion host-key failure", err)
+	}
 }
