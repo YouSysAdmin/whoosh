@@ -34,8 +34,10 @@ type Executor struct {
 	env         map[string]string // default env exported for every task command
 	cluster     *runner.Cluster
 	reg         *plugins.Registry
-	base        varstmpl.Context
-	stateMu     sync.Mutex // guards writes to base.Tasks (task state)
+
+	// base is the render context. Tasks run one at a time, so it is only changed between fanouts (setters, task
+	// state) and host goroutines only read it.
+	base varstmpl.Context
 
 	// ctxCache holds the resolved per-host render context (global envs rendered, roles collected) so one step's
 	// renders (command, task envs, dir, echo) don't re-render the global envs per value. Any mutation of the base
