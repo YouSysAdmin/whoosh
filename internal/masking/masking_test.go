@@ -166,3 +166,36 @@ func TestAddSecret_DisabledPassesThrough(t *testing.T) {
 		t.Errorf("disabled redaction should pass through: %q", got)
 	}
 }
+
+// Each line of a multi-line secret is masked when output streams through Writer line by line.
+func TestAddSecret_MultiLine(t *testing.T) {
+	AddSecret("-----BEGIN TEST KEY-----\nMIIEpAIBAAKCAQEAmultiLineSecretBody1\nMIIEpAIBAAKCAQEAmultiLineSecretBody2\n-----END TEST KEY-----")
+
+	var buf bytes.Buffer
+	w := NewWriter(&buf)
+	_, _ = w.Write([]byte("key:\nMIIEpAIBAAKCAQEAmultiLineSecretBody1\nMIIEpAIBAAKCAQEAmultiLineSecretBody2\n"))
+	_ = w.Flush()
+	if strings.Contains(buf.String(), "multiLineSecretBody") {
+		t.Errorf("multi-line secret leaked:\n%s", buf.String())
+	}
+}
+
+// A carriage return ends a line, so progress output is written before the next newline.
+func TestWriter_CarriageReturn(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewWriter(&buf)
+	_, _ = w.Write([]byte("10%\r20%\r"))
+	if got := buf.String(); got != "10%\r20%\r" {
+		t.Errorf("written = %q, want both progress steps", got)
+	}
+}
+
+// A line without a newline is emitted in chunks once it reaches maxLine.
+func TestWriter_LongLine(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewWriter(&buf)
+	_, _ = w.Write(bytes.Repeat([]byte("x"), maxLine+10))
+	if buf.Len() != maxLine || len(w.buf) != 10 {
+		t.Errorf("written %d, buffered %d, want %d and 10", buf.Len(), len(w.buf), maxLine)
+	}
+}

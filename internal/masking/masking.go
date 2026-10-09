@@ -46,20 +46,31 @@ var (
 // the user-side counterpart to rules, driven by the `envSecret`/`sensitive` template helpers.
 // Values shorter than minSecretLen (after trimming) are ignored, so an empty or near-empty env var can't blank out the
 // logs. Safe for concurrent use.
+// Writer masks line by line, so each line of a multi-line value (a PEM key, a JSON credential) is registered too.
 func AddSecret(s string) {
 	s = strings.TrimSpace(s)
 	if len(s) < minSecretLen {
 		return
 	}
 
-	secretsMu.Lock()
-	defer secretsMu.Unlock()
-	if secretSet[s] {
-		return
+	values := []string{s}
+	if strings.ContainsAny(s, "\r\n") {
+		for line := range strings.FieldsFuncSeq(s, func(r rune) bool { return r == '\n' || r == '\r' }) {
+			if line = strings.TrimSpace(line); len(line) >= minSecretLen {
+				values = append(values, line)
+			}
+		}
 	}
 
-	secretSet[s] = true
-	secrets = append(secrets, s)
+	secretsMu.Lock()
+	defer secretsMu.Unlock()
+	for _, v := range values {
+		if !secretSet[v] {
+			secretSet[v] = true
+			secrets = append(secrets, v)
+		}
+	}
+
 	// Longest-first, so a secret that contains a shorter registered one is masked whole rather than leaving a tail behind.
 	slices.SortStableFunc(secrets, func(a, b string) int { return cmp.Compare(len(b), len(a)) })
 }
@@ -134,12 +145,16 @@ func String(s string) string {
 
 // Writer wraps an io.Writer, masking secrets from streamed output.
 // It buffers partial lines and masking each complete line, so a secret can't slip through by spanning two Write calls.
-// Call Flush to emit a trailing partial line.
+// A carriage return also ends a line, so progress output stays live, and a line longer than maxLine is emitted in
+// chunks instead of growing the buffer without bound. Call Flush to emit a trailing partial line.
 type Writer struct {
 	mu  sync.Mutex
 	w   io.Writer
 	buf []byte
 }
+
+// maxLine bounds the bytes Writer holds while waiting for a line end.
+const maxLine = 64 << 10
 
 // NewWriter wraps w with secret masking.
 func NewWriter(w io.Writer) *Writer { return &Writer{w: w} }
@@ -154,9 +169,13 @@ func (rw *Writer) Write(p []byte) (int, error) {
 	defer rw.mu.Unlock()
 	rw.buf = append(rw.buf, p...)
 	for {
-		i := bytes.IndexByte(rw.buf, '\n')
+		i := bytes.IndexAny(rw.buf, "\r\n")
 		if i < 0 {
-			break
+			if len(rw.buf) < maxLine {
+				break
+			}
+
+			i = maxLine - 1
 		}
 
 		if _, err := io.WriteString(rw.w, String(string(rw.buf[:i+1]))); err != nil {
