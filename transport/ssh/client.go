@@ -5,6 +5,7 @@ package ssh
 import (
 	"cmp"
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,7 +110,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 	// Auth only happens during the handshake, so the agent socket (if one was opened) is released as soon as the
 	// dial resolves.
 	defer authCleanup()
-	hostKey, err := hostKeyCallback(opts)
+	hostKey, known, err := hostKeyCallback(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +152,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 		}
 	}
 
+	cfg.HostKeyAlgorithms = knownHostAlgorithms(known, t.addr(), netConn.RemoteAddr())
 	stop := handshakeWatchdog(ctx, netConn, time.Until(deadline))
 	conn, chans, reqs, err := ssh.NewClientConn(netConn, t.addr(), cfg)
 	if interrupted := stop(); interrupted {
@@ -499,16 +502,18 @@ func loadIdentity(path, passphrase string) (ssh.Signer, error) {
 	return signer, nil
 }
 
-func hostKeyCallback(opts Options) (ssh.HostKeyCallback, error) {
+// hostKeyCallback returns the callback that verifies host keys and, when verifying, the plain known_hosts callback
+// knownHostAlgorithms probes.
+func hostKeyCallback(opts Options) (ssh.HostKeyCallback, ssh.HostKeyCallback, error) {
 	if !opts.StrictHostKey {
-		return ssh.InsecureIgnoreHostKey(), nil
+		return ssh.InsecureIgnoreHostKey(), nil, nil
 	}
 
 	khFile := opts.KnownHostsFile
 	if khFile == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		khFile = filepath.Join(home, ".ssh", "known_hosts")
@@ -518,20 +523,60 @@ func hostKeyCallback(opts Options) (ssh.HostKeyCallback, error) {
 
 	if opts.AcceptNew {
 		if err := ensureKnownHosts(khFile); err != nil {
-			return nil, fmt.Errorf("known_hosts %s: %w", khFile, err)
+			return nil, nil, fmt.Errorf("known_hosts %s: %w", khFile, err)
 		}
 	}
 
 	cb, err := knownhosts.New(khFile)
 	if err != nil {
-		return nil, fmt.Errorf("known_hosts %s: %w (set ssh.strict_host_key: false to skip verification)", khFile, err)
+		return nil, nil, fmt.Errorf("known_hosts %s: %w (set ssh.strict_host_key: false to skip verification)", khFile, err)
 	}
 
 	if opts.AcceptNew {
-		return acceptNewCallback(khFile, cb), nil
+		return acceptNewCallback(khFile, cb), cb, nil
 	}
 
-	return cb, nil
+	return cb, cb, nil
+}
+
+// probeKey never matches a known_hosts entry, so verifying it lists the keys recorded for a host.
+var probeKey = func() ssh.PublicKey {
+	k, err := ssh.NewPublicKey(ed25519.PublicKey(make([]byte, ed25519.PublicKeySize)))
+	if err != nil {
+		panic(err)
+	}
+
+	return k
+}()
+
+// knownHostAlgorithms returns the host key algorithms of the keys known_hosts records for the host, so the server is
+// asked for a key that can match (an ed25519 only entry fails against the default order, which prefers ECDSA and RSA).
+// It returns nil, the library default, when nothing is recorded or known is nil.
+func knownHostAlgorithms(known ssh.HostKeyCallback, hostname string, remote net.Addr) []string {
+	if known == nil {
+		return nil
+	}
+
+	kerr, ok := errors.AsType[*knownhosts.KeyError](known(hostname, remote, probeKey))
+	if !ok {
+		return nil
+	}
+
+	var algos []string
+	for _, w := range kerr.Want {
+		names := []string{w.Key.Type()}
+		if names[0] == ssh.KeyAlgoRSA {
+			names = []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSA}
+		}
+
+		for _, n := range names {
+			if !slices.Contains(algos, n) {
+				algos = append(algos, n)
+			}
+		}
+	}
+
+	return algos
 }
 
 // ensureKnownHosts creates the known_hosts file (and its parent dir) when missing, so accept_new works on a fresh
