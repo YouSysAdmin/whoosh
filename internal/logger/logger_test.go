@@ -2,10 +2,13 @@ package logger
 
 import (
 	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yousysadmin/whoosh/internal/masking"
 )
 
 // New fans a record out to every sink, and each sink applies its own level and format: an INFO line reaches both, a
@@ -125,5 +128,37 @@ func TestIsTerminal(t *testing.T) {
 	defer func() { _ = f.Close() }()
 	if IsTerminal(f) {
 		t.Error("a regular file must not be reported as a terminal")
+	}
+}
+
+// Attrs bound before WithGroup keep their own key, later ones get the group prefix.
+func TestColorHandler_GroupPrefix(t *testing.T) {
+	f, err := os.Create(filepath.Join(t.TempDir(), "out.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = f.Close() }()
+
+	h := (&ColorHandler{output: f, level: slog.LevelInfo}).WithAttrs([]slog.Attr{slog.String("a", "1")}).WithGroup("g")
+	slog.New(h).Info("msg", "b", "2")
+
+	got := readFile(t, f.Name())
+	if !strings.Contains(got, " a=1") || !strings.Contains(got, " g.b=2") || strings.Contains(got, "g.a=") {
+		t.Errorf("line = %q, want a=1 and g.b=2", got)
+	}
+}
+
+// A non-string attr whose printed form holds a secret is masked, a plain one keeps its value.
+func TestMaskValue_Any(t *testing.T) {
+	const secret = "logger-test-secret-1234"
+	masking.AddSecret(secret)
+
+	if got := maskValue(slog.AnyValue([]string{"x", secret})); strings.Contains(got.String(), secret) {
+		t.Errorf("slice attr leaked the secret: %v", got)
+	}
+
+	if got := maskValue(slog.AnyValue([]int{1, 2})); got.Kind() != slog.KindAny {
+		t.Errorf("plain slice changed kind to %v", got.Kind())
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/yousysadmin/whoosh/internal/masking"
@@ -149,7 +150,8 @@ func (m maskingHandler) WithGroup(name string) slog.Handler {
 }
 
 // maskAttr masks the text-bearing attr kinds: strings, errors, and Stringers (errors and Stringers become masked
-// strings, which also renders them faithfully in JSON mode). Numeric and other kinds pass through untouched.
+// strings, which also renders them faithfully in JSON mode), and any other value whose printed form holds a secret.
+// Numeric and other kinds pass through untouched.
 func maskAttr(a slog.Attr) slog.Attr {
 	a.Value = maskValue(a.Value.Resolve())
 
@@ -174,6 +176,12 @@ func maskValue(v slog.Value) slog.Value {
 			return slog.StringValue(masking.String(t.Error()))
 		case fmt.Stringer:
 			return slog.StringValue(masking.String(t.String()))
+		}
+
+		// Slices, maps and structs keep their shape unless their printed form carries a secret.
+		s := fmt.Sprint(v.Any())
+		if masked := masking.String(s); masked != s {
+			return slog.StringValue(masked)
 		}
 
 		return v
@@ -224,7 +232,7 @@ func openOutput(dest string) (*os.File, error) {
 // OpenAppend opens (creating if missing) a log file for appending - the shared mode for every log/transcript file, so
 // flags and permissions cannot drift between the sinks and the CLI's --log-file / --log-output handling.
 func OpenAppend(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 }
 
 // isTerminal reports whether f is an interactive terminal (a character device), so color is suppressed when output is
@@ -294,10 +302,10 @@ func (c *ColorHandler) Handle(_ context.Context, r slog.Record) error {
 	// Message
 	buf.WriteString(r.Message)
 
-	// Static attributes (WithAttrs)
+	// Static attributes (WithAttrs), their keys already carry the groups open when they were added.
 	for _, a := range c.attrs {
 		a.Value = a.Value.Resolve()
-		writeAttr(&buf, c.attrKey(a), a.Value)
+		writeAttr(&buf, a.Key, a.Value)
 	}
 
 	// Record attributes
@@ -319,8 +327,12 @@ func (c *ColorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	// Copy current handler
 	newHandler := *c
 
-	// Append new attrs
-	newHandler.attrs = append(append([]slog.Attr{}, c.attrs...), attrs...)
+	// Append new attrs, qualified by the groups open now so a later WithGroup does not rename them.
+	newHandler.attrs = slices.Clone(c.attrs)
+	for _, a := range attrs {
+		a.Key = c.attrKey(a)
+		newHandler.attrs = append(newHandler.attrs, a)
+	}
 
 	return &newHandler
 }
