@@ -2,6 +2,7 @@ package ast
 
 import (
 	"maps"
+	"regexp"
 	"slices"
 
 	"github.com/yousysadmin/whoosh/internal/errors"
@@ -71,9 +72,17 @@ func (c *DeployFile) Validate() error {
 		}
 	}
 
+	if k, ok := invalidEnvName(c.Envs); ok {
+		return errors.Config("envs: %q is not a valid shell variable name", k)
+	}
+
 	for name, t := range c.Tasks {
 		if t == nil {
 			continue
+		}
+
+		if k, ok := invalidEnvName(t.Envs); ok {
+			return errors.Config("task %q envs: %q is not a valid shell variable name", name, k)
 		}
 
 		for i, s := range t.Scripts {
@@ -168,4 +177,18 @@ func (c *DeployFile) ValidateHooks() error {
 	}
 
 	return nil
+}
+
+// envNameRe matches a name a POSIX shell accepts in export NAME=value.
+var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// invalidEnvName returns the first key of envs (sorted) that is not a valid shell variable name.
+func invalidEnvName(envs map[string]string) (string, bool) {
+	for _, k := range slices.Sorted(maps.Keys(envs)) {
+		if !envNameRe.MatchString(k) {
+			return k, true
+		}
+	}
+
+	return "", false
 }

@@ -120,6 +120,29 @@ func TestValidate_RejectsMalformedLinkedPath(t *testing.T) {
 	}
 }
 
+func TestValidate_EnvNames(t *testing.T) {
+	base := DeployFile{App: App{Name: "a", DeployTo: "/srv/a"}, Version: "1"}
+	for _, bad := range []string{"my-var", "1ST", "A B", ""} {
+		c := base
+		c.Envs = map[string]string{bad: "x"}
+		if err := c.Validate(); err == nil {
+			t.Errorf("envs key %q should be rejected", bad)
+		}
+
+		c = base
+		c.Tasks = map[string]*Task{"t": {Cmds: []string{"true"}, Envs: map[string]string{bad: "x"}}}
+		if err := c.Validate(); err == nil {
+			t.Errorf("task envs key %q should be rejected", bad)
+		}
+	}
+
+	c := base
+	c.Envs = map[string]string{"PATH": "x", "_private": "y", "RAILS_ENV2": "z"}
+	if err := c.Validate(); err != nil {
+		t.Errorf("valid envs rejected: %v", err)
+	}
+}
+
 func TestLog_RawOutput(t *testing.T) {
 	if !(Log{}).RawOutput() {
 		t.Fatal("unset raw_remote_log should default to raw (true)")
