@@ -118,10 +118,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 
 	user := cmp.Or(t.User, os.Getenv("USER"))
 
-	timeout := opts.ConnectTimeout
-	if timeout == 0 {
-		timeout = DefaultConnectTimeout
-	}
+	timeout := cmp.Or(opts.ConnectTimeout, DefaultConnectTimeout)
 
 	// One budget covers the whole connect: TCP dial (or the bastion channel open) and the SSH handshake share the
 	// deadline instead of each getting the full timeout.
@@ -200,10 +197,7 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 // startKeepalive launches the background liveness check unless disabled (negative interval).
 // Closing the connection on detected death unblocks any in-flight Run.
 func (c *Client) startKeepalive(opts Options) {
-	interval := opts.KeepaliveInterval
-	if interval == 0 {
-		interval = DefaultKeepaliveInterval
-	}
+	interval := cmp.Or(opts.KeepaliveInterval, DefaultKeepaliveInterval)
 
 	if interval < 0 {
 		return // explicitly disabled
@@ -335,37 +329,12 @@ func IsExitError(err error) bool {
 // The returned stop func must be called exactly once after NewClientConn returns; it reports whether the watchdog
 // already closed the connection (so the caller can attribute the failure to the timeout or cancellation).
 func handshakeWatchdog(ctx context.Context, netConn net.Conn, timeout time.Duration) (stop func() bool) {
-	var (
-		mu    sync.Mutex
-		fired bool
-		done  = make(chan struct{})
-	)
-	timer := time.NewTimer(timeout)
-	go func() {
-		defer timer.Stop()
-		select {
-		case <-done:
-			return
-		case <-ctx.Done():
-		case <-timer.C:
-		}
-
-		mu.Lock()
-		defer mu.Unlock()
-		select {
-		case <-done:
-			return // handshake finished first, leave the connection alone
-		default:
-		}
-
-		fired = true
-		_ = netConn.Close()
-	}()
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	stopClose := context.AfterFunc(ctx, func() { _ = netConn.Close() })
 
 	return func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		close(done)
+		fired := !stopClose()
+		cancel()
 
 		return fired
 	}
@@ -676,9 +645,9 @@ func acceptNewCallback(path string, cb ssh.HostKeyCallback) ssh.HostKeyCallback 
 }
 
 func expandHome(p string) string {
-	if strings.HasPrefix(p, "~/") {
+	if rest, ok := strings.CutPrefix(p, "~/"); ok {
 		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, p[2:])
+			return filepath.Join(home, rest)
 		}
 	}
 

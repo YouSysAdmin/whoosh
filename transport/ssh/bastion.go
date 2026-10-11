@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -86,10 +87,7 @@ func (b *Bastion) dialThrough(ctx context.Context, addr string, opts Options) (n
 		return nil, err
 	}
 
-	timeout := opts.ConnectTimeout
-	if timeout == 0 {
-		timeout = DefaultConnectTimeout
-	}
+	timeout := cmp.Or(opts.ConnectTimeout, DefaultConnectTimeout)
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
