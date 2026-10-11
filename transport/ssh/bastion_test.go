@@ -301,3 +301,33 @@ func TestDialThroughBastion_StrictDoesNotReuseInsecure(t *testing.T) {
 		t.Fatalf("strict dial through a bastion with an unknown key = %v, want a bastion host-key failure", err)
 	}
 }
+
+// A bastion connection that ended after it was established is dialed again by the next target.
+func TestDialThroughBastion_RedialsEndedConnection(t *testing.T) {
+	bastionSrv, targetSrv := startPair(t)
+
+	b := NewBastion(Target{Host: bastionSrv.Host, Port: bastionSrv.Port, IdentityFile: bastionSrv.IdentityFile})
+	defer func() { _ = b.Close() }()
+
+	target := Target{Host: targetSrv.Host, Port: targetSrv.Port, IdentityFile: targetSrv.IdentityFile}
+	c, err := Dial(t.Context(), target, Options{Bastion: b})
+	if err != nil {
+		t.Fatalf("first dial: %v", err)
+	}
+
+	_ = c.Close()
+
+	first := b.loose.client
+	_ = first.conn.Close()
+	<-first.gone
+
+	c, err = Dial(t.Context(), target, Options{Bastion: b})
+	if err != nil {
+		t.Fatalf("dial after the bastion connection ended: %v", err)
+	}
+
+	_ = c.Close()
+	if b.loose.client == first {
+		t.Error("the ended bastion connection was reused")
+	}
+}

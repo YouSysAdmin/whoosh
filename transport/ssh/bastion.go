@@ -33,8 +33,9 @@ type bastionConn struct {
 // NewBastion declares the jump host. The connection is opened lazily by the first Dial that uses it.
 func NewBastion(t Target) *Bastion { return &Bastion{target: t} }
 
-// connect dials the bastion once per host-key mode and caches the client or the failure (a dead bastion fails every
-// host the same way a dead host fails once - it is not re-dialed). A dial aborted by context cancellation is not
+// connect dials the bastion once per host-key mode and caches the client or the failure (a bastion that cannot be
+// reached fails every host the same way a dead host fails once - it is not re-dialed, but a connection that was
+// established and later ended is). A dial aborted by context cancellation is not
 // cached, so a later call with a live context retries. opts is the run's Options with Bastion cleared to
 // end the recursion and agent forwarding disabled for the hop (OpenSSH -J does not forward to the jump host).
 func (b *Bastion) connect(ctx context.Context, opts Options) (*Client, error) {
@@ -49,8 +50,13 @@ func (b *Bastion) connect(ctx context.Context, opts Options) (*Client, error) {
 		bc = &b.strict
 	}
 
-	if bc.dialed {
+	// A connection that ended after a successful dial (keepalive gave up, the bastion restarted) is dialed again.
+	if bc.dialed && (bc.client == nil || !bc.client.ended()) {
 		return bc.client, bc.err
+	}
+
+	if bc.client != nil {
+		_ = bc.client.Close()
 	}
 
 	opts.Bastion = nil

@@ -97,6 +97,7 @@ type Client struct {
 	host      string
 	forward   bool          // agent forwarding is enabled for this connection
 	done      chan struct{} // closed on Close, stops the keepalive loop
+	gone      chan struct{} // closed once the connection has ended, for any reason
 	closeOnce sync.Once
 }
 
@@ -175,7 +176,12 @@ func Dial(ctx context.Context, t Target, opts Options) (*Client, error) {
 		return nil, fmt.Errorf("ssh handshake: %w", err)
 	}
 
-	client := &Client{conn: ssh.NewClient(conn, chans, reqs), host: t.Host, done: make(chan struct{})}
+	client := &Client{conn: ssh.NewClient(conn, chans, reqs), host: t.Host, done: make(chan struct{}), gone: make(chan struct{})}
+	go func() {
+		_ = client.conn.Wait()
+		close(client.gone)
+	}()
+
 	if opts.ForwardAgent || opts.ForwardKey != "" {
 		if err := setupForwarding(client.conn, opts); err != nil {
 			_ = client.Close()
@@ -424,6 +430,16 @@ func (c *Client) Run(ctx context.Context, cmd string, stdout, stderr io.Writer) 
 		return ctx.Err()
 	case err := <-done:
 		return err
+	}
+}
+
+// ended reports whether the connection is gone (closed by Close, by keepalive, or by the server).
+func (c *Client) ended() bool {
+	select {
+	case <-c.gone:
+		return true
+	default:
+		return false
 	}
 }
 
