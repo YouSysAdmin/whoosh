@@ -307,7 +307,7 @@ func keyringFromFile(path string) (agent.Agent, error) {
 func localAgentSocket() (string, error) {
 	sock := os.Getenv("SSH_AUTH_SOCK")
 	if sock == "" {
-		return "", fmt.Errorf("forward_agent set but no ssh-agent available (SSH_AUTH_SOCK is unset)")
+		return "", errors.New("forward_agent set but no ssh-agent available (SSH_AUTH_SOCK is unset)")
 	}
 
 	return sock, nil
@@ -467,7 +467,7 @@ func authMethods(identityFile, passphrase string, ag agent.Agent) (methods []ssh
 			return nil, cleanup, fmt.Errorf("no SSH auth available: ssh-agent (SSH_AUTH_SOCK) unreachable: %w (set ssh.identity_file / ssh.identities or restart the agent)", agentErr)
 		}
 
-		return nil, cleanup, fmt.Errorf("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
+		return nil, cleanup, errors.New("no SSH auth available: set ssh.identity_file / ssh.identities or start an ssh-agent (SSH_AUTH_SOCK)")
 	}
 
 	return methods, cleanup, nil

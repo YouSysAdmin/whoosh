@@ -1,6 +1,9 @@
 package ast
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 // Merge layers the override config on top of the base and returns the result.
 // Scalars and map entries from override win. Slices differ by field: hosts, plugins, env_files, and custom_phases
@@ -25,21 +28,21 @@ func Merge(base, override *DeployFile) *DeployFile {
 		out.OnUnreachable = override.OnUnreachable
 	}
 
-	out.Plugins = append(append([]PluginSpec{}, base.Plugins...), override.Plugins...)
+	out.Plugins = slices.Concat(base.Plugins, override.Plugins)
 	out.App = mergeApp(base.App, override.App)
 	// linked_files/linked_dirs replace wholesale (a non-empty override wins).
 	// Copy rather than alias so the result never shares a backing array with base or override - matching how
 	// servers/plugins/env_files are merged below.
 	if len(override.LinkedFiles) > 0 {
-		out.LinkedFiles = append([]string{}, override.LinkedFiles...)
+		out.LinkedFiles = slices.Clone(override.LinkedFiles)
 	} else {
-		out.LinkedFiles = append([]string{}, base.LinkedFiles...)
+		out.LinkedFiles = slices.Clone(base.LinkedFiles)
 	}
 
 	if len(override.LinkedDirs) > 0 {
-		out.LinkedDirs = append([]string{}, override.LinkedDirs...)
+		out.LinkedDirs = slices.Clone(override.LinkedDirs)
 	} else {
-		out.LinkedDirs = append([]string{}, base.LinkedDirs...)
+		out.LinkedDirs = slices.Clone(base.LinkedDirs)
 	}
 
 	out.SSH = mergeSSH(base.SSH, override.SSH)
@@ -48,12 +51,12 @@ func Merge(base, override *DeployFile) *DeployFile {
 	out.Envs = mergeMap(base.Envs, override.Envs)
 	// Env files concatenate (shared first, then the stage's), so a stage adds to the base set; later entries override
 	// earlier ones at load time.
-	out.EnvFiles = append(append([]string{}, base.EnvFiles...), override.EnvFiles...)
+	out.EnvFiles = slices.Concat(base.EnvFiles, override.EnvFiles)
 
 	// Hosts come from the stage file; combine in case the base declares any.
-	out.Hosts = append(append([]Host{}, base.Hosts...), override.Hosts...)
+	out.Hosts = slices.Concat(base.Hosts, override.Hosts)
 	// Custom phases concatenate (shared first, then the stage's), like hosts.
-	out.CustomPhases = append(append([]CustomPhase{}, base.CustomPhases...), override.CustomPhases...)
+	out.CustomPhases = slices.Concat(base.CustomPhases, override.CustomPhases)
 
 	out.Tasks = mergeMap(base.Tasks, override.Tasks)
 	out.Hooks = mergeHooks(base.Hooks, override.Hooks)

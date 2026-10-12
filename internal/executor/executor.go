@@ -174,8 +174,8 @@ func namespaceSet(names []string) map[string]bool {
 // actionNamespace returns the plugins namespace of an action name - the segment before the first colon
 // ("aws:ec2:ami:create" -> "aws").
 func actionNamespace(action string) string {
-	if i := strings.IndexByte(action, ':'); i > 0 {
-		return action[:i]
+	if ns, _, ok := strings.Cut(action, ":"); ok && ns != "" {
+		return ns
 	}
 
 	return action

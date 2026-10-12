@@ -3,7 +3,7 @@ package executor_test
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -242,7 +242,7 @@ func TestRunTask_ActionCapturesHostCommand(t *testing.T) {
 	if err := reg.AddAction("test:capture", func(ctx context.Context, _ map[string]any, _ io.Writer) error {
 		cap := plugins.HostCommandCapturerFrom(ctx)
 		if cap == nil {
-			return fmt.Errorf("no HostCommandCapturer in ctx")
+			return errors.New("no HostCommandCapturer in ctx")
 		}
 
 		out, err := cap.CaptureCommand(ctx, "echo hi from host")

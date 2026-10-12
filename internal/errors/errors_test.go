@@ -72,7 +72,7 @@ func TestPassThroughMessage(t *testing.T) {
 
 // AsConfig turns a plain error into a config failure with the same message and keeps a typed error.
 func TestAsConfig(t *testing.T) {
-	plain := fmt.Errorf("render vars: boom")
+	plain := errors.New("render vars: boom")
 	got := errors.AsConfig(plain)
 	if errors.Code(got) != errors.CodeConfig || got.Error() != plain.Error() || !errors.Is(got, plain) {
 		t.Errorf("AsConfig(plain) = %v (code %d)", got, errors.Code(got))

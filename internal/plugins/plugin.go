@@ -157,7 +157,7 @@ func DefaultSpecs(listed []ast.PluginSpec) []ast.PluginSpec {
 		have[s.Name] = true
 	}
 
-	out := append([]ast.PluginSpec{}, listed...)
+	out := slices.Clone(listed)
 	for _, name := range defaultPlugins {
 		if !have[name] {
 			out = append(out, ast.PluginSpec{Name: name})

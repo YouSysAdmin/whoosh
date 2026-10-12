@@ -2,7 +2,9 @@ package deployfile
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -77,7 +79,7 @@ func loadEnvFiles(c *ast.DeployFile) error {
 			p = filepath.Join(c.Dir, p)
 		}
 
-		if _, err := os.Stat(p); os.IsNotExist(err) {
+		if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
 

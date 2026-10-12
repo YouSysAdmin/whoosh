@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -58,7 +59,7 @@ type Sink struct {
 // New does NOT install the result as the default, call slog.SetDefault yourself.
 func New(sinks ...Sink) (*slog.Logger, error) {
 	if len(sinks) == 0 {
-		return nil, fmt.Errorf("logger: at least one sink is required")
+		return nil, errors.New("logger: at least one sink is required")
 	}
 
 	handlers := make([]slog.Handler, 0, len(sinks))

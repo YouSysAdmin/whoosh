@@ -81,15 +81,7 @@ type StageInfo struct {
 // The description comes from the raw stage file alone (includes are not resolved); a file that fails to parse is
 // still listed, with an empty description, so one broken stage never hides the rest.
 func ListStages(deployfileDir string) ([]StageInfo, error) {
-	extRank := func(name string) int {
-		for i, ext := range stageExts {
-			if filepath.Ext(name) == ext {
-				return i
-			}
-		}
-
-		return -1
-	}
+	extRank := func(name string) int { return slices.Index(stageExts, filepath.Ext(name)) }
 	seen := map[string]bool{}
 	var stages []StageInfo
 	for _, sd := range StageDirs {

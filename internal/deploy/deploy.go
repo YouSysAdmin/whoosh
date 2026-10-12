@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/yousysadmin/whoosh/internal/deploy/hooks"
@@ -83,7 +84,7 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 	for _, p := range cfg.CustomPhases {
 		switch {
 		case p.Name == "":
-			return nil, fmt.Errorf("custom phase: name is required")
+			return nil, errors.New("custom phase: name is required")
 		case ast.IsBuiltinPhase(p.Name), p.Name == ast.PhaseFailed, p.Name == ast.PhaseRollback:
 			return nil, fmt.Errorf("custom phase %q: name collides with a built-in phase", p.Name)
 		case seenPhase[p.Name]:
@@ -120,7 +121,7 @@ func New(cfg *ast.DeployFile, ex *executor.Executor) (*Deployer, error) {
 // Deploy runs the full lifecycle.
 func (d *Deployer) Deploy(ctx context.Context) error {
 	if d.cfg.App.Repo == "" {
-		return fmt.Errorf("app.repo is required to deploy")
+		return errors.New("app.repo is required to deploy")
 	}
 
 	hosts := d.ex.Hosts()
@@ -135,9 +136,7 @@ func (d *Deployer) Deploy(ctx context.Context) error {
 	// Mirror the policy into the executor so hook and custom-phase tasks drop unreachable hosts under `skip` the same
 	// way the built-in steps do (the primary is implicitly required - losing it would strand the lock).
 	required := map[string]bool{d.primary: true}
-	for h := range d.required {
-		required[h] = true
-	}
+	maps.Copy(required, d.required)
 
 	d.ex.SetUnreachablePolicy(d.policy, required)
 
@@ -340,7 +339,7 @@ func (d *Deployer) insertCustomPhases(ctx context.Context, base []step) []step {
 func (d *Deployer) runStep(ctx context.Context, command string) error {
 	hosts := d.ex.Hosts()
 	if len(hosts) == 0 {
-		return fmt.Errorf("no reachable hosts remain")
+		return errors.New("no reachable hosts remain")
 	}
 
 	if d.policy != ast.OnUnreachableSkip {
@@ -356,7 +355,7 @@ func (d *Deployer) runStep(ctx context.Context, command string) error {
 	}
 
 	if len(d.ex.Hosts()) == 0 {
-		return fmt.Errorf("all hosts became unreachable")
+		return errors.New("all hosts became unreachable")
 	}
 
 	return nil
@@ -374,7 +373,7 @@ func (d *Deployer) captureLive(ctx context.Context, cmd string) (string, error) 
 	for {
 		hosts := d.ex.Hosts()
 		if len(hosts) == 0 {
-			return "", fmt.Errorf("no reachable hosts remain")
+			return "", errors.New("no reachable hosts remain")
 		}
 
 		out, err := d.ex.Capture(ctx, hosts[0], cmd)

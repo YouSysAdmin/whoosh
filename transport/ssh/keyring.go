@@ -46,7 +46,7 @@ func NewAgent(ids []Identity) (agent.Agent, error) {
 	}
 
 	if total == 0 {
-		return nil, fmt.Errorf("ssh identities: no usable private keys found")
+		return nil, errors.New("ssh identities: no usable private keys found")
 	}
 
 	return kr, nil

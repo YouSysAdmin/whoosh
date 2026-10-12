@@ -51,9 +51,11 @@ package systemd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/yousysadmin/whoosh"
@@ -268,7 +270,7 @@ func (n *actions) run(action string) whoosh.ActionFunc {
 // validate checks the decoded params for the given verb ("" = the plugin's global params:, where verb-specific rules
 // don't apply yet).
 func (p params) validate(verb string) error {
-	for _, u := range append(append([]string{}, p.SystemUnitFiles...), p.UserUnitFiles...) {
+	for _, u := range slices.Concat(p.SystemUnitFiles, p.UserUnitFiles) {
 		if !unitName.MatchString(u) {
 			return fmt.Errorf("systemd: invalid unit name %q", u)
 		}
@@ -305,7 +307,7 @@ func (p params) commands(verb string) ([]string, error) {
 		}
 
 		if len(cmds) == 0 {
-			return nil, fmt.Errorf("systemd: daemon-reload: nothing to do (system: false and user: false)")
+			return nil, errors.New("systemd: daemon-reload: nothing to do (system: false and user: false)")
 		}
 
 		return cmds, nil

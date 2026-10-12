@@ -44,7 +44,7 @@ func checkTemplates(cfg *ast.DeployFile) []error {
 	}
 
 	for _, k := range sortedKeys(cfg.Envs) {
-		check(fmt.Sprintf("envs.%s", k), cfg.Envs[k])
+		check("envs."+k, cfg.Envs[k])
 	}
 
 	scriptsDir := deployfile.ScriptsLocation(cfg)

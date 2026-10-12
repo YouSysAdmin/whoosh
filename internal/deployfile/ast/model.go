@@ -5,7 +5,7 @@ package ast
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -49,7 +49,7 @@ func (s *StringList) UnmarshalYAML(value *yaml.Node) error {
 
 		*s = StringList(many)
 	default:
-		return fmt.Errorf("expected a string or a list of strings")
+		return errors.New("expected a string or a list of strings")
 	}
 
 	return nil
