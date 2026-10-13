@@ -47,6 +47,9 @@ type LineWriter struct {
 
 // newPrefixWriter builds a writer that streams complete lines to w, each prefixed with the host label, serialized
 // against the shared mutex.
+// maxLine bounds the bytes a LineWriter holds while waiting for a newline.
+const maxLine = 64 << 10
+
 func newPrefixWriter(w io.Writer, prefix string, mu *sync.Mutex) *LineWriter {
 	return &LineWriter{w: w, prefix: prefix, mu: mu}
 }
@@ -70,11 +73,18 @@ func (lw *LineWriter) Write(p []byte) (int, error) {
 	lw.buf = append(lw.buf, p...)
 	for {
 		i := bytes.IndexByte(lw.buf, '\n')
+		line := lw.buf[:i+1]
 		if i < 0 {
-			break
+			if len(lw.buf) < maxLine {
+				break
+			}
+
+			// A line without a newline (binary output) is emitted in chunks instead of growing without bound.
+			i = maxLine - 1
+			line = append(lw.buf[:maxLine:maxLine], '\n')
 		}
 
-		if err := lw.emit(lw.buf[:i+1]); err != nil {
+		if err := lw.emit(line); err != nil {
 			// p is already consumed into the buffer, so report it written and drop the failed line - keeping it
 			// would re-emit it on the next Write or Flush.
 			lw.buf = lw.buf[i+1:]
