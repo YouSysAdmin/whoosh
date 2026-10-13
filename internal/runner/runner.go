@@ -5,9 +5,11 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 
+	"github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/transport/ssh"
 )
 
@@ -54,8 +56,8 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 		return nil
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
 	results := make([]Result, len(targets))
 	sem := make(chan struct{}, concurrency)
@@ -68,7 +70,7 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 
 			results[i] = Result{Host: t.Host}
 			if ctx.Err() != nil {
-				results[i].Err = ctx.Err()
+				results[i].Err = skippedError(ctx)
 
 				return
 			}
@@ -76,7 +78,7 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 			if err := fn(ctx, t); err != nil {
 				results[i].Err = err
 				if failFast {
-					cancel()
+					cancel(fmt.Errorf("%s failed: %w", t.Host, err))
 				}
 			}
 		})
@@ -85,6 +87,17 @@ func Fanout(ctx context.Context, targets []Target, concurrency int, failFast boo
 	wg.Wait()
 
 	return results
+}
+
+// skippedError is the result of a target never started because ctx is done. It stays a context error and names the
+// failure that cancelled the fanout, if one did.
+func skippedError(ctx context.Context) error {
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
+		// The cause stays text: wrapping it would make the skipped host match the other host's error.
+		return fmt.Errorf("%w: %s", ctx.Err(), cause.Error())
+	}
+
+	return ctx.Err()
 }
 
 // RunCommand runs the same command across targets, streaming output to out prefixed by host (colorized when color is
