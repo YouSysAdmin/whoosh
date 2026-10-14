@@ -20,17 +20,15 @@ import (
 // Placeholder replaces a matched secret.
 const Placeholder = "[FILTERED]"
 
-// enabled gates masking process-wide.
-// It defaults on, the CLI turns it off at --log-level debug, where the operator has asked to see everything.
-var enabled atomic.Bool
-
-func init() { enabled.Store(true) }
+// disabled gates masking process-wide. Its zero value keeps masking on, the CLI turns it off at --log-level debug,
+// where the operator has asked to see everything.
+var disabled atomic.Bool
 
 // SetEnabled turns masking on or off for the whole process.
-func SetEnabled(on bool) { enabled.Store(on) }
+func SetEnabled(on bool) { disabled.Store(!on) }
 
 // Enabled reports whether filtration is currently applied.
-func Enabled() bool { return enabled.Load() }
+func Enabled() bool { return !disabled.Load() }
 
 // minSecretLen guards against masking trivially short values (e.g. "1", "ab"), which would mangle unrelated output.
 // Mark only real secrets sensitive.
@@ -130,7 +128,7 @@ var rules = []rule{
 // String returns s with any recognized secrets replaced by Placeholder.
 // When masking is disabled it returns s unchanged.
 func String(s string) string {
-	if !enabled.Load() {
+	if disabled.Load() {
 		return s
 	}
 
@@ -161,7 +159,7 @@ func NewWriter(w io.Writer) *Writer { return &Writer{w: w} }
 
 func (rw *Writer) Write(p []byte) (int, error) {
 	// When disabled, pass through directly - no buffering, so output stays live.
-	if !enabled.Load() {
+	if disabled.Load() {
 		return rw.w.Write(p)
 	}
 
