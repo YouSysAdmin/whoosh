@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/yousysadmin/whoosh v1.1.1
+	github.com/yousysadmin/whoosh v1.8.1
 )
 
 require (

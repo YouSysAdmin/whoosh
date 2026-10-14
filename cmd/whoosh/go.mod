@@ -3,7 +3,7 @@ module github.com/yousysadmin/whoosh/cmd/whoosh
 go 1.27.0
 
 require (
-	github.com/yousysadmin/whoosh v1.5.0
+	github.com/yousysadmin/whoosh v1.8.1
 	github.com/yousysadmin/whoosh/plugins/aws v0.0.0-20260706191155-7b6664209d40
 	github.com/yousysadmin/whoosh/plugins/rbenv v0.0.0-20260706191155-7b6664209d40
 	github.com/yousysadmin/whoosh/plugins/slack v0.0.0-20260706191155-7b6664209d40
