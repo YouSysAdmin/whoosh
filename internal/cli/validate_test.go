@@ -40,7 +40,7 @@ func runStageCmd(t *testing.T, deployfile string, extra map[string]string, actio
 	var out strings.Builder
 	root.SetOut(&out)
 	root.SetErr(io.Discard)
-	err := root.Execute()
+	err := root.ExecuteContext(t.Context())
 
 	return out.String(), err
 }

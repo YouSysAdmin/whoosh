@@ -488,8 +488,8 @@ func TestDeploy_SkipUnreachableHost(t *testing.T) {
 	f.cfg.OnUnreachable = ast.OnUnreachableSkip
 
 	err := f.runDeploy(t)
-	var skipped *errors.SkippedHostsError
-	if !errors.As(err, &skipped) {
+	skipped, ok := errors.AsType[*errors.SkippedHostsError](err)
+	if !ok {
 		t.Fatalf("want SkippedHostsError, got %v", err)
 	}
 
@@ -517,8 +517,8 @@ func TestDeploy_LockOnPrimaryHost(t *testing.T) {
 	f.cfg.OnUnreachable = ast.OnUnreachableSkip
 
 	err := f.runDeploy(t)
-	var skipped *errors.SkippedHostsError
-	if !errors.As(err, &skipped) {
+	skipped, ok := errors.AsType[*errors.SkippedHostsError](err)
+	if !ok {
 		t.Fatalf("want SkippedHostsError for the dead decoy, got %v", err)
 	}
 
@@ -542,8 +542,7 @@ func TestDeploy_RequiredUnreachableAborts(t *testing.T) {
 		t.Fatal("expected the deploy to abort on a required unreachable host")
 	}
 
-	var se *errors.SkippedHostsError
-	if errors.As(err, &se) {
+	if _, ok := errors.AsType[*errors.SkippedHostsError](err); ok {
 		t.Fatalf("required host must abort, not skip: %v", err)
 	}
 }
@@ -558,8 +557,7 @@ func TestDeploy_AbortOnUnreachableByDefault(t *testing.T) {
 		t.Fatal("expected the deploy to abort (default policy) on an unreachable host")
 	}
 
-	var se *errors.SkippedHostsError
-	if errors.As(err, &se) {
+	if _, ok := errors.AsType[*errors.SkippedHostsError](err); ok {
 		t.Fatalf("default policy must abort, not skip: %v", err)
 	}
 }
@@ -922,8 +920,8 @@ func TestDeploy_SkipUnreachableHostInHookTask(t *testing.T) {
 	f.cfg.Hooks.Before = map[string][]string{"deploy:starting": {"probe"}}
 
 	err := f.runDeploy(t)
-	var skipped *errors.SkippedHostsError
-	if !errors.As(err, &skipped) {
+	skipped, ok := errors.AsType[*errors.SkippedHostsError](err)
+	if !ok {
 		t.Fatalf("want SkippedHostsError, got %v", err)
 	}
 
@@ -948,8 +946,7 @@ func TestDeploy_AbortOnUnreachableHostInHookTaskByDefault(t *testing.T) {
 		t.Fatal("expected the deploy to abort (default policy) on an unreachable host in a hook task")
 	}
 
-	var se *errors.SkippedHostsError
-	if errors.As(err, &se) {
+	if _, ok := errors.AsType[*errors.SkippedHostsError](err); ok {
 		t.Fatalf("default policy must abort, not skip: %v", err)
 	}
 }
