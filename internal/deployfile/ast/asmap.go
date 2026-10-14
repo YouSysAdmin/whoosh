@@ -1,6 +1,6 @@
 package ast
 
-import "gopkg.in/yaml.v3"
+import "go.yaml.in/yaml/v3"
 
 // AsMap renders the resolved config as a generic map keyed by its YAML field names.
 // It is exposed to templates as {{.config}} so scripts can build flexible logic from the whole Deployfile (servers,

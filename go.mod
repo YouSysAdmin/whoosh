@@ -10,8 +10,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/spf13/cobra v1.10.2
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.56.0
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

@@ -11,7 +11,7 @@ import (
 	"slices"
 
 	"github.com/joho/godotenv"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 )

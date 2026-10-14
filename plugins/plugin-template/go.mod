@@ -6,7 +6,7 @@ require github.com/yousysadmin/whoosh v1.1.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )
 
 // This template lives inside the whoosh repo, so it builds against the checkout two levels up.

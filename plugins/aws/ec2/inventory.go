@@ -11,7 +11,7 @@ import (
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/yousysadmin/whoosh"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // ec2API is the slice of the EC2 client the inventory plugin uses.

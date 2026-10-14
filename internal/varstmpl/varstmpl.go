@@ -24,7 +24,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	werrors "github.com/yousysadmin/whoosh/internal/errors"
 	"github.com/yousysadmin/whoosh/internal/masking"

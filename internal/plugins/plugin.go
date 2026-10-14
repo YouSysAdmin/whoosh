@@ -24,7 +24,7 @@ import (
 
 	"github.com/yousysadmin/whoosh/internal/deployfile/ast"
 	werrors "github.com/yousysadmin/whoosh/internal/errors"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // ActionFunc runs a named action invoked from a task or hook. params are the task's `with:` values, logs stream to out.

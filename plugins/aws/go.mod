@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.5
 	github.com/aws/smithy-go v1.27.3
 	github.com/yousysadmin/whoosh v1.1.1
-	gopkg.in/yaml.v3 v3.0.1
+	go.yaml.in/yaml/v3 v3.0.5
 )
 
 require (
