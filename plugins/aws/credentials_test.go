@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yousysadmin/whoosh/transport/ssh"
 	"github.com/yousysadmin/whoosh/transport/sshtest"
@@ -161,6 +162,44 @@ func TestFetchIMDS(t *testing.T) {
 	want := imdsCreds{AccessKeyID: "AKIA", SecretAccessKey: "shh", SessionToken: "sess", Region: "eu-west-1"}
 	if got != want {
 		t.Errorf("fetchIMDS = %+v, want %+v", got, want)
+	}
+}
+
+// The IMDS expiration is kept, and the provider fetches again after the first credentials.
+func TestRefreshingProvider(t *testing.T) {
+	exp := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	run := func(ctx context.Context, cmd string) (string, error) {
+		if strings.Contains(cmd, "/security-credentials/my-role") {
+			return `{"AccessKeyId":"AKIA","SecretAccessKey":"shh","Token":"sess","Expiration":"2030-01-02T03:04:05Z"}`, nil
+		}
+
+		return fakeIMDS(ctx, cmd)
+	}
+
+	first, err := fetchIMDS(t.Context(), run)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !first.Expires.Equal(exp) {
+		t.Fatalf("Expires = %v, want %v", first.Expires, exp)
+	}
+
+	fetches := 0
+	p := refreshingProvider(first, func(context.Context) (imdsCreds, error) {
+		fetches++
+
+		return imdsCreds{AccessKeyID: "AKIA2", SecretAccessKey: "shh2"}, nil
+	})
+
+	c, err := p.Retrieve(t.Context())
+	if err != nil || c.AccessKeyID != "AKIA" || !c.CanExpire || !c.Expires.Equal(exp) || fetches != 0 {
+		t.Fatalf("first Retrieve = %+v, %v (fetches %d)", c, err, fetches)
+	}
+
+	c, err = p.Retrieve(t.Context())
+	if err != nil || c.AccessKeyID != "AKIA2" || fetches != 1 {
+		t.Fatalf("second Retrieve = %+v, %v (fetches %d)", c, err, fetches)
 	}
 }
 

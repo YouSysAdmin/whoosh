@@ -5,11 +5,13 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -181,7 +183,8 @@ func fetchCredentialsURL(ctx context.Context, url, token string) (credentialsFil
 		return credentialsFile{}, fmt.Errorf("aws: credentials url returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// A credentials file is a few lines, the limit only guards against a misconfigured URL streaming a large body.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return credentialsFile{}, fmt.Errorf("aws: read credentials url body: %w", err)
 	}
@@ -213,37 +216,85 @@ type imdsCreds struct {
 	SecretAccessKey string
 	SessionToken    string
 	Region          string
+	Expires         time.Time // zero when the metadata gave no expiration
+}
+
+func (c imdsCreds) aws() awssdk.Credentials {
+	return awssdk.Credentials{
+		AccessKeyID:     c.AccessKeyID,
+		SecretAccessKey: c.SecretAccessKey,
+		SessionToken:    c.SessionToken,
+		Source:          "whoosh credentials_from_host",
+		CanExpire:       !c.Expires.IsZero(),
+		Expires:         c.Expires,
+	}
 }
 
 // fetchCredentialsFromHost connects to the host over SSH and reads temporary credentials from its EC2 instance metadata
-// (IMDSv2).
+// (IMDSv2). The provider fetches them again over a new SSH connection once they expire, so a long running action
+// (an AMI bake, an ASG refresh) does not fail on stale role credentials.
 func fetchCredentialsFromHost(ctx context.Context, h credentialsHost) (awssdk.CredentialsProvider, string, error) {
 	if h.Host == "" {
-		return nil, "", fmt.Errorf("aws: credentials_from_host.host is required")
+		return nil, "", errors.New("aws: credentials_from_host.host is required")
 	}
 
-	conn, err := ssh.Dial(ctx, ssh.Target{
-		Host:         h.Host,
-		Port:         h.Port,
-		User:         h.User,
-		IdentityFile: h.IdentityFile,
-	}, ssh.Options{
-		StrictHostKey:  h.StrictHostKey == nil || *h.StrictHostKey,
-		AcceptNew:      h.AcceptNew == nil || *h.AcceptNew,
-		KnownHostsFile: h.KnownHostsFile,
-	})
+	fetch := func(ctx context.Context) (imdsCreds, error) {
+		conn, err := ssh.Dial(ctx, ssh.Target{
+			Host:         h.Host,
+			Port:         h.Port,
+			User:         h.User,
+			IdentityFile: h.IdentityFile,
+		}, ssh.Options{
+			StrictHostKey:  h.StrictHostKey == nil || *h.StrictHostKey,
+			AcceptNew:      h.AcceptNew == nil || *h.AcceptNew,
+			KnownHostsFile: h.KnownHostsFile,
+		})
+		if err != nil {
+			return imdsCreds{}, fmt.Errorf("aws: connect to credentials host %q: %w", h.Host, err)
+		}
+
+		defer func() { _ = conn.Close() }()
+
+		creds, err := fetchIMDS(ctx, sshRunner(conn))
+		if err != nil {
+			return imdsCreds{}, fmt.Errorf("aws: credentials from host %q: %w", h.Host, err)
+		}
+
+		return creds, nil
+	}
+
+	creds, err := fetch(ctx)
 	if err != nil {
-		return nil, "", fmt.Errorf("aws: connect to credentials host %q: %w", h.Host, err)
+		return nil, "", err
 	}
 
-	defer func() { _ = conn.Close() }()
+	return awssdk.NewCredentialsCache(refreshingProvider(creds, fetch)), creds.Region, nil
+}
 
-	creds, err := fetchIMDS(ctx, sshRunner(conn))
-	if err != nil {
-		return nil, "", fmt.Errorf("aws: credentials from host %q: %w", h.Host, err)
+// refreshingProvider hands out first on the initial call and fetches new credentials on every later one, the
+// credentials cache in front of it calls it again only after the previous ones expired.
+func refreshingProvider(first imdsCreds, fetch func(context.Context) (imdsCreds, error)) awssdk.CredentialsProviderFunc {
+	var (
+		mu   sync.Mutex
+		used bool
+	)
+
+	return func(ctx context.Context) (awssdk.Credentials, error) {
+		mu.Lock()
+		initial := !used
+		used = true
+		mu.Unlock()
+		if initial {
+			return first.aws(), nil
+		}
+
+		c, err := fetch(ctx)
+		if err != nil {
+			return awssdk.Credentials{}, err
+		}
+
+		return c.aws(), nil
 	}
-
-	return credentials.NewStaticCredentialsProvider(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken), creds.Region, nil
 }
 
 // commandRunner runs a shell command on some host and returns its trimmed stdout.
@@ -267,13 +318,16 @@ func sshRunner(conn *ssh.Client) commandRunner {
 
 const imdsBase = "http://169.254.169.254/latest"
 
+// imdsCurl fails fast on a host without a reachable metadata service instead of stalling startup.
+const imdsCurl = "curl -sSf --connect-timeout 2 --max-time 10"
+
 // fetchIMDS walks the IMDSv2 token -> region -> role -> credentials sequence using run to execute each curl on the
 // target host. The token is requested with a 6h TTL (21600s), far more than one credential fetch needs.
 // Each curl uses -f so an IMDS HTTP error (e.g. a 404 when the instance has no IAM instance profile, or a blocked
 // token PUT) fails its step with a labeled error instead of the error body being parsed as data.
 func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	token, err := runNonEmpty(ctx, run, "obtain IMDSv2 token",
-		"curl -sSf -X PUT '"+imdsBase+"/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'")
+		imdsCurl+" -X PUT '"+imdsBase+"/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600'")
 	if err != nil {
 		return imdsCreds{}, err
 	}
@@ -281,27 +335,28 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	hdr := "-H 'X-aws-ec2-metadata-token: " + token + "'"
 
 	region, err := runNonEmpty(ctx, run, "obtain region from instance metadata",
-		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/placement/region")
+		imdsCurl+" "+hdr+" "+imdsBase+"/meta-data/placement/region")
 	if err != nil {
 		return imdsCreds{}, err
 	}
 
 	role, err := runNonEmpty(ctx, run, "obtain IAM role name from instance metadata",
-		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/")
+		imdsCurl+" "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/")
 	if err != nil {
 		return imdsCreds{}, err
 	}
 
 	body, err := runNonEmpty(ctx, run, "obtain IAM role credentials from instance metadata",
-		"curl -sSf "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/"+role)
+		imdsCurl+" "+hdr+" "+imdsBase+"/meta-data/iam/security-credentials/"+role)
 	if err != nil {
 		return imdsCreds{}, err
 	}
 
 	var c struct {
-		AccessKeyID     string `json:"AccessKeyId"`
-		SecretAccessKey string `json:"SecretAccessKey"`
-		Token           string `json:"Token"`
+		AccessKeyID     string    `json:"AccessKeyId"`
+		SecretAccessKey string    `json:"SecretAccessKey"`
+		Token           string    `json:"Token"`
+		Expiration      time.Time `json:"Expiration"`
 	}
 	if err := json.Unmarshal([]byte(body), &c); err != nil {
 		return imdsCreds{}, fmt.Errorf("parse IAM role credentials: %w", err)
@@ -315,7 +370,13 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	whoosh.AddSecret(c.SecretAccessKey)
 	whoosh.AddSecret(c.Token)
 
-	return imdsCreds{AccessKeyID: c.AccessKeyID, SecretAccessKey: c.SecretAccessKey, SessionToken: c.Token, Region: region}, nil
+	return imdsCreds{
+		AccessKeyID:     c.AccessKeyID,
+		SecretAccessKey: c.SecretAccessKey,
+		SessionToken:    c.Token,
+		Region:          region,
+		Expires:         c.Expiration,
+	}, nil
 }
 
 // runNonEmpty runs cmd and fails with a labeled error if it errors or is empty.
