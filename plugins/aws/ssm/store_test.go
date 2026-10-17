@@ -13,6 +13,7 @@ import (
 	awsssm "github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/yousysadmin/whoosh"
+	"github.com/yousysadmin/whoosh/plugins/aws/internal/dotenv"
 )
 
 // fakeHostWriter captures what an action asks to render onto the hosts.
@@ -194,5 +195,20 @@ func TestSSMEnvironmentFile_RendersOnHosts(t *testing.T) {
 	want := `DB="x"` + "\n" + `TOKEN="y"` + "\n"
 	if string(hw.content) != want {
 		t.Errorf("host content = %q, want %q", hw.content, want)
+	}
+}
+
+// Names mapping to one key resolve in name order, the later name wins on every run.
+func TestUniqueKeys_Deterministic(t *testing.T) {
+	params := map[string]string{"/app/b/DB_URL": "b", "/app/a/DB_URL": "a", "/app/a/OTHER": "o"}
+	for range 20 {
+		got := map[string]string{}
+		for name, key := range uniqueKeys(params, dotenv.LastSegment) {
+			got[key] = params[name]
+		}
+
+		if got["DB_URL"] != "b" || got["OTHER"] != "o" {
+			t.Fatalf("got %v, want DB_URL=b (the later name) and OTHER=o", got)
+		}
 	}
 }

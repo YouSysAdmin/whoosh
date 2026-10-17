@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -88,12 +91,12 @@ type ssmFeatureParams struct {
 // ssmEnvFileParams is the `with:` for aws:ssm:to-dotenv.
 type ssmEnvFileParams struct {
 	// Prefixes are the SSM parameter paths to read.
-	// Each is fetched recursively (every parameter under it); a prefix that is itself a single parameter (a leaf) is
-	// fetched directly too, so "/app/prod" and "/shared/github-key" both work.
+	// A prefix ending in "/" reads every parameter under that path ("/app/prod/"), one without it reads that single
+	// parameter ("/shared/github-key").
 	Prefixes []string `yaml:"prefixes"`
 
-	// Path is where the env file is written, on the machine running whoosh (actions run operator-side).
-	// Relative paths resolve against its cwd.
+	// Path is where the env file is written: on the task's hosts (a relative path resolves against the task's
+	// directory), or on the machine running whoosh when no host writer is available.
 	Path string `yaml:"path"`
 
 	// Recursive walks the whole tree under each prefix (default true).
@@ -114,7 +117,7 @@ type ssmEnvFileParams struct {
 // ssmContextParams configures the aws:ssm startup hook (the `actions: - name: aws:ssm` entry's params) that loads
 // parameters into the template context once at load, so every host's render reuses the same fetch.
 type ssmContextParams struct {
-	// Prefixes are the SSM paths to load (recursively); a leaf path works too.
+	// Prefixes are the SSM paths to load: a trailing "/" reads the whole path, otherwise a single parameter.
 	Prefixes []string `yaml:"prefixes"`
 
 	// Namespace is the template namespace the values land under (default "ssm"), exposed as {{ .<namespace>.<key> }} and
@@ -144,10 +147,9 @@ func (s *ssmPlugin) startup(p ssmContextParams) whoosh.StartupFunc {
 				return fmt.Errorf("ssm %s: %w", prefix, err)
 			}
 
-			for name, value := range params {
-				key := dotenv.LastSegment(name)
-				cfg.AddImport(namespace, key, value)
-				whoosh.AddSecret(value)
+			for name, key := range uniqueKeys(params, dotenv.LastSegment) {
+				cfg.AddImport(namespace, key, params[name])
+				whoosh.AddSecret(params[name])
 				count++
 			}
 		}
@@ -184,16 +186,16 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 			return fmt.Errorf("ssm %s: %w", prefix, err)
 		}
 
-		for name, value := range params {
-			key := name
-			if !p.FullKeyPath {
-				key = dotenv.LastSegment(name)
-			}
+		keyOf := func(name string) string { return dotenv.NormalizeKey(dotenv.LastSegment(name)) }
+		if p.FullKeyPath {
+			keyOf = dotenv.NormalizeKey
+		}
 
-			env[dotenv.NormalizeKey(key)] = value
+		for name, key := range uniqueKeys(params, keyOf) {
+			env[key] = params[name]
 			// Register for redaction like the startup import path, so the values stay masked if a later
 			// command prints them (e.g. an app dumping its env).
-			whoosh.AddSecret(value)
+			whoosh.AddSecret(params[name])
 		}
 	}
 
@@ -203,6 +205,25 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 	return envfile.Write(ctx, p.Path, content,
 		"rendered env file from SSM on hosts", "wrote env file from SSM",
 		"path", p.Path, "params", len(env), "prefixes", len(p.Prefixes))
+}
+
+// uniqueKeys yields each parameter name with its key in name order. Two names under one prefix mapping to the same key
+// (/app/a/DB_URL and /app/b/DB_URL) are reported and the later name wins, so the result does not depend on map order.
+func uniqueKeys(params map[string]string, keyOf func(string) string) iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		seen := make(map[string]string, len(params))
+		for _, name := range slices.Sorted(maps.Keys(params)) {
+			key := keyOf(name)
+			if prev, ok := seen[key]; ok {
+				slog.Warn("ssm: parameters map to the same key, the later one wins", "key", key, "first", prev, "later", name)
+			}
+
+			seen[key] = name
+			if !yield(name, key) {
+				return
+			}
+		}
+	}
 }
 
 // fetchPrefix returns name->value for a prefix.
@@ -247,7 +268,9 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 	})
 	if err != nil {
 		if _, ok := errors.AsType[*ssmtypes.ParameterNotFound](err); ok {
-			return out, nil // the named parameter doesn't exist
+			slog.Warn("ssm: parameter not found, skipped (end a prefix with / to read a path)", "name", prefix)
+
+			return out, nil
 		}
 
 		return nil, err
