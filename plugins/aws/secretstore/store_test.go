@@ -3,6 +3,7 @@ package secretstore
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,6 +34,7 @@ type fakeSecrets struct {
 	values    map[string]string     // secret name -> SecretString
 	listPages map[string][][]string // filter prefix -> sequential pages of names
 	listCalls map[string]int        // ListSecrets calls per filter prefix
+	fail      map[string]error      // secret name -> GetSecretValue error
 }
 
 func (f *fakeSecrets) ListSecrets(_ context.Context, in *secretsmanager.ListSecretsInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
@@ -66,6 +68,10 @@ func (f *fakeSecrets) ListSecrets(_ context.Context, in *secretsmanager.ListSecr
 
 func (f *fakeSecrets) GetSecretValue(_ context.Context, in *secretsmanager.GetSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
 	name := awssdk.ToString(in.SecretId)
+	if err := f.fail[name]; err != nil {
+		return nil, err
+	}
+
 	v, ok := f.values[name]
 	if !ok {
 		return nil, &smtypes.ResourceNotFoundException{}
@@ -236,5 +242,19 @@ func TestSecretsStartup_LoadsContext(t *testing.T) {
 	// The value was registered for masking, so it's masked in any output.
 	if red := whoosh.Masking("x=topsecretval"); strings.Contains(red, "topsecretval") {
 		t.Errorf("secret value not registered for redaction: %q", red)
+	}
+}
+
+// A failed value fetch fails the whole prefix instead of returning a partial set.
+func TestFetchPrefix_ValueError(t *testing.T) {
+	boom := errors.New("throttled")
+	fake := &fakeSecrets{
+		values:    map[string]string{"app/a": "1", "app/b": "2", "app/c": "3"},
+		fail:      map[string]error{"app/b": boom},
+		listPages: map[string][][]string{"app/": {{"app/a", "app/b", "app/c"}}},
+	}
+	s := &secretsPlugin{api: fake}
+	if _, err := s.fetchPrefix(t.Context(), "app/"); !errors.Is(err, boom) {
+		t.Fatalf("fetchPrefix = %v, want the value error", err)
 	}
 }

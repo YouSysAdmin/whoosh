@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -151,6 +153,7 @@ func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
 				return fmt.Errorf("secrets %s: %w", prefix, err)
 			}
 
+			keys := keyTracker{}
 			for _, sec := range secs {
 				obj, expanded, err := expandSecret(sec.value, p.JSON)
 				if err != nil {
@@ -158,9 +161,10 @@ func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
 				}
 
 				if expanded {
-					for k, v := range obj {
-						cfg.AddImport(namespace, k, v)
-						whoosh.AddSecret(v)
+					for _, k := range slices.Sorted(maps.Keys(obj)) {
+						keys.note(k, sec.name)
+						cfg.AddImport(namespace, k, obj[k])
+						whoosh.AddSecret(obj[k])
 						count++
 					}
 
@@ -168,6 +172,7 @@ func (s *secretsPlugin) startup(p secretsContextParams) whoosh.StartupFunc {
 				}
 
 				key := dotenv.LastSegment(sec.name)
+				keys.note(key, sec.name)
 				cfg.AddImport(namespace, key, sec.value)
 				whoosh.AddSecret(sec.value)
 				count++
@@ -204,6 +209,7 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 			return fmt.Errorf("secrets %s: %w", prefix, err)
 		}
 
+		keys := keyTracker{}
 		for _, sec := range secs {
 			obj, expanded, err := expandSecret(sec.value, p.JSON)
 			if err != nil {
@@ -211,7 +217,9 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 			}
 
 			if expanded {
-				for k, v := range obj {
+				for _, k := range slices.Sorted(maps.Keys(obj)) {
+					v := obj[k]
+					keys.note(dotenv.NormalizeKey(k), sec.name)
 					env[dotenv.NormalizeKey(k)] = v
 					// Register for redaction like the startup import path, so the values stay masked if a
 					// later command prints them (e.g. an app dumping its env).
@@ -226,6 +234,7 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 				key = dotenv.LastSegment(key)
 			}
 
+			keys.note(dotenv.NormalizeKey(key), sec.name)
 			env[dotenv.NormalizeKey(key)] = sec.value
 			whoosh.AddSecret(sec.value)
 		}
@@ -237,6 +246,17 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 	return envfile.Write(ctx, p.Path, content,
 		"rendered env file from Secrets Manager on hosts", "wrote env file from Secrets Manager",
 		"path", p.Path, "vars", len(env), "prefixes", len(p.Prefixes))
+}
+
+// keyTracker reports two secrets of one prefix landing on the same key, the later one wins.
+type keyTracker map[string]string
+
+func (t keyTracker) note(key, source string) {
+	if prev, ok := t[key]; ok && prev != source {
+		slog.Warn("secrets: values map to the same key, the later one wins", "key", key, "first", prev, "later", source)
+	}
+
+	t[key] = source
 }
 
 // fetchPrefix returns the secrets for a prefix.
@@ -280,18 +300,27 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 		}
 		slots := make([]slot, len(names))
 		sem := make(chan struct{}, secretFetchConcurrency)
+		// The first failure cancels the fetches still waiting or running.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		var firstErr error
 		for idx, name := range names {
 			wg.Go(func() {
-				sem <- struct{}{}
+				select {
+				case sem <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
+
 				defer func() { <-sem }()
 				v, ok, err := s.getValue(ctx, name)
 				if err != nil {
 					mu.Lock()
 					if firstErr == nil {
 						firstErr = err
+						cancel()
 					}
 
 					mu.Unlock()
@@ -308,6 +337,11 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 		wg.Wait()
 		if firstErr != nil {
 			return nil, firstErr
+		}
+
+		// A cancelled caller leaves secrets unfetched, never return a partial set.
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 
 		out := make([]rawSecret, 0, len(names))
