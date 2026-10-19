@@ -63,7 +63,7 @@ type setupParams struct {
 // decodeSetupParams decodes+validates the feature's params at Configure time (offline).
 func decodeSetupParams(raw map[string]any) (setupParams, error) {
 	var fp setupParams
-	if err := whoosh.DecodeParams(raw, &fp); err != nil {
+	if err := whoosh.DecodeParamsStrict(raw, &fp); err != nil {
 		return fp, fmt.Errorf("%s params: %w", FeatureSetup, err)
 	}
 

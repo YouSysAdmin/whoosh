@@ -42,7 +42,7 @@ type contextParams struct {
 // decodeContextParams decodes+validates the feature's params at Configure time (offline).
 func decodeContextParams(raw map[string]any) (contextParams, error) {
 	var fp contextParams
-	if err := whoosh.DecodeParams(raw, &fp); err != nil {
+	if err := whoosh.DecodeParamsStrict(raw, &fp); err != nil {
 		return fp, fmt.Errorf("%s params: %w", FeatureContext, err)
 	}
 

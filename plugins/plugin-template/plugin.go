@@ -79,7 +79,7 @@ func (p *plugin) Version() string { return pluginVersion }
 // state (the client), and register contributions into reg. Anything needing the resolved config belongs in a startup.
 func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	// 1. Global params -> shared client. Secrets are registered immediately so even a --dry-run plan masks them.
-	if err := whoosh.DecodeParams(spec.Params, &p.global); err != nil {
+	if err := whoosh.DecodeParamsStrict(spec.Params, &p.global); err != nil {
 		return fmt.Errorf("%s params: %w", pluginName, err)
 	}
 

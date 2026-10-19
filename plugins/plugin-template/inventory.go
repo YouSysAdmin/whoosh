@@ -40,7 +40,7 @@ type inventoryParams struct {
 // decodeInventoryParams decodes+validates the feature's params at Configure time (offline).
 func decodeInventoryParams(raw map[string]any) (inventoryParams, error) {
 	var fp inventoryParams
-	if err := whoosh.DecodeParams(raw, &fp); err != nil {
+	if err := whoosh.DecodeParamsStrict(raw, &fp); err != nil {
 		return fp, fmt.Errorf("%s params: %w", FeatureInventory, err)
 	}
 
