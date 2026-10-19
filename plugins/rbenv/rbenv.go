@@ -44,6 +44,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	_ "embed"
@@ -212,6 +213,12 @@ func (p params) startup(_ context.Context, cfg *whoosh.DeployFile) error {
 	}
 
 	versions = dedupe(versions)
+	// The versions reach the host script as an exported env value, only version-shaped words are accepted.
+	for _, v := range versions {
+		if !rubyVersion.MatchString(v) {
+			return fmt.Errorf("rbenv: invalid ruby version %q", v)
+		}
+	}
 
 	shells := p.Shells
 	if len(shells) == 0 {
@@ -359,3 +366,6 @@ func boolStr(v bool) string {
 
 	return "0"
 }
+
+// rubyVersion matches the version names rbenv and ruby-build use (3.3.0, jruby-9.4.0.0, truffleruby+graalvm-23.1.0).
+var rubyVersion = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)

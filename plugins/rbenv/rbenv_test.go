@@ -328,3 +328,17 @@ func TestConfigure_RejectsInvalidWhen(t *testing.T) {
 		t.Fatalf("Load = %v, want a when-validation error", err)
 	}
 }
+
+// A version that is not version-shaped (from params or a crafted .ruby-version) is refused.
+func TestStartup_RejectsInvalidVersion(t *testing.T) {
+	for _, v := range []string{"$(id)", "3.3.0;id", "-x"} {
+		reg, err := whoosh.Load([]whoosh.PluginSpec{{Name: pluginName, Params: map[string]any{"versions": []string{v}}}})
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+
+		if err := reg.RunStartup(t.Context(), &ast.DeployFile{}); err == nil {
+			t.Errorf("version %q accepted", v)
+		}
+	}
+}
