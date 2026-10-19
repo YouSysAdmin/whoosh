@@ -30,6 +30,11 @@ func Write(ctx context.Context, path string, content []byte, hostMsg, localMsg s
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
+	// WriteFile keeps the mode of an existing file, the secrets must not stay world readable.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("chmod %s: %w", path, err)
+	}
+
 	slog.Info(localMsg, attrs...)
 
 	return nil
