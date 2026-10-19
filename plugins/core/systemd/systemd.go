@@ -54,6 +54,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -88,8 +89,9 @@ var verbs = map[string]string{
 }
 
 // unitName is the accepted unit-name shape: systemd-legal characters only (covers app, sidekiq.target,
-// worker@1.service), so a validated name is safe to embed in the built shell command.
-var unitName = regexp.MustCompile(`^[A-Za-z0-9@:._\-]+$`)
+// worker@1.service), so a validated name is safe to embed in the built shell command. A leading dash is refused so a
+// unit is never read as a systemctl option.
+var unitName = regexp.MustCompile(`^[A-Za-z0-9@:._][A-Za-z0-9@:._\-]*$`)
 
 func init() {
 	whoosh.RegisterDefault(pluginName, func() whoosh.Plugin { return &plugin{} })
@@ -386,5 +388,5 @@ func stripSpecOnly(m map[string]any) map[string]any {
 
 // actionNames returns the six action names, sorted for stable error messages.
 func actionNames() []string {
-	return []string{actionDaemonReload, actionDisable, actionEnable, actionRestart, actionStart, actionStop}
+	return slices.Sorted(maps.Keys(verbs))
 }

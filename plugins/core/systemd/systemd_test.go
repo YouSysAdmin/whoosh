@@ -99,6 +99,11 @@ func TestConfigure_Validation(t *testing.T) {
 			wantErr: "invalid unit name",
 		},
 		{
+			name:    "unit read as an option",
+			spec:    whoosh.PluginSpec{Name: pluginName, Params: map[string]any{"system_unit_files": []string{"-Hother"}}},
+			wantErr: "invalid unit name",
+		},
+		{
 			name:    "empty unit name",
 			spec:    whoosh.PluginSpec{Name: pluginName, Params: map[string]any{"user_unit_files": []string{""}}},
 			wantErr: "invalid unit name",
