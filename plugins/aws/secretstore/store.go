@@ -195,11 +195,11 @@ func (s *secretsPlugin) runEnvironmentFile(ctx context.Context, raw map[string]a
 	}
 
 	if len(p.Prefixes) == 0 {
-		return fmt.Errorf("aws:secrets:to-dotenv: 'prefixes' is required")
+		return errors.New("aws:secrets:to-dotenv: 'prefixes' is required")
 	}
 
 	if p.Path == "" {
-		return fmt.Errorf("aws:secrets:to-dotenv: 'path' is required")
+		return errors.New("aws:secrets:to-dotenv: 'path' is required")
 	}
 
 	env := map[string]string{}
@@ -411,7 +411,7 @@ func expandSecret(value string, jsonMode *bool) (map[string]string, bool, error)
 	}
 
 	if jsonMode != nil && *jsonMode {
-		return nil, false, fmt.Errorf("value is not a JSON object (json: true requires one)")
+		return nil, false, errors.New("value is not a JSON object (json: true requires one)")
 	}
 
 	return nil, false, nil

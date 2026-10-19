@@ -92,7 +92,7 @@ func (c awsConfig) resolveCredentials(ctx context.Context) (awssdk.CredentialsPr
 	switch {
 	case c.AccessKeyID != "" || c.SecretAccessKey != "":
 		if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-			return nil, "", fmt.Errorf("aws: access_key_id and secret_access_key must both be set")
+			return nil, "", errors.New("aws: access_key_id and secret_access_key must both be set")
 		}
 
 		// Register the secret material with masking so a `config` dump or a log record never prints it - the
@@ -363,7 +363,7 @@ func fetchIMDS(ctx context.Context, run commandRunner) (imdsCreds, error) {
 	}
 
 	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return imdsCreds{}, fmt.Errorf("instance metadata returned incomplete credentials")
+		return imdsCreds{}, errors.New("instance metadata returned incomplete credentials")
 	}
 
 	// Fetched secrets are registered with masking like the static params, so they never surface in output or logs.

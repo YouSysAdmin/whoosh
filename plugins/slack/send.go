@@ -130,7 +130,7 @@ func (n *notifier) send(ctx context.Context, raw map[string]any, _ io.Writer) er
 	}
 
 	if strings.TrimSpace(sp.Message) == "" {
-		return fmt.Errorf("slack:send: 'message' is required")
+		return errors.New("slack:send: 'message' is required")
 	}
 
 	webhook := n.webhookFor(sp.Event)

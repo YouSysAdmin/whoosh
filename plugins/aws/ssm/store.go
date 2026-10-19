@@ -169,11 +169,11 @@ func (s *ssmPlugin) runEnvironmentFile(ctx context.Context, raw map[string]any, 
 	}
 
 	if len(p.Prefixes) == 0 {
-		return fmt.Errorf("aws:ssm:to-dotenv: 'prefixes' is required")
+		return errors.New("aws:ssm:to-dotenv: 'prefixes' is required")
 	}
 
 	if p.Path == "" {
-		return fmt.Errorf("aws:ssm:to-dotenv: 'path' is required")
+		return errors.New("aws:ssm:to-dotenv: 'path' is required")
 	}
 
 	recursive := params.Or(p.Recursive, true)

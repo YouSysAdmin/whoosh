@@ -164,8 +164,8 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	}
 
 	// The plugin has no per-feature actions: config lives entirely in params, so any actions: entry is a mistake.
-	for _, a := range spec.Actions {
-		return fmt.Errorf("rbenv: unknown feature %q under actions: (the plugin is configured via params: only)", a.Name)
+	if len(spec.Actions) > 0 {
+		return fmt.Errorf("rbenv: unknown feature %q under actions: (the plugin is configured via params: only)", spec.Actions[0].Name)
 	}
 
 	// A misspelled when value would otherwise silently mean "before".

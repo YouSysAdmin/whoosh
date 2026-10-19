@@ -38,6 +38,7 @@ package slack
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -172,7 +173,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	}
 
 	if pr.WebhookURL == "" {
-		return fmt.Errorf("slack: webhook_url is required (e.g. webhook_url: '{{ env \"SLACK_WEBHOOK_URL\" }}' with SLACK_WEBHOOK_URL exported)")
+		return errors.New("slack: webhook_url is required (e.g. webhook_url: '{{ env \"SLACK_WEBHOOK_URL\" }}' with SLACK_WEBHOOK_URL exported)")
 	}
 
 	if err := validateWebhookURL("webhook_url", pr.WebhookURL); err != nil {
@@ -180,8 +181,8 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	}
 
 	// The plugin has no per-feature actions: config lives entirely in params, so any actions: entry is a mistake.
-	for _, a := range spec.Actions {
-		return fmt.Errorf("slack: unknown feature %q under actions: (the plugin is configured via params: only)", a.Name)
+	if len(spec.Actions) > 0 {
+		return fmt.Errorf("slack: unknown feature %q under actions: (the plugin is configured via params: only)", spec.Actions[0].Name)
 	}
 
 	timeout := defaultTimeout
@@ -216,7 +217,7 @@ func (p *plugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	whoosh.AddSecret(pr.WebhookURL)
 
 	if pr.Changelog.MaxCommits < 0 {
-		return fmt.Errorf("slack: changelog.max_commits must not be negative")
+		return errors.New("slack: changelog.max_commits must not be negative")
 	}
 
 	if len(pr.Changelog.Authors) > 0 {
