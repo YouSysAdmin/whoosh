@@ -134,9 +134,9 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	// SourceVersion clones the previous version, an empty LaunchTemplateData means "no overrides", so the new (latest)
 	// version is an exact copy of it.
 	ver, err := a.ec2.CreateLaunchTemplateVersion(ctx, &awsec2.CreateLaunchTemplateVersionInput{
-		LaunchTemplateId:   awssdk.String(ltID),
-		SourceVersion:      awssdk.String(strconv.FormatInt(prev, 10)),
-		VersionDescription: awssdk.String(fmt.Sprintf("rollback to v%d", prev)),
+		LaunchTemplateId:   new(ltID),
+		SourceVersion:      new(strconv.FormatInt(prev, 10)),
+		VersionDescription: new(fmt.Sprintf("rollback to v%d", prev)),
 		LaunchTemplateData: &ec2types.RequestLaunchTemplateData{},
 	})
 	if err != nil {
@@ -153,8 +153,8 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 	setDefault := rp.SetDefault == nil || *rp.SetDefault
 	if setDefault {
 		if _, err := a.ec2.ModifyLaunchTemplate(ctx, &awsec2.ModifyLaunchTemplateInput{
-			LaunchTemplateId: awssdk.String(ltID),
-			DefaultVersion:   awssdk.String(strconv.FormatInt(newVer, 10)),
+			LaunchTemplateId: new(ltID),
+			DefaultVersion:   new(strconv.FormatInt(newVer, 10)),
 		}); err != nil {
 			return fmt.Errorf("%s: set default launch template version: %w", actionASGRollback, err)
 		}
@@ -174,13 +174,13 @@ func (a *asgPlugin) runRollback(ctx context.Context, params map[string]any, _ io
 // cancelled and this refresh started in its place once the cancellation settles.
 func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams, cancelInFlight bool) error {
 	in := &autoscaling.StartInstanceRefreshInput{
-		AutoScalingGroupName: awssdk.String(ap.Name),
+		AutoScalingGroupName: new(ap.Name),
 		Preferences: &astypes.RefreshPreferences{
-			MinHealthyPercentage: awsparams.OrPtr(ap.MinHealthyPercentage, defMinHealthyPercentage),
-			MaxHealthyPercentage: awsparams.OrPtr(ap.MaxHealthyPercentage, defMaxHealthyPercentage),
-			InstanceWarmup:       awsparams.OrPtr(ap.InstanceWarmup, defInstanceWarmup),
-			SkipMatching:         awsparams.OrPtr(ap.SkipMatching, defSkipMatching),
-			AutoRollback:         awsparams.OrPtr(ap.AutoRollback, defAutoRollback),
+			MinHealthyPercentage: new(awsparams.Or(ap.MinHealthyPercentage, defMinHealthyPercentage)),
+			MaxHealthyPercentage: new(awsparams.Or(ap.MaxHealthyPercentage, defMaxHealthyPercentage)),
+			InstanceWarmup:       new(awsparams.Or(ap.InstanceWarmup, defInstanceWarmup)),
+			SkipMatching:         new(awsparams.Or(ap.SkipMatching, defSkipMatching)),
+			AutoRollback:         new(awsparams.Or(ap.AutoRollback, defAutoRollback)),
 		},
 	}
 
@@ -218,7 +218,7 @@ func (a *asgPlugin) startAndWait(ctx context.Context, ap asgRefreshParams, cance
 func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error {
 	slog.Warn("cancelling in-flight instance refresh", "asg", name)
 	if _, err := a.api.CancelInstanceRefresh(ctx, &autoscaling.CancelInstanceRefreshInput{
-		AutoScalingGroupName: awssdk.String(name),
+		AutoScalingGroupName: new(name),
 	}); err != nil {
 		// The refresh finished between the failed start and the cancel - nothing left to wait for.
 		if _, gone := errors.AsType[*astypes.ActiveInstanceRefreshNotFoundFault](err); gone {
@@ -235,8 +235,8 @@ func (a *asgPlugin) cancelActiveRefresh(ctx context.Context, name string) error 
 
 	for {
 		out, err := a.api.DescribeInstanceRefreshes(ctx, &autoscaling.DescribeInstanceRefreshesInput{
-			AutoScalingGroupName: awssdk.String(name),
-			MaxRecords:           awssdk.Int32(1),
+			AutoScalingGroupName: new(name),
+			MaxRecords:           new(int32(1)),
 		})
 		if err != nil {
 			return fmt.Errorf("describe instance refreshes: %w", err)
@@ -303,7 +303,7 @@ func (a *asgPlugin) previousLTVersion(ctx context.Context, ltID string) (int64, 
 	var token *string
 	for {
 		out, err := a.ec2.DescribeLaunchTemplateVersions(ctx, &awsec2.DescribeLaunchTemplateVersionsInput{
-			LaunchTemplateId: awssdk.String(ltID),
+			LaunchTemplateId: new(ltID),
 			NextToken:        token,
 		})
 		if err != nil {
@@ -341,7 +341,7 @@ func (a *asgPlugin) waitForRefresh(ctx context.Context, asgName, id string) erro
 
 	for {
 		resp, err := a.api.DescribeInstanceRefreshes(ctx, &autoscaling.DescribeInstanceRefreshesInput{
-			AutoScalingGroupName: awssdk.String(asgName),
+			AutoScalingGroupName: new(asgName),
 			InstanceRefreshIds:   []string{id},
 		})
 		if err != nil {

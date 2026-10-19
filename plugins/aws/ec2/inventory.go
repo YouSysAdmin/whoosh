@@ -103,7 +103,7 @@ type ec2Inventory struct {
 // Roles come from role_tag (comma-separated) when set, otherwise the static roles list.
 func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) error {
 	filters := []ec2types.Filter{{
-		Name:   awssdk.String("instance-state-name"),
+		Name:   new("instance-state-name"),
 		Values: []string{"running"},
 	}}
 	for k, vals := range i.params.Tags {
@@ -112,7 +112,7 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 		}
 
 		filters = append(filters, ec2types.Filter{
-			Name:   awssdk.String("tag:" + k),
+			Name:   new("tag:" + k),
 			Values: vals,
 		})
 	}

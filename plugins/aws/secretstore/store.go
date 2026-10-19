@@ -371,7 +371,7 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 // A missing secret returns ok=false (skipped, not an error), mirroring the SSM single-parameter fallback.
 // SecretString is preferred, a binary-only secret is returned as its raw bytes.
 func (s *secretsPlugin) getValue(ctx context.Context, id string) (string, bool, error) {
-	resp, err := s.api.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{SecretId: awssdk.String(id)})
+	resp, err := s.api.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{SecretId: new(id)})
 	if err != nil {
 		if _, ok := errors.AsType[*smtypes.ResourceNotFoundException](err); ok {
 			return "", false, nil

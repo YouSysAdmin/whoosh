@@ -140,9 +140,9 @@ func (p *amiPlugin) runCreate(ctx context.Context, params map[string]any, _ io.W
 	slog.Info("creating AMI", "name", amiName, "instance", instanceID)
 	tags := amiTags(inst.Tags, amiName)
 	img, err := p.ec2.CreateImage(ctx, &awsec2.CreateImageInput{
-		InstanceId: awssdk.String(instanceID),
-		Name:       awssdk.String(amiName),
-		NoReboot:   awssdk.Bool(noReboot),
+		InstanceId: new(instanceID),
+		Name:       new(amiName),
+		NoReboot:   new(noReboot),
 		TagSpecifications: []ec2types.TagSpecification{
 			{ResourceType: ec2types.ResourceTypeImage, Tags: tags},
 			{ResourceType: ec2types.ResourceTypeSnapshot, Tags: tags},
@@ -270,9 +270,9 @@ func (p *amiPlugin) sourceInstanceID(ctx context.Context, ap amiCreateParams) (s
 	}
 
 	if len(ap.SourceTags) > 0 {
-		filters := []ec2types.Filter{{Name: awssdk.String("instance-state-name"), Values: []string{"running"}}}
+		filters := []ec2types.Filter{{Name: new("instance-state-name"), Values: []string{"running"}}}
 		for k, v := range ap.SourceTags {
-			filters = append(filters, ec2types.Filter{Name: awssdk.String("tag:" + k), Values: []string{v}})
+			filters = append(filters, ec2types.Filter{Name: new("tag:" + k), Values: []string{v}})
 		}
 
 		out, err := p.ec2.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{Filters: filters})
@@ -334,7 +334,7 @@ func amiTags(instanceTags []ec2types.Tag, amiName string) []ec2types.Tag {
 		tags = append(tags, ec2types.Tag{Key: t.Key, Value: t.Value})
 	}
 
-	return append(tags, ec2types.Tag{Key: awssdk.String("Name"), Value: awssdk.String(amiName)})
+	return append(tags, ec2types.Tag{Key: new("Name"), Value: new(amiName)})
 }
 
 // patchLaunchTemplate creates a new launch template version (cloned from $Default) with the AMI as its image and makes
@@ -358,9 +358,9 @@ func (p *amiPlugin) patchLaunchTemplate(ctx context.Context, tgt amiLTTarget, am
 
 	slog.Info("patching launch template", "launch_template", ltID, "ami", amiID)
 	ver, err := p.ec2.CreateLaunchTemplateVersion(ctx, &awsec2.CreateLaunchTemplateVersionInput{
-		LaunchTemplateId:   awssdk.String(ltID),
-		SourceVersion:      awssdk.String("$Default"),
-		LaunchTemplateData: &ec2types.RequestLaunchTemplateData{ImageId: awssdk.String(amiID)},
+		LaunchTemplateId:   new(ltID),
+		SourceVersion:      new("$Default"),
+		LaunchTemplateData: &ec2types.RequestLaunchTemplateData{ImageId: new(amiID)},
 	})
 	if err != nil {
 		return fmt.Errorf("create launch template version: %w", err)
@@ -373,8 +373,8 @@ func (p *amiPlugin) patchLaunchTemplate(ctx context.Context, tgt amiLTTarget, am
 
 	version := strconv.FormatInt(awssdk.ToInt64(ver.LaunchTemplateVersion.VersionNumber), 10)
 	if _, err := p.ec2.ModifyLaunchTemplate(ctx, &awsec2.ModifyLaunchTemplateInput{
-		LaunchTemplateId: awssdk.String(ltID),
-		DefaultVersion:   awssdk.String(version),
+		LaunchTemplateId: new(ltID),
+		DefaultVersion:   new(version),
 	}); err != nil {
 		return fmt.Errorf("set default launch template version: %w", err)
 	}
@@ -443,7 +443,7 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 			continue
 		}
 
-		in.Filters = append(in.Filters, ec2types.Filter{Name: awssdk.String("tag:" + k), Values: vals})
+		in.Filters = append(in.Filters, ec2types.Filter{Name: new("tag:" + k), Values: vals})
 	}
 
 	var images []ec2types.Image

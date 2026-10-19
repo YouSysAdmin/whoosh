@@ -15,14 +15,5 @@ func DecodeFeature(defaults, with map[string]any, target any) error {
 // Or returns *p when set, else def - the default for an optional (*T) param left unset.
 func Or[T any](p *T, def T) T { return whoosh.Or(p, def) }
 
-// OrPtr returns p when set, else a pointer to def - for optional params handed to AWS SDK inputs, which take pointers.
-func OrPtr[T any](p *T, def T) *T {
-	if p != nil {
-		return p
-	}
-
-	return &def
-}
-
 // Merge returns base with over layered on top (over wins), see whoosh.MergeParams.
 func Merge(base, over map[string]any) map[string]any { return whoosh.MergeParams(base, over) }

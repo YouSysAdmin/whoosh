@@ -238,9 +238,9 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 		var token *string
 		for {
 			resp, err := s.api.GetParametersByPath(ctx, &awsssm.GetParametersByPathInput{
-				Path:           awssdk.String(path),
-				Recursive:      awssdk.Bool(recursive),
-				WithDecryption: awssdk.Bool(decrypt),
+				Path:           new(path),
+				Recursive:      new(recursive),
+				WithDecryption: new(decrypt),
 				NextToken:      token,
 			})
 			if err != nil {
@@ -263,8 +263,8 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 
 	// No trailing slash: a single parameter.
 	resp, err := s.api.GetParameter(ctx, &awsssm.GetParameterInput{
-		Name:           awssdk.String(prefix),
-		WithDecryption: awssdk.Bool(decrypt),
+		Name:           new(prefix),
+		WithDecryption: new(decrypt),
 	})
 	if err != nil {
 		if _, ok := errors.AsType[*ssmtypes.ParameterNotFound](err); ok {
