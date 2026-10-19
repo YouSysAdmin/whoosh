@@ -41,6 +41,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -252,7 +254,22 @@ func validateWebhookURL(field, raw string) error {
 		return fmt.Errorf("slack: %s is not a valid http(s) URL", field)
 	}
 
+	// The webhook URL is a secret, plain http to anything but a local relay sends it in the clear.
+	if u.Scheme == "http" && !isLoopback(u.Hostname()) {
+		slog.Warn("slack: webhook URL uses plain http, the secret URL travels unencrypted", "field", field)
+	}
+
 	return nil
+}
+
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+
+	return ip != nil && ip.IsLoopback()
 }
 
 // install wires the notifications: a func-hook before deploy:starting records the start time (always, so duration is
