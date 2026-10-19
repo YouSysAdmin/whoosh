@@ -172,6 +172,10 @@ What it does, in order:
    rollback's refresh started in its place - skipping it would leave the fleet rolling onto the version being rolled
    back.
 
+Running the rollback twice does not step back two versions: the second run copies the second-highest version again,
+which is now the bad one the first run rolled away from. Pick an explicit version in the AWS console for deeper
+rollbacks.
+
 | Param                                                                                                       | Description                                                                                |
 |-------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
 | `name`                                                                                                      | The ASG to roll back and refresh (required).                                               |
@@ -237,6 +241,10 @@ tasks:
 ```
 
 At least one filter (`name_prefix` or `tags`) is **required**, so a misconfiguration can't prune every image.
+
+The cleanup does not look at launch templates. With a small `keep_last` it can deregister the image an older template
+version still references, and a later `aws:ec2:asg:rollback` onto that version then fails to launch instances. Keep
+`keep_last` at least as large as the number of versions you may roll back to.
 
 ## aws:ssm:to-dotenv
 
