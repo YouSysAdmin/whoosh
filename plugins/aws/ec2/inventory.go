@@ -207,18 +207,10 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 
 func instanceHost(inst ec2types.Instance, public bool) string {
 	if public {
-		if inst.PublicIpAddress != nil {
-			return *inst.PublicIpAddress
-		}
-
-		return ""
+		return awssdk.ToString(inst.PublicIpAddress)
 	}
 
-	if inst.PrivateIpAddress != nil {
-		return *inst.PrivateIpAddress
-	}
-
-	return ""
+	return awssdk.ToString(inst.PrivateIpAddress)
 }
 
 func tagValue(tags []ec2types.Tag, key string) string {
