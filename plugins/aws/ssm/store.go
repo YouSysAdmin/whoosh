@@ -235,14 +235,13 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 	out := map[string]string{}
 	if strings.HasSuffix(prefix, "/") {
 		path := strings.TrimRight(prefix, "/")
-		var token *string
-		for {
-			resp, err := s.api.GetParametersByPath(ctx, &awsssm.GetParametersByPathInput{
-				Path:           new(path),
-				Recursive:      new(recursive),
-				WithDecryption: new(decrypt),
-				NextToken:      token,
-			})
+		pages := awsssm.NewGetParametersByPathPaginator(s.api, &awsssm.GetParametersByPathInput{
+			Path:           new(path),
+			Recursive:      new(recursive),
+			WithDecryption: new(decrypt),
+		})
+		for pages.HasMorePages() {
+			resp, err := pages.NextPage(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -250,12 +249,6 @@ func (s *ssmPlugin) fetchPrefix(ctx context.Context, prefix string, recursive, d
 			for _, prm := range resp.Parameters {
 				out[awssdk.ToString(prm.Name)] = awssdk.ToString(prm.Value)
 			}
-
-			if resp.NextToken == nil || *resp.NextToken == "" {
-				break
-			}
-
-			token = resp.NextToken
 		}
 
 		return out, nil

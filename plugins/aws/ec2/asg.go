@@ -300,12 +300,11 @@ func (a *asgPlugin) rollbackLaunchTemplateID(ctx context.Context, rp asgRollback
 // contiguous if some were deleted) and taking the second-highest. It errors when fewer than two versions exist.
 func (a *asgPlugin) previousLTVersion(ctx context.Context, ltID string) (int64, error) {
 	var nums []int64
-	var token *string
-	for {
-		out, err := a.ec2.DescribeLaunchTemplateVersions(ctx, &awsec2.DescribeLaunchTemplateVersionsInput{
-			LaunchTemplateId: new(ltID),
-			NextToken:        token,
-		})
+	pages := awsec2.NewDescribeLaunchTemplateVersionsPaginator(a.ec2, &awsec2.DescribeLaunchTemplateVersionsInput{
+		LaunchTemplateId: new(ltID),
+	})
+	for pages.HasMorePages() {
+		out, err := pages.NextPage(ctx)
 		if err != nil {
 			return 0, fmt.Errorf("describe launch template versions: %w", err)
 		}
@@ -313,12 +312,6 @@ func (a *asgPlugin) previousLTVersion(ctx context.Context, ltID string) (int64, 
 		for _, v := range out.LaunchTemplateVersions {
 			nums = append(nums, awssdk.ToInt64(v.VersionNumber))
 		}
-
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-
-		token = out.NextToken
 	}
 
 	if len(nums) < 2 {

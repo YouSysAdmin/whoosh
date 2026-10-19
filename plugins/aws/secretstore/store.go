@@ -267,12 +267,11 @@ func (t keyTracker) note(key, source string) {
 func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSecret, error) {
 	if strings.HasSuffix(prefix, "/") {
 		var names []string
-		var token *string
-		for {
-			resp, err := s.api.ListSecrets(ctx, &secretsmanager.ListSecretsInput{
-				Filters:   []smtypes.Filter{{Key: smtypes.FilterNameStringTypeName, Values: []string{prefix}}},
-				NextToken: token,
-			})
+		pages := secretsmanager.NewListSecretsPaginator(s.api, &secretsmanager.ListSecretsInput{
+			Filters: []smtypes.Filter{{Key: smtypes.FilterNameStringTypeName, Values: []string{prefix}}},
+		})
+		for pages.HasMorePages() {
+			resp, err := pages.NextPage(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -284,12 +283,6 @@ func (s *secretsPlugin) fetchPrefix(ctx context.Context, prefix string) ([]rawSe
 					names = append(names, name)
 				}
 			}
-
-			if resp.NextToken == nil || *resp.NextToken == "" {
-				break
-			}
-
-			token = resp.NextToken
 		}
 
 		// Values are fetched with bounded concurrency - a large prefix would otherwise cost one serial round-trip

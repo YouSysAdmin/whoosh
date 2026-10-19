@@ -447,8 +447,9 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 	}
 
 	var images []ec2types.Image
-	for {
-		resp, err := p.ec2.DescribeImages(ctx, in)
+	pages := awsec2.NewDescribeImagesPaginator(p.ec2, in)
+	for pages.HasMorePages() {
+		resp, err := pages.NextPage(ctx)
 		if err != nil {
 			return fmt.Errorf("%s: describe images: %w", actionAMICleanup, err)
 		}
@@ -460,12 +461,6 @@ func (p *amiPlugin) runCleanup(ctx context.Context, params map[string]any, _ io.
 
 			images = append(images, img)
 		}
-
-		if resp.NextToken == nil || *resp.NextToken == "" {
-			break
-		}
-
-		in.NextToken = resp.NextToken
 	}
 
 	// Timestamp-formatted ISO dates sort chronologically as strings, newest first.

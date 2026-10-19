@@ -152,11 +152,10 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 		}
 	}
 
-	// DescribeInstances is paginated (the SDK does not auto-paginate), so loop on NextToken -
-	// a fleet spanning pages would otherwise be silently truncated.
-	var nextToken *string
-	for {
-		out, err := i.api.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{Filters: filters, NextToken: nextToken})
+	// DescribeInstances is paginated, a fleet spanning pages would otherwise be silently truncated.
+	pages := awsec2.NewDescribeInstancesPaginator(i.api, &awsec2.DescribeInstancesInput{Filters: filters})
+	for pages.HasMorePages() {
+		out, err := pages.NextPage(ctx)
 		if err != nil {
 			return fmt.Errorf("describe instances: %w", err)
 		}
@@ -201,13 +200,9 @@ func (i *ec2Inventory) appendHosts(ctx context.Context, cfg *whoosh.DeployFile) 
 				cfg.Hosts = append(cfg.Hosts, h)
 			}
 		}
-
-		if out.NextToken == nil {
-			return nil
-		}
-
-		nextToken = out.NextToken
 	}
+
+	return nil
 }
 
 func instanceHost(inst ec2types.Instance, public bool) string {
