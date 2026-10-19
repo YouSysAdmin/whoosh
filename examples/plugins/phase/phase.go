@@ -58,7 +58,7 @@ func (p *phasePlugin) install(_ context.Context, cfg *whoosh.DeployFile) error {
 	// With no Task it would be a pure hook anchor.
 	cfg.AddPhase(whoosh.CustomPhase{
 		Name:  phaseName,
-		After: "deploy:published",
+		After: whoosh.PhasePublished,
 		Task:  taskMigrate,
 	})
 

@@ -49,11 +49,13 @@ type configPlugin struct {
 // Configure decodes params, registers a startup hook (injects vars/secrets/imports) and an action (prints the resolved value).
 func (p *configPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	var cp params
-	if err := whoosh.DecodeParams(spec.Params, &cp); err != nil {
+	if err := whoosh.DecodeParamsStrict(spec.Params, &cp); err != nil {
 		return fmt.Errorf("%s params: %w", pluginName, err)
 	}
 
 	p.token = cp.Token
+	// Mask the value everywhere whoosh prints it, from load on.
+	whoosh.AddSecret(p.token)
 	reg.AddStartup(p.inject)
 
 	return reg.AddAction(actionShow, p.show)
@@ -62,9 +64,7 @@ func (p *configPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) e
 // inject runs once at load against the resolved config.
 func (p *configPlugin) inject(_ context.Context, cfg *whoosh.DeployFile) error {
 	if p.token != "" {
-		// Mask the value everywhere whoosh prints it, then expose it to templates and commands as {{ .example.token }} /
-		// $EXAMPLE_TOKEN.
-		whoosh.AddSecret(p.token)
+		// Expose it to templates and commands as {{ .example.token }} / $EXAMPLE_TOKEN.
 		cfg.AddImport(namespace, "token", p.token)
 	}
 

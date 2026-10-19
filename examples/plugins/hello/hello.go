@@ -72,7 +72,7 @@ type helloPlugin struct {
 // A plugins that discovers hosts would also call reg.AddStartup(fn) here.
 func (h *helloPlugin) Configure(spec whoosh.PluginSpec, reg *whoosh.Registry) error {
 	var p params
-	if err := whoosh.DecodeParams(spec.Params, &p); err != nil {
+	if err := whoosh.DecodeParamsStrict(spec.Params, &p); err != nil {
 		return fmt.Errorf("hello params: %w", err)
 	}
 

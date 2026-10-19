@@ -69,7 +69,7 @@ func (p *pipelinePlugin) install(_ context.Context, cfg *whoosh.DeployFile) erro
 
 	// Run it right after the new release becomes live. deploy:published is a built-in marker phase,
 	// AddHookBefore/AddHookAfter accept any phase name (built-in or a custom phase - see the example-phase plugins).
-	cfg.AddHookAfter("deploy:published", taskHealthcheck)
+	cfg.AddHookAfter(whoosh.PhasePublished, taskHealthcheck)
 
 	return nil
 }
